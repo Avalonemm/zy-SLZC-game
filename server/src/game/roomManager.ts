@@ -182,6 +182,10 @@ export function createRoomManager() {
       return { ok: false, error: "只有房主可以开始游戏。" };
     }
 
+    if (playerResult.room.status !== "LOBBY" || gameRooms.has(playerResult.room.roomCode)) {
+      return { ok: false, error: "游戏已经开始或结束，不能重复开始。" };
+    }
+
     if (
       playerResult.room.players.length < MIN_PLAYERS_TO_START ||
       playerResult.room.players.length > MAX_PLAYERS
@@ -209,6 +213,22 @@ export function createRoomManager() {
     const playerIndex = room.players.findIndex((player) => player.id === input.playerId);
     if (playerIndex === -1) {
       return { ok: false, error: "玩家不在房间中。" };
+    }
+
+    const gameRoom = gameRooms.get(room.roomCode);
+    if (room.status !== "LOBBY" || gameRoom) {
+      const player = room.players[playerIndex];
+      player.connected = false;
+      const gamePlayer = gameRoom?.players.find((candidate) => candidate.id === input.playerId);
+      if (gamePlayer) {
+        gamePlayer.connected = false;
+      }
+
+      if (player.isHost) {
+        transferHostToNextConnectedPlayer(room, gameRoom, player.id);
+      }
+
+      return { ok: true, room };
     }
 
     const [removedPlayer] = room.players.splice(playerIndex, 1);
@@ -323,6 +343,32 @@ export function createRoomManager() {
     getRoom,
     getGameRoom
   };
+}
+
+function transferHostToNextConnectedPlayer(
+  room: RoomState,
+  gameRoom: GameRoom | undefined,
+  previousHostPlayerId: string
+) {
+  const nextHost = room.players.find(
+    (candidate) => candidate.id !== previousHostPlayerId && candidate.connected
+  );
+  if (!nextHost) {
+    return;
+  }
+
+  for (const player of room.players) {
+    player.isHost = player.id === nextHost.id;
+  }
+  nextHost.isReady = true;
+  room.hostPlayerId = nextHost.id;
+
+  if (gameRoom) {
+    for (const player of gameRoom.players) {
+      player.isHost = player.id === nextHost.id;
+    }
+    gameRoom.hostPlayerId = nextHost.id;
+  }
 }
 
 function normalizeRoomCode(roomCode: string) {

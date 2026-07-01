@@ -203,6 +203,49 @@ describe("room manager", () => {
     expect(started.gameRoom.players).toHaveLength(2);
   });
 
+  it("rejects repeated start after the game has already started", () => {
+    const manager = createRoomManager();
+    const host = manager.createRoom({
+      uid: 100001,
+      socketId: "socket-a",
+      playerName: "Alice"
+    });
+
+    if (!host.ok) {
+      throw new Error(host.error);
+    }
+
+    const bot = manager.addTestBots({
+      roomCode: host.room.roomCode,
+      playerId: host.playerId
+    });
+    expect(bot.ok).toBe(true);
+
+    const started = manager.startGame({
+      roomCode: host.room.roomCode,
+      playerId: host.playerId
+    });
+    expect(started.ok).toBe(true);
+    if (!started.ok) {
+      throw new Error(started.error);
+    }
+
+    const originalHandIds = started.gameRoom.players[0].hand.map((card) => card.id);
+    started.gameRoom.players[0].gold = 9;
+
+    const repeatedStart = manager.startGame({
+      roomCode: host.room.roomCode,
+      playerId: host.playerId
+    });
+
+    expect(repeatedStart).toEqual({
+      ok: false,
+      error: "游戏已经开始或结束，不能重复开始。"
+    });
+    expect(manager.getGameRoom(host.room.roomCode)?.players[0].gold).toBe(9);
+    expect(manager.getGameRoom(host.room.roomCode)?.players[0].hand.map((card) => card.id)).toEqual(originalHandIds);
+  });
+
   it("requires all non-host players ready before start", () => {
     const manager = createRoomManager();
     const host = manager.createRoom({
@@ -316,5 +359,43 @@ describe("room manager", () => {
       socketId: "socket-new",
       connected: true
     });
+  });
+
+  it("marks a player offline instead of removing them after the game starts", () => {
+    const manager = createRoomManager();
+    const host = manager.createRoom({
+      uid: 100001,
+      socketId: "socket-a",
+      playerName: "Alice"
+    });
+
+    if (!host.ok) {
+      throw new Error(host.error);
+    }
+
+    const bot = manager.addTestBots({
+      roomCode: host.room.roomCode,
+      playerId: host.playerId
+    });
+    expect(bot.ok).toBe(true);
+
+    const started = manager.startGame({
+      roomCode: host.room.roomCode,
+      playerId: host.playerId
+    });
+    if (!started.ok) {
+      throw new Error(started.error);
+    }
+
+    const leave = manager.leaveRoom({
+      roomCode: host.room.roomCode,
+      playerId: host.playerId
+    });
+
+    expect(leave.ok).toBe(true);
+    expect(leave.ok && leave.room?.players).toHaveLength(2);
+    expect(started.gameRoom.players).toHaveLength(2);
+    expect(leave.ok && leave.room?.players[0].connected).toBe(false);
+    expect(started.gameRoom.players[0].connected).toBe(false);
   });
 });

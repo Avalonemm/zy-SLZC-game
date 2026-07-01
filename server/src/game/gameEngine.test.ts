@@ -6,6 +6,7 @@ import {
   endTurn,
   runBotTurns,
   selectRole,
+  skipOfflineCurrentPlayer,
   takeGold,
   useRoleSkill,
   visibleStateForPlayer
@@ -225,6 +226,26 @@ describe("game engine", () => {
     expect("districtDeck" in actionVisibleToBob).toBe(false);
   });
 
+  it("only exposes available roles to the player currently choosing a role", () => {
+    const gameRoom = createStartedGame();
+    const initialAvailableRoleIds = gameRoom.availableRoles.map((role) => role.id);
+
+    selectRole(gameRoom, {
+      playerId: "player-1",
+      roleId: initialAvailableRoleIds[0]
+    });
+
+    const visibleToCurrentChooser = visibleStateForPlayer(gameRoom, "player-2");
+    const visibleToWaitingPlayer = visibleStateForPlayer(gameRoom, "player-3");
+
+    expect(visibleToCurrentChooser.availableRoles.map((role) => role.id)).toEqual(
+      initialAvailableRoleIds.slice(1)
+    );
+    expect(visibleToWaitingPlayer.availableRoles).toEqual([]);
+    expect(visibleToWaitingPlayer.players.find((player) => player.id === "player-1")?.selectedRoleId).toBeNull();
+    expect("districtDeck" in visibleToWaitingPlayer).toBe(false);
+  });
+
   it("auto-plays bot turns until a human must act", () => {
     const gameRoom = createStartedGame();
     gameRoom.players[1].isBot = true;
@@ -246,6 +267,25 @@ describe("game engine", () => {
     expect(secondProgress.ok).toBe(true);
     expect(gameRoom.phase).toBe("ROLE_ACTION");
     expect(gameRoom.currentTurnPlayerId).toBe("player-1");
+  });
+
+  it("lets the host skip the current offline player without removing them", () => {
+    const gameRoom = createStartedGame();
+    const roles = [...gameRoom.availableRoles];
+    selectRolesById(gameRoom, [roles[0].id, roles[1].id, roles[2].id, roles[3].id]);
+
+    const currentPlayer = gameRoom.players[0];
+    currentPlayer.connected = false;
+
+    const skipResult = skipOfflineCurrentPlayer(gameRoom, "player-1");
+
+    expect(skipResult.ok).toBe(true);
+    expect(gameRoom.players).toHaveLength(4);
+    expect(currentPlayer.connected).toBe(false);
+    expect(gameRoom.currentTurnPlayerId).toBe("player-2");
+    expect(gameRoom.completedRoleIds).toContain(currentPlayer.selectedRoleId);
+    expect(gameRoom.gameLog.map((log) => log.type)).toContain("end_turn");
+    expect(gameRoom.gameLog.map((log) => log.type)).toContain("skip_offline_player");
   });
 
   it("lets the assassin skip a selected target role later this round", () => {

@@ -348,6 +348,15 @@ export function ConnectionPage() {
               playerId
             });
           }}
+          onSkipCurrentOfflinePlayer={() => {
+            if (!playerId) {
+              return;
+            }
+            socket.emit("skip_current_offline_player", {
+              roomCode: gameState.roomId,
+              playerId
+            });
+          }}
           onLeaveRoom={leaveRoom}
           onSelectRole={(roleId) => {
             if (!playerId) {
@@ -526,6 +535,7 @@ function TestGameView(props: {
   onEndTurn: () => void;
   onLeaveRoom: () => void;
   onSelectRole: (roleId: string) => void;
+  onSkipCurrentOfflinePlayer: () => void;
   onTakeGold: () => void;
   onUseSkill: (payload: {
     targetRoleId?: string;
@@ -583,6 +593,13 @@ function TestGameView(props: {
     isMyTurn && Boolean(turnState) && !turnState?.resourceActionTaken;
   const canBuild =
     isMyTurn && Boolean(turnState) && (turnState?.buildsUsed ?? 0) < (turnState?.maxBuilds ?? 0);
+  const currentTurnPlayer =
+    props.gameState.players.find((player) => player.id === props.gameState.currentTurnPlayerId) ??
+    null;
+  const canSkipCurrentOfflinePlayer =
+    props.gameState.phase === "ROLE_ACTION" &&
+    Boolean(self?.isHost) &&
+    Boolean(currentTurnPlayer && !currentTurnPlayer.connected);
   const buildProgress = turnState
     ? `${turnState.buildsUsed}/${turnState.maxBuilds}`
     : "0/0";
@@ -778,6 +795,14 @@ function TestGameView(props: {
               </GameButton>
               <GameButton variant="neutral" size="sm" disabled={!isMyTurn} onClick={props.onEndTurn}>
                 结束回合
+              </GameButton>
+              <GameButton
+                variant="neutral"
+                size="sm"
+                disabled={!canSkipCurrentOfflinePlayer}
+                onClick={props.onSkipCurrentOfflinePlayer}
+              >
+                跳过离线玩家
               </GameButton>
             </div>
 

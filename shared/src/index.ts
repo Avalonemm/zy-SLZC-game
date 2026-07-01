@@ -175,6 +175,7 @@ export type ClientToServerEvents = {
   build_district: (payload: { roomCode: string; playerId: string; districtCardId: string }) => void;
   use_role_skill: (payload: UseRoleSkillPayload) => void;
   end_turn: (payload: { roomCode: string; playerId: string }) => void;
+  skip_current_offline_player: (payload: { roomCode: string; playerId: string }) => void;
 };
 
 export type InterServerEvents = Record<string, never>;

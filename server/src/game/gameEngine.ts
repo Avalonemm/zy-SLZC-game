@@ -171,6 +171,38 @@ export function endTurn(gameRoom: GameRoom, input: { playerId: string }): Result
   return { ok: true };
 }
 
+export function skipOfflineCurrentPlayer(
+  gameRoom: GameRoom,
+  input: { requesterPlayerId: string } | string
+): Result {
+  const requesterPlayerId =
+    typeof input === "string" ? input : input.requesterPlayerId;
+  const requester = findPlayer(gameRoom, requesterPlayerId);
+  if (!requester || !requester.isHost) {
+    return { ok: false, error: "只有房主可以跳过离线玩家。" };
+  }
+
+  if (gameRoom.phase !== "ROLE_ACTION") {
+    return { ok: false, error: "当前不是角色行动阶段。" };
+  }
+
+  if (!gameRoom.currentTurnPlayerId) {
+    return { ok: false, error: "当前没有正在行动的玩家。" };
+  }
+
+  const currentPlayer = findPlayer(gameRoom, gameRoom.currentTurnPlayerId);
+  if (!currentPlayer) {
+    return { ok: false, error: "当前行动玩家不存在。" };
+  }
+
+  if (currentPlayer.connected) {
+    return { ok: false, error: "当前行动玩家仍在线，不能跳过。" };
+  }
+
+  addLog(gameRoom, "skip_offline_player", `${requester.name} 跳过了离线玩家 ${currentPlayer.name}。`);
+  return endTurn(gameRoom, { playerId: currentPlayer.id });
+}
+
 export function runBotTurns(gameRoom: GameRoom): Result {
   let guard = 0;
 
@@ -228,9 +260,13 @@ export function visibleStateForPlayer(
   playerId: string
 ): VisibleGameState {
   const { districtDeck: _districtDeck, ...roomWithoutDeck } = gameRoom;
+  const canSeeAvailableRoles =
+    gameRoom.phase === "ROLE_SELECTION" && gameRoom.roleSelectionTurnPlayerId === playerId;
 
   return {
     ...roomWithoutDeck,
+    availableRoles: canSeeAvailableRoles ? gameRoom.availableRoles : [],
+    discardedRoles: gameRoom.phase === "ROLE_SELECTION" ? [] : gameRoom.discardedRoles,
     players: gameRoom.players.map((player) => {
       const visiblePlayer = {
         ...player,
