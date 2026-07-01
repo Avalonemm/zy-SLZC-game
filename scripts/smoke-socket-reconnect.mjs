@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
 
-const serverUrl = process.env.SERVER_URL ?? "http://localhost:4000";
+const serverUrl = process.env.SERVER_URL ?? "http://localhost:3000";
 
 function once(socket, event, timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
@@ -8,7 +8,7 @@ function once(socket, event, timeoutMs = 5000) {
       () =>
         reject(
           new Error(
-            `Timed out waiting for ${event}. 请先双击“启动游戏.cmd”，或确认后端 ${serverUrl} 已经启动。`
+            `Timed out waiting for ${event}. Please start the backend at ${serverUrl} first.`
           )
         ),
       timeoutMs
@@ -42,13 +42,25 @@ async function main() {
   }
 
   const player = roomState.players.find((candidate) => candidate.id === created.playerId);
-  if (!player || !player.connected || player.uid !== firstStatus.uid || restoredStatus.uid !== firstStatus.uid) {
+  if (
+    !player ||
+    !player.connected ||
+    player.uid !== firstStatus.uid ||
+    restoredStatus.uid !== firstStatus.uid
+  ) {
     throw new Error("Reconnect room state mismatch.");
   }
 
   second.emit("leave_room", created);
   second.disconnect();
-  console.log(JSON.stringify({ ok: true, roomCode: created.roomCode, playerId: created.playerId, uid: restoredStatus.uid }));
+  console.log(
+    JSON.stringify({
+      ok: true,
+      roomCode: created.roomCode,
+      playerId: created.playerId,
+      uid: restoredStatus.uid
+    })
+  );
 }
 
 main().catch((error) => {

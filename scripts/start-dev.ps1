@@ -28,7 +28,7 @@ function Stop-DevServers {
 
 function Stop-ExistingProjectDevServers {
   $currentProcessId = $PID
-  $ports = @(4000, 5173, 5174, 5175, 5176, 5177, 5178, 5179)
+  $ports = @(3000, 4000, 5173, 5174, 5175, 5176, 5177, 5178, 5179)
 
   $portProcessIds = Get-NetTCPConnection -LocalPort $ports -ErrorAction SilentlyContinue |
     Select-Object -ExpandProperty OwningProcess -Unique
@@ -98,7 +98,7 @@ Stop-ExistingProjectDevServers
 
 Write-Host ""
 Write-Host "Frontend will open at: http://localhost:5173" -ForegroundColor Green
-Write-Host "Backend will run at:   http://localhost:4000" -ForegroundColor Green
+Write-Host "Backend will run at:   http://localhost:3000" -ForegroundColor Green
 Write-Host "Press Ctrl+C in this window to stop both services." -ForegroundColor Yellow
 Write-Host ""
 
