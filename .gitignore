@@ -1,0 +1,15 @@
+node_modules
+dist
+.env
+.env.local
+npm-debug.log*
+*.tsbuildinfo
+*.log
+.codex-run
+.playwright-cli
+.tools
+output
+/.tmp
+/*.png
+Thumbs.db
+.DS_Store

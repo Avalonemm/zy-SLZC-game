@@ -1,0 +1,121 @@
+大厅到准备界面 UI 拆分说明
+版本：v0.3
+最后更新：2026-07-01
+
+目标：
+本文记录从主大厅到房间准备界面的 UI 部件拆分方式。后续替换美术素材时，优先替换对应部件，不把整张界面截图当作唯一背景。
+
+一、文字渲染规则
+1. 固定 UI 文字尽量使用图片素材里的艺术字。
+   例如：创建房间、加入房间、开始游戏、离开房间、准备、取消准备、已准备、未准备、设置、公告、帮助。
+2. 动态内容仍然使用代码文字。
+   例如：玩家名称、UID、房间号、人数、Socket 状态、输入框真实输入内容。
+3. 设置、公告、帮助弹窗内的正文使用普通黑体 / 系统无衬线字体，不做艺术化字体。
+
+二、当前资产原则
+1. 不再从整张 UI 参考图里按固定坐标裁剪控件。
+2. 原因：参考图是展示稿，带背景、光效、文字和相邻元素，直接裁剪会产生脏边、错位、残留文字。
+3. 新方案：使用独立生成或独立绘制的 PNG 部件进行装配。
+4. 动态输入类控件优先使用“空白框版本”，由代码渲染真实输入内容；带占位字版本只作为预览或特殊静态展示使用。
+
+三、主大厅和准备界面基础部件
+目录：client/public/assets/generated-ui/parts/
+
+1. panel-main.png
+   - 用途：主大厅面板。
+2. panel-room.png
+   - 用途：房间准备界面大面板。
+3. player-row.png
+   - 用途：准备界面玩家行底板。
+4. avatar-frame.png
+   - 用途：头像框。
+5. uid-plate.png
+   - 用途：左上角 UID 名牌。
+6. button-create.png
+   - 用途：创建房间按钮。
+7. button-join.png
+   - 用途：加入房间按钮。
+8. button-start.png
+   - 用途：开始游戏按钮。
+9. button-leave.png
+   - 用途：离开房间按钮。
+10. button-ready.png
+   - 用途：准备按钮。
+11. button-cancel-ready.png
+   - 用途：取消准备按钮。
+12. button-add-bot.png
+   - 用途：添加测试人机按钮。
+13. button-upload-avatar.png
+   - 用途：上传头像按钮。
+14. status-ready.png
+   - 用途：玩家行中的已准备状态牌。
+15. status-waiting.png
+   - 用途：玩家行中的未准备状态牌。
+16. host-crown.png
+   - 用途：玩家行中的房主王冠标识，放在准备状态前面。
+17. footer-settings.png
+   - 用途：底部设置入口。
+18. footer-announcements.png
+   - 用途：底部公告入口。
+19. footer-help.png
+   - 用途：底部帮助入口。
+
+四、输入框 UI 新拆分部件
+目录：client/public/assets/generated-ui/input-kit/
+
+预览图：
+1. input-kit-preview.png
+   - 用途：本轮输入框素材预览，不直接参与界面装配。
+
+房间号输入框：
+1. field-room-normal.png
+   - 用途：带“请输入房间号”占位字的正常状态预览。
+2. field-room-focus.png
+   - 用途：带“请输入房间号”占位字的聚焦状态预览。
+3. field-room-normal-blank.png
+   - 用途：实际装配优先使用，正常状态空白框。
+4. field-room-focus-blank.png
+   - 用途：实际装配优先使用，聚焦状态空白框。
+
+聊天输入框：
+1. field-chat-normal.png
+   - 用途：带“输入消息...”占位字的正常状态预览。
+2. field-chat-focus.png
+   - 用途：带“输入消息...”占位字的聚焦状态预览。
+3. field-chat-normal-blank.png
+   - 用途：实际装配优先使用，正常状态空白框。
+4. field-chat-focus-blank.png
+   - 用途：实际装配优先使用，聚焦状态空白框。
+
+搜索输入框：
+1. field-search-normal.png
+   - 用途：带“请输入内容...”占位字和搜索图标的正常状态预览。
+2. field-search-focus.png
+   - 用途：带“请输入内容...”占位字和搜索图标的聚焦状态预览。
+3. field-search-normal-blank.png
+   - 用途：实际装配优先使用，正常状态空白框，保留搜索图标。
+4. field-search-focus-blank.png
+   - 用途：实际装配优先使用，聚焦状态空白框，保留搜索图标。
+
+多行文本框：
+1. textarea-normal.png
+   - 用途：带“请输入内容...”占位字的正常状态预览。
+2. textarea-focus.png
+   - 用途：带“请输入内容...”占位字的聚焦状态预览。
+3. textarea-normal-blank.png
+   - 用途：实际装配优先使用，正常状态空白框。
+4. textarea-focus-blank.png
+   - 用途：实际装配优先使用，聚焦状态空白框。
+
+发送按钮：
+1. button-send-normal.png
+   - 用途：发送按钮正常状态，文字已烘焙进图片。
+2. button-send-focus.png
+   - 用途：发送按钮聚焦 / 高亮状态，文字已烘焙进图片。
+
+五、房间人数和测试人机规则
+1. 当前测试版支持 2-4 人开局。
+2. 房间 maxPlayers 固定为 4，但字段保留，后续可扩展到 2-8 人。
+3. 添加测试人机每点一次只添加 1 个。
+4. 房主退出后，服务端自动把房主移交给玩家列表中的下一位玩家。
+5. 新房主自动 isHost = true 且 isReady = true。

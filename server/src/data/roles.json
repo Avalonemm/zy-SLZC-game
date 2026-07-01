@@ -1,0 +1,70 @@
+[
+  {
+    "id": "assassin",
+    "order": 1,
+    "name": "刺客",
+    "description": "指定一个角色编号，该角色本轮跳过行动。",
+    "effectType": "skip_role",
+    "effectParams": {}
+  },
+  {
+    "id": "thief",
+    "order": 2,
+    "name": "盗贼",
+    "description": "指定一个角色编号，当该角色行动前获得其金币。",
+    "effectType": "steal_gold",
+    "effectParams": {}
+  },
+  {
+    "id": "magician",
+    "order": 3,
+    "name": "魔术师",
+    "description": "弃掉任意数量手牌，然后抽等量新牌。",
+    "effectType": "exchange_cards",
+    "effectParams": {}
+  },
+  {
+    "id": "king",
+    "order": 4,
+    "name": "国王",
+    "description": "获得下轮先手权。",
+    "effectType": "take_crown",
+    "effectParams": {}
+  },
+  {
+    "id": "bishop",
+    "order": 5,
+    "name": "主教",
+    "description": "自己的建筑本轮受到保护。",
+    "effectType": "protect_city",
+    "effectParams": {}
+  },
+  {
+    "id": "merchant",
+    "order": 6,
+    "name": "商人",
+    "description": "根据绿色建筑数量获得额外金币。",
+    "effectType": "income_by_color",
+    "effectParams": {
+      "color": "green"
+    }
+  },
+  {
+    "id": "architect",
+    "order": 7,
+    "name": "建筑师",
+    "description": "本轮可以额外建造一张建筑。",
+    "effectType": "extra_build",
+    "effectParams": {
+      "extraBuilds": 1
+    }
+  },
+  {
+    "id": "warlord",
+    "order": 8,
+    "name": "军阀",
+    "description": "可以花费金币破坏其他玩家一座建筑。",
+    "effectType": "destroy_district",
+    "effectParams": {}
+  }
+]
