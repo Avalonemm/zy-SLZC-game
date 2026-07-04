@@ -20,13 +20,35 @@ export type LobbyPlayer = {
   isBot: boolean;
 };
 
+export type RoomSettings = {
+  startCountdownSeconds: number;
+  turnTimeoutSeconds: number;
+  endCitySize: number;
+  enabledRoleIds: string[];
+  enableFaceUpRoleDiscard: boolean;
+  enableFaceDownRoleDiscard: boolean;
+  drawMode: "draw2Choose1";
+  roleRulePreset: "standard4Player";
+};
+
+export type RoomStartCountdown = {
+  startedAt: string;
+  deadlineAt: string;
+  seconds: number;
+};
+
 export type RoomState = {
   roomCode: string;
   hostPlayerId: string;
   status: RoomStatus;
   players: LobbyPlayer[];
+  minPlayers: number;
   maxPlayers: number;
+  futureMaxPlayers: number;
+  settings: RoomSettings;
+  startCountdown: RoomStartCountdown | null;
   createdAt: string;
+  chatMessages: ChatMessage[];
 };
 
 export type RoomCommandResult = {
@@ -34,9 +56,19 @@ export type RoomCommandResult = {
   playerId: string;
 };
 
+export type ChatMessage = {
+  id: string;
+  roomCode: string;
+  playerId: string;
+  playerName: string;
+  message: string;
+  createdAt: string;
+};
+
 export type GamePhase =
   | "LOBBY"
   | "GAME_START"
+  | "CROWN_REVEAL"
   | "ROLE_SELECTION"
   | "ROLE_ACTION"
   | "ROUND_END"
@@ -79,6 +111,22 @@ export type TurnState = {
   resourceActionTaken: boolean;
   buildsUsed: number;
   maxBuilds: number;
+  startedAt?: string;
+  deadlineAt?: string;
+  timeoutMs?: number;
+};
+
+export type TurnTimer = {
+  phase: "CROWN_REVEAL" | "ROLE_SELECTION" | "ROLE_ACTION";
+  playerId: string;
+  startedAt: string;
+  deadlineAt: string;
+  timeoutMs: number;
+};
+
+export type PendingDrawChoice = {
+  playerId: string;
+  drawnCards: DistrictCard[];
 };
 
 export type RoleEffectState = {
@@ -118,6 +166,7 @@ export type GameRoom = {
   players: Player[];
   hostPlayerId: string;
   status: RoomStatus;
+  settings: RoomSettings;
   phase: GamePhase;
   currentRound: number;
   crownPlayerId: string;
@@ -127,6 +176,8 @@ export type GameRoom = {
   currentRoleOrder: number[];
   completedRoleIds: string[];
   turnState: TurnState | null;
+  turnTimer: TurnTimer | null;
+  pendingDrawChoice: PendingDrawChoice | null;
   roleEffects: RoleEffectState;
   availableRoles: RoleCard[];
   discardedRoles: RoleCard[];
@@ -141,13 +192,32 @@ export type VisiblePlayer = Omit<Player, "hand"> & {
   handCount: number;
 };
 
-export type VisibleGameState = Omit<GameRoom, "players" | "districtDeck"> & {
+export type VisibleGameState = Omit<GameRoom, "players" | "districtDeck" | "pendingDrawChoice"> & {
   players: VisiblePlayer[];
+  pendingDrawChoice: PendingDrawChoice | null;
   districtDeckCount: number;
 };
 
 export type ErrorPayload = {
   message: string;
+};
+
+export type KickedFromRoomPayload = {
+  roomCode: string;
+  message: string;
+};
+
+export type ActionEventPayload = {
+  id: string;
+  roomCode: string;
+  type: string;
+  message: string;
+  actorPlayerId?: string;
+  targetPlayerId?: string;
+  visibility: "public" | "private";
+  phase: GamePhase;
+  round: number;
+  createdAt: string;
 };
 
 export type ServerToClientEvents = {
@@ -157,6 +227,9 @@ export type ServerToClientEvents = {
   reconnected_room: (payload: RoomCommandResult) => void;
   room_state: (payload: RoomState) => void;
   game_state: (payload: VisibleGameState) => void;
+  action_event: (payload: ActionEventPayload) => void;
+  chat_message: (payload: ChatMessage) => void;
+  kicked_from_room: (payload: KickedFromRoomPayload) => void;
   error_message: (payload: ErrorPayload) => void;
 };
 
@@ -169,13 +242,33 @@ export type ClientToServerEvents = {
   start_game: (payload: { roomCode: string; playerId: string }) => void;
   leave_room: (payload: { roomCode: string; playerId: string }) => void;
   add_test_bots: (payload: { roomCode: string; playerId: string }) => void;
+  remove_test_bot: (payload: {
+    roomCode: string;
+    playerId: string;
+    targetBotPlayerId: string;
+  }) => void;
+  kick_player: (payload: { roomCode: string; playerId: string; targetPlayerId: string }) => void;
+  transfer_host: (payload: { roomCode: string; playerId: string; targetPlayerId: string }) => void;
+  update_room_settings: (payload: {
+    roomCode: string;
+    playerId: string;
+    settings: Partial<RoomSettings>;
+  }) => void;
+  resolve_start_countdown: (payload: { roomCode: string; playerId: string }) => void;
   select_role: (payload: { roomCode: string; playerId: string; roleId: string }) => void;
   take_gold: (payload: { roomCode: string; playerId: string }) => void;
   draw_district_cards: (payload: { roomCode: string; playerId: string }) => void;
+  choose_drawn_district_card: (payload: {
+    roomCode: string;
+    playerId: string;
+    districtCardId: string;
+  }) => void;
   build_district: (payload: { roomCode: string; playerId: string; districtCardId: string }) => void;
   use_role_skill: (payload: UseRoleSkillPayload) => void;
   end_turn: (payload: { roomCode: string; playerId: string }) => void;
   skip_current_offline_player: (payload: { roomCode: string; playerId: string }) => void;
+  resolve_turn_timeout: (payload: { roomCode: string; playerId: string }) => void;
+  send_chat_message: (payload: { roomCode: string; playerId: string; message: string }) => void;
 };
 
 export type InterServerEvents = Record<string, never>;

@@ -7,7 +7,10 @@ type PlayerSeatProps = {
   isBot?: boolean;
   isHost?: boolean;
   isReady?: boolean;
-  name: string;
+  name?: string;
+  onKickPlayer?: () => void;
+  onRemoveBot?: () => void;
+  onTransferHost?: () => void;
 };
 
 export function PlayerSeat({
@@ -17,8 +20,25 @@ export function PlayerSeat({
   isBot = false,
   isHost = false,
   isReady = false,
-  name
+  name,
+  onKickPlayer,
+  onRemoveBot,
+  onTransferHost
 }: PlayerSeatProps) {
+  if (!name) {
+    return (
+      <article className="player-seat player-seat--empty">
+        <div className="player-seat__avatar">
+          <span>空</span>
+        </div>
+        <div className="player-seat__copy">
+          <strong>空席位</strong>
+          <p>等待玩家加入</p>
+        </div>
+      </article>
+    );
+  }
+
   return (
     <article className="player-seat">
       <div className="player-seat__avatar">
@@ -36,6 +56,25 @@ export function PlayerSeat({
         <GameBadge tone={isReady ? "ready" : "default"}>
           {isReady ? "已准备" : "等待中"}
         </GameBadge>
+        {isBot && onRemoveBot && (
+          <button className="player-seat__mini-action" type="button" onClick={onRemoveBot}>
+            删除
+          </button>
+        )}
+        {!isBot && onTransferHost && (
+          <button className="player-seat__mini-action" type="button" onClick={onTransferHost}>
+            移交
+          </button>
+        )}
+        {!isBot && onKickPlayer && (
+          <button
+            className="player-seat__mini-action player-seat__mini-action--danger"
+            type="button"
+            onClick={onKickPlayer}
+          >
+            踢出
+          </button>
+        )}
       </div>
     </article>
   );

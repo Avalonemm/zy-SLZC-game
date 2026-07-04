@@ -8,7 +8,9 @@
     "dev:client": "npm run dev --workspace client",
     "dev:server": "npm run dev --workspace server",
     "build": "npm run build --workspaces",
-    "typecheck": "npm run typecheck --workspaces"
+    "typecheck": "npm run typecheck --workspaces",
+    "smoke:reconnect": "node scripts/smoke-socket-reconnect.mjs",
+    "smoke:local-flow": "node scripts/smoke-local-game-flow.mjs"
   },
   "workspaces": [
     "client",

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent, ReactNode } from "react";
 import type {
+  ActionEventPayload,
+  ChatMessage,
   ConnectionStatus,
-  DistrictCard,
   ErrorPayload,
   RoomCommandResult,
   RoomState,
@@ -11,10 +12,18 @@ import type {
 } from "@zy/shared";
 import { GameBadge } from "../components/ui/GameBadge";
 import { GameButton } from "../components/ui/GameButton";
-import { GameCard } from "../components/ui/GameCard";
 import { GameInput } from "../components/ui/GameInput";
 import { GamePanel } from "../components/ui/GamePanel";
 import { PlayerSeat } from "../components/ui/PlayerSeat";
+import { createPlayerSeatSlots } from "../components/ui/playerSeatLayout";
+import { ChatPanel } from "../components/ui/ChatPanel";
+import { RulebookHelp } from "../components/help/RulebookHelp";
+import { TestGameView } from "../components/test-game/TestGameView";
+import {
+  defaultHelpDocuments,
+  helpTabs,
+  type HelpTabId
+} from "../components/help/helpTabs";
 import { serverUrl, socket } from "../socket/socketClient";
 
 const connectionStatusText: Record<ConnectionStatus, string> = {
@@ -27,6 +36,16 @@ const presetAvatars = ["王冠", "骑士", "城堡", "金币"];
 const assetBase = "/assets/homepage-v1";
 const USE_LIGHTWEIGHT_UI = true;
 const savedSessionKey = "zy-board-game-session";
+const standardRoles = [
+  { id: "assassin", name: "刺客" },
+  { id: "thief", name: "盗贼" },
+  { id: "magician", name: "魔术师" },
+  { id: "king", name: "国王" },
+  { id: "bishop", name: "主教" },
+  { id: "merchant", name: "商人" },
+  { id: "architect", name: "建筑师" },
+  { id: "warlord", name: "军阀" }
+];
 
 type SavedSession = {
   roomCode: string;
@@ -72,13 +91,26 @@ export function ConnectionPage() {
   const [roomCodeInput, setRoomCodeInput] = useState("");
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [gameState, setGameState] = useState<VisibleGameState | null>(null);
+  const [actionEvents, setActionEvents] = useState<ActionEventPayload[]>([]);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [nowMs, setNowMs] = useState(Date.now());
+  const [turnTimeoutInput, setTurnTimeoutInput] = useState("15");
+  const [endCitySizeInput, setEndCitySizeInput] = useState("8");
+  const [enabledRoleIdsInput, setEnabledRoleIdsInput] = useState<string[]>(
+    standardRoles.map((role) => role.id)
+  );
+  const [enableFaceUpRoleDiscardInput, setEnableFaceUpRoleDiscardInput] = useState(true);
+  const [enableFaceDownRoleDiscardInput, setEnableFaceDownRoleDiscardInput] = useState(true);
+  const [isRoomSettingsOpen, setRoomSettingsOpen] = useState(false);
   const [avatarLabel, setAvatarLabel] = useState("王冠");
   const [avatarImage, setAvatarImage] = useState<string | null>(null);
   const [isProfileOpen, setProfileOpen] = useState(false);
   const [modal, setModal] = useState<"settings" | "announcements" | "help" | null>(null);
   const [announcementText, setAnnouncementText] = useState("公告内容加载中。");
+  const [activeHelpTab, setActiveHelpTab] = useState<HelpTabId>("rules");
+  const [helpDocuments, setHelpDocuments] =
+    useState<Record<HelpTabId, string>>(defaultHelpDocuments);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const reconnectAttemptedRef = useRef(false);
 
@@ -117,10 +149,46 @@ export function ConnectionPage() {
     function handleRoomState(payload: RoomState) {
       setRoomState(payload);
       setRoomCodeInput(payload.roomCode);
+      setTurnTimeoutInput(String(payload.settings.turnTimeoutSeconds));
+      setEndCitySizeInput(String(payload.settings.endCitySize));
+      setEnabledRoleIdsInput(payload.settings.enabledRoleIds);
+      setEnableFaceUpRoleDiscardInput(payload.settings.enableFaceUpRoleDiscard);
+      setEnableFaceDownRoleDiscardInput(payload.settings.enableFaceDownRoleDiscard);
     }
 
     function handleGameState(payload: VisibleGameState) {
       setGameState(payload);
+    }
+
+    function handleActionEvent(payload: ActionEventPayload) {
+      setActionEvents((current) => [payload, ...current].slice(0, 8));
+      setMessage(payload.message);
+    }
+
+    function handleChatMessage(payload: ChatMessage) {
+      setRoomState((current) => {
+        if (!current || current.roomCode !== payload.roomCode) {
+          return current;
+        }
+
+        if (current.chatMessages.some((message) => message.id === payload.id)) {
+          return current;
+        }
+
+        return {
+          ...current,
+          chatMessages: [...current.chatMessages, payload].slice(-50)
+        };
+      });
+    }
+
+    function handleKickedFromRoom(payload: { roomCode: string; message: string }) {
+      setRoomState(null);
+      setGameState(null);
+      setActionEvents([]);
+      setPlayerId(null);
+      clearSavedSession();
+      setMessage(payload.message);
     }
 
     function handleError(payload: ErrorPayload) {
@@ -138,6 +206,9 @@ export function ConnectionPage() {
     socket.on("reconnected_room", handleReconnectedRoom);
     socket.on("room_state", handleRoomState);
     socket.on("game_state", handleGameState);
+    socket.on("action_event", handleActionEvent);
+    socket.on("chat_message", handleChatMessage);
+    socket.on("kicked_from_room", handleKickedFromRoom);
     socket.on("error_message", handleError);
 
     if (!socket.connected) {
@@ -153,6 +224,9 @@ export function ConnectionPage() {
       socket.off("reconnected_room", handleReconnectedRoom);
       socket.off("room_state", handleRoomState);
       socket.off("game_state", handleGameState);
+      socket.off("action_event", handleActionEvent);
+      socket.off("chat_message", handleChatMessage);
+      socket.off("kicked_from_room", handleKickedFromRoom);
       socket.off("error_message", handleError);
     };
   }, []);
@@ -162,6 +236,29 @@ export function ConnectionPage() {
       .then((response) => (response.ok ? response.text() : "暂无公告。"))
       .then(setAnnouncementText)
       .catch(() => setAnnouncementText("公告读取失败，请检查公告文件。"));
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    Promise.all(
+      helpTabs.map((tab) =>
+        fetch(tab.path)
+          .then((response) => (response.ok ? response.text() : `${tab.label} 暂无内容。`))
+          .then((content) => [tab.id, content] as const)
+          .catch(() => [tab.id, `${tab.label} 读取失败，请检查 ${tab.path}。`] as const)
+      )
+    ).then((entries) => {
+      if (!isMounted) {
+        return;
+      }
+
+      setHelpDocuments(Object.fromEntries(entries) as Record<HelpTabId, string>);
+    });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -179,6 +276,16 @@ export function ConnectionPage() {
     setMessage("正在尝试恢复上次房间...");
   }, [playerId, status]);
 
+  useEffect(() => {
+    if (!roomState?.startCountdown) {
+      return;
+    }
+
+    setNowMs(Date.now());
+    const timer = window.setInterval(() => setNowMs(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, [roomState?.startCountdown?.deadlineAt]);
+
   const uid = serverStatus?.uid ?? 100001;
   const isConnected = status === "connected";
   const currentPlayer = useMemo(
@@ -193,12 +300,19 @@ export function ConnectionPage() {
     }
 
     return (
-      roomState.players.length >= 2 &&
+      roomState.players.length >= roomState.minPlayers &&
       roomState.players.length <= roomState.maxPlayers &&
-      roomState.players.every((player) => player.isReady) &&
+      roomState.players.every((player) => player.isReady && player.connected) &&
       roomState.status === "LOBBY"
     );
   }, [isHost, roomState]);
+  const lobbySeatSlots = useMemo(
+    () => (roomState ? createPlayerSeatSlots(roomState.players, roomState.maxPlayers) : []),
+    [roomState]
+  );
+  const startCountdownSeconds = roomState?.startCountdown
+    ? Math.max(0, Math.ceil((new Date(roomState.startCountdown.deadlineAt).getTime() - nowMs) / 1000))
+    : null;
 
   function createRoom(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
@@ -236,6 +350,7 @@ export function ConnectionPage() {
       roomCode: roomState.roomCode,
       playerId: currentPlayer.id
     });
+    setActionEvents([]);
   }
 
   function addTestBot() {
@@ -246,6 +361,83 @@ export function ConnectionPage() {
     socket.emit("add_test_bots", {
       roomCode: roomState.roomCode,
       playerId: currentPlayer.id
+    });
+  }
+
+  function removeTestBot(targetBotPlayerId: string) {
+    if (!roomState || !currentPlayer) {
+      return;
+    }
+
+    socket.emit("remove_test_bot", {
+      roomCode: roomState.roomCode,
+      playerId: currentPlayer.id,
+      targetBotPlayerId
+    });
+  }
+
+  function kickPlayer(targetPlayerId: string) {
+    if (!roomState || !currentPlayer) {
+      return;
+    }
+
+    socket.emit("kick_player", {
+      roomCode: roomState.roomCode,
+      playerId: currentPlayer.id,
+      targetPlayerId
+    });
+  }
+
+  function transferHost(targetPlayerId: string) {
+    if (!roomState || !currentPlayer) {
+      return;
+    }
+
+    socket.emit("transfer_host", {
+      roomCode: roomState.roomCode,
+      playerId: currentPlayer.id,
+      targetPlayerId
+    });
+  }
+
+  function updateRoomSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!roomState || !currentPlayer) {
+      return;
+    }
+
+    socket.emit("update_room_settings", {
+      roomCode: roomState.roomCode,
+      playerId: currentPlayer.id,
+      settings: {
+        turnTimeoutSeconds: Number(turnTimeoutInput),
+        endCitySize: Number(endCitySizeInput),
+        enabledRoleIds: enabledRoleIdsInput,
+        enableFaceUpRoleDiscard: enableFaceUpRoleDiscardInput,
+        enableFaceDownRoleDiscard: enableFaceDownRoleDiscardInput,
+        drawMode: "draw2Choose1"
+      }
+    });
+    setRoomSettingsOpen(false);
+  }
+
+  function toggleEnabledRole(roleId: string) {
+    setEnabledRoleIdsInput((current) =>
+      current.includes(roleId)
+        ? current.filter((enabledRoleId) => enabledRoleId !== roleId)
+        : [...current, roleId]
+    );
+  }
+
+  function sendChatMessage(message: string) {
+    if (!roomState || !currentPlayer) {
+      return;
+    }
+
+    socket.emit("send_chat_message", {
+      roomCode: roomState.roomCode,
+      playerId: currentPlayer.id,
+      message
     });
   }
 
@@ -260,6 +452,7 @@ export function ConnectionPage() {
     });
     setRoomState(null);
     setGameState(null);
+    setActionEvents([]);
     setPlayerId(null);
     clearSavedSession();
     setMessage("已离开房间。");
@@ -317,6 +510,8 @@ export function ConnectionPage() {
 
       {gameState ? (
         <TestGameView
+          actionEvents={actionEvents}
+          chatMessages={roomState?.chatMessages ?? []}
           gameState={gameState}
           message={message}
           playerId={playerId}
@@ -325,6 +520,16 @@ export function ConnectionPage() {
               return;
             }
             socket.emit("build_district", {
+              roomCode: gameState.roomId,
+              playerId,
+              districtCardId
+            });
+          }}
+          onChooseDrawnCard={(districtCardId) => {
+            if (!playerId) {
+              return;
+            }
+            socket.emit("choose_drawn_district_card", {
               roomCode: gameState.roomId,
               playerId,
               districtCardId
@@ -358,6 +563,16 @@ export function ConnectionPage() {
             });
           }}
           onLeaveRoom={leaveRoom}
+          onSendChatMessage={sendChatMessage}
+          onResolveTurnTimeout={() => {
+            if (!playerId) {
+              return;
+            }
+            socket.emit("resolve_turn_timeout", {
+              roomCode: gameState.roomId,
+              playerId
+            });
+          }}
           onSelectRole={(roleId) => {
             if (!playerId) {
               return;
@@ -389,40 +604,92 @@ export function ConnectionPage() {
           }}
         />
       ) : roomState ? (
-        <GamePanel
-          className={
-            USE_LIGHTWEIGHT_UI ? "lobby-panel lobby-panel--lite" : "lobby-panel lobby-panel--image"
-          }
-        >
-          <header className="lobby-header">
-            <div>
-              <span className="section-label">房间码</span>
-              <strong className="room-code">{roomState.roomCode}</strong>
+        <section className="lobby-shell">
+          <GamePanel
+            className={
+              USE_LIGHTWEIGHT_UI ? "lobby-panel lobby-panel--lite" : "lobby-panel lobby-panel--image"
+            }
+          >
+            <header className="lobby-header">
+              <div>
+                <span className="section-label">房间码</span>
+                <strong className="room-code">{roomState.roomCode}</strong>
+              </div>
+              <div className="lobby-badges">
+                <GameBadge>等待中</GameBadge>
+                <GameBadge>
+                  {roomState.players.length}/{roomState.maxPlayers} 人
+                </GameBadge>
+                <GameBadge tone="ready">
+                  {readyCount}/{roomState.maxPlayers} 已准备
+                </GameBadge>
+              </div>
+            </header>
+
+          <section className="lobby-room-settings" aria-label="房间设置">
+            <div className="lobby-room-settings__public">
+              <strong>房间设置</strong>
+              <span>每轮等待：{roomState.settings.turnTimeoutSeconds} 秒</span>
+              <span>结束条件：{roomState.settings.endCitySize} 建筑</span>
+              <span className="lobby-room-settings__roles-summary">
+                角色：
+                {roomState.settings.enabledRoleIds
+                  .map((roleId) => standardRoles.find((role) => role.id === roleId)?.name ?? roleId)
+                  .join("、")}
+              </span>
+              <span>明弃：{roomState.settings.enableFaceUpRoleDiscard ? "启用" : "关闭"}</span>
+              <span>暗弃：{roomState.settings.enableFaceDownRoleDiscard ? "启用" : "关闭"}</span>
+              <span className="lobby-room-settings__draw-summary">抽牌：抽 2 选 1，未选放回底部</span>
+              {startCountdownSeconds !== null && (
+                <span className="lobby-countdown">全员已准备，{startCountdownSeconds} 秒后自动开始</span>
+              )}
             </div>
-            <div className="lobby-badges">
-              <GameBadge>等待中</GameBadge>
-              <GameBadge>
-                {roomState.players.length}/{roomState.maxPlayers} 人
-              </GameBadge>
-              <GameBadge tone="ready">
-                {readyCount}/{roomState.maxPlayers} 已准备
-              </GameBadge>
-            </div>
-          </header>
+            {isHost && (
+              <button
+                className="lobby-room-settings__open"
+                type="button"
+                onClick={() => setRoomSettingsOpen(true)}
+              >
+                房间设置
+              </button>
+            )}
+          </section>
 
           <div className="player-seat-list">
-            {roomState.players.map((player, index) => (
-              <PlayerSeat
-                key={player.id}
-                avatar={player.id === playerId ? avatarImage : null}
-                avatarLabel={player.isBot ? "机" : presetAvatars[index % presetAvatars.length]}
-                connected={player.connected}
-                isBot={player.isBot}
-                isHost={player.isHost}
-                isReady={player.isReady}
-                name={player.name}
-              />
-            ))}
+            {lobbySeatSlots.map((slot) =>
+              slot.kind === "player" ? (
+                <PlayerSeat
+                  key={slot.player.id}
+                  avatar={slot.player.id === playerId ? avatarImage : null}
+                  avatarLabel={
+                    slot.player.isBot ? "机" : presetAvatars[slot.index % presetAvatars.length]
+                  }
+                  connected={slot.player.connected}
+                  isBot={slot.player.isBot}
+                  isHost={slot.player.isHost}
+                  isReady={slot.player.isReady}
+                  name={slot.player.name}
+                  onRemoveBot={
+                    isHost && slot.player.isBot ? () => removeTestBot(slot.player.id) : undefined
+                  }
+                  onKickPlayer={
+                    isHost && !slot.player.isBot && slot.player.id !== playerId
+                      ? () => kickPlayer(slot.player.id)
+                      : undefined
+                  }
+                  onTransferHost={
+                    isHost &&
+                    !slot.player.isBot &&
+                    slot.player.connected &&
+                    slot.player.id !== playerId
+                      ? () => transferHost(slot.player.id)
+                      : undefined
+                  }
+                />
+              ) : (
+                <PlayerSeat key={`empty-${slot.index}`} avatarLabel="空" />
+              )
+            )}
           </div>
 
           <div className="lobby-actions">
@@ -455,9 +722,16 @@ export function ConnectionPage() {
             />
           </div>
 
-          <p className="lobby-tip">测试版支持 2-4 人开局；添加测试人机每次只会加入 1 个。</p>
-          {message && <p className="fantasy-toast">{message}</p>}
-        </GamePanel>
+            <p className="lobby-tip">
+              测试版支持 {roomState.minPlayers}-{roomState.maxPlayers} 人开局；后续预留到{" "}
+              {roomState.futureMaxPlayers} 人。添加测试人机每次只会加入 1 个。
+            </p>
+            {message && <p className="fantasy-toast">{message}</p>}
+          </GamePanel>
+          <aside className="lobby-chat-column" aria-label="房间聊天">
+            <ChatPanel messages={roomState.chatMessages} onSendMessage={sendChatMessage} />
+          </aside>
+        </section>
       ) : (
         <HomeMenu
           isConnected={isConnected}
@@ -500,6 +774,67 @@ export function ConnectionPage() {
         </footer>
       )}
 
+      {roomState && isRoomSettingsOpen && (
+        <InfoModal title="房间设置" onClose={() => setRoomSettingsOpen(false)}>
+          <form className="room-settings-form" onSubmit={updateRoomSettings}>
+            <label>
+              <span>每轮玩家等待秒数</span>
+              <input
+                min={10}
+                max={180}
+                type="number"
+                value={turnTimeoutInput}
+                onChange={(event) => setTurnTimeoutInput(event.target.value)}
+              />
+            </label>
+            <label>
+              <span>结束建筑数</span>
+              <input
+                min={4}
+                max={8}
+                type="number"
+                value={endCitySizeInput}
+                onChange={(event) => setEndCitySizeInput(event.target.value)}
+              />
+            </label>
+            <fieldset className="room-settings-form__fieldset">
+              <legend>本局启用角色</legend>
+              <div className="room-settings-form__roles">
+                {standardRoles.map((role) => (
+                  <label key={role.id}>
+                    <input
+                      type="checkbox"
+                      checked={enabledRoleIdsInput.includes(role.id)}
+                      onChange={() => toggleEnabledRole(role.id)}
+                    />
+                    {role.name}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <label className="room-settings-form__check">
+              <input
+                type="checkbox"
+                checked={enableFaceUpRoleDiscardInput}
+                onChange={(event) => setEnableFaceUpRoleDiscardInput(event.target.checked)}
+              />
+              启用明弃角色
+            </label>
+            <label className="room-settings-form__check">
+              <input
+                type="checkbox"
+                checked={enableFaceDownRoleDiscardInput}
+                onChange={(event) => setEnableFaceDownRoleDiscardInput(event.target.checked)}
+              />
+              启用暗弃角色
+            </label>
+            <p>默认按 4 人标准包配置。当前开发测试继续支持 2-4 人，5-8 人完整规则后置。</p>
+            <p>抽牌固定为抽 2 选 1，未选择的牌放回建筑牌堆底部。</p>
+            <button type="submit">保存设置</button>
+          </form>
+        </InfoModal>
+      )}
+
       {modal && (
         <InfoModal title={modalTitle(modal)} onClose={() => setModal(null)}>
           {modal === "settings" && (
@@ -507,476 +842,16 @@ export function ConnectionPage() {
           )}
           {modal === "announcements" && <pre>{announcementText}</pre>}
           {modal === "help" && (
-            <p>创建房间后可邀请玩家或逐个添加测试人机。2-4 人且全部准备后，房主可以开始游戏。</p>
+            <RulebookHelp
+              activeTab={activeHelpTab}
+              documents={helpDocuments}
+              onChangeTab={setActiveHelpTab}
+            />
           )}
         </InfoModal>
       )}
     </main>
   );
-}
-
-const roleOptions = [
-  { id: "assassin", name: "刺客" },
-  { id: "thief", name: "盗贼" },
-  { id: "magician", name: "魔术师" },
-  { id: "king", name: "国王" },
-  { id: "bishop", name: "主教" },
-  { id: "merchant", name: "商人" },
-  { id: "architect", name: "建筑师" },
-  { id: "warlord", name: "军阀" }
-];
-
-function TestGameView(props: {
-  gameState: VisibleGameState;
-  message: string;
-  playerId: string | null;
-  onBuildDistrict: (districtCardId: string) => void;
-  onDrawCards: () => void;
-  onEndTurn: () => void;
-  onLeaveRoom: () => void;
-  onSelectRole: (roleId: string) => void;
-  onSkipCurrentOfflinePlayer: () => void;
-  onTakeGold: () => void;
-  onUseSkill: (payload: {
-    targetRoleId?: string;
-    targetPlayerId?: string;
-    targetDistrictCardId?: string;
-    discardCardIds?: string[];
-  }) => void;
-}) {
-  const [targetRoleId, setTargetRoleId] = useState(roleOptions[1]?.id ?? "");
-  const [targetPlayerId, setTargetPlayerId] = useState("");
-  const [targetDistrictCardId, setTargetDistrictCardId] = useState("");
-  const [discardCardIds, setDiscardCardIds] = useState<string[]>([]);
-  const self = props.gameState.players.find((player) => player.id === props.playerId) ?? null;
-  const targetPlayer =
-    props.gameState.players.find((player) => player.id === targetPlayerId) ??
-    props.gameState.players.find((player) => player.id !== props.playerId) ??
-    null;
-  const targetDistricts = targetPlayer?.city ?? [];
-  const isSelectingRole =
-    props.gameState.phase === "ROLE_SELECTION" &&
-    props.gameState.roleSelectionTurnPlayerId === props.playerId;
-  const isMyTurn =
-    props.gameState.phase === "ROLE_ACTION" &&
-    props.gameState.currentTurnPlayerId === props.playerId;
-  const selfRoleId = self?.selectedRoleId ?? null;
-  const currentTurnName = playerName(props.gameState, props.gameState.currentTurnPlayerId);
-  const roleSelectionTurnName = playerName(
-    props.gameState,
-    props.gameState.roleSelectionTurnPlayerId
-  );
-  const turnState = props.gameState.turnState;
-  const skillUsed = Boolean(
-    props.playerId && props.gameState.roleEffects.usedSkillPlayerIds.includes(props.playerId)
-  );
-  const needsTargetRole = selfRoleId === "assassin" || selfRoleId === "thief";
-  const needsDiscardCards = selfRoleId === "magician";
-  const needsTargetDistrict = selfRoleId === "warlord";
-  const noTargetSkill =
-    selfRoleId === "king" ||
-    selfRoleId === "bishop" ||
-    selfRoleId === "merchant" ||
-    selfRoleId === "architect";
-  const hasSkillRequirements =
-    noTargetSkill ||
-    (needsTargetRole && Boolean(targetRoleId)) ||
-    (needsDiscardCards && discardCardIds.length > 0) ||
-    (needsTargetDistrict && Boolean(targetPlayer?.id && targetDistrictCardId));
-  const canUseSkill =
-    isMyTurn &&
-    !skillUsed &&
-    Boolean(selfRoleId) &&
-    props.gameState.phase === "ROLE_ACTION" &&
-    hasSkillRequirements;
-  const canTakeResource =
-    isMyTurn && Boolean(turnState) && !turnState?.resourceActionTaken;
-  const canBuild =
-    isMyTurn && Boolean(turnState) && (turnState?.buildsUsed ?? 0) < (turnState?.maxBuilds ?? 0);
-  const currentTurnPlayer =
-    props.gameState.players.find((player) => player.id === props.gameState.currentTurnPlayerId) ??
-    null;
-  const canSkipCurrentOfflinePlayer =
-    props.gameState.phase === "ROLE_ACTION" &&
-    Boolean(self?.isHost) &&
-    Boolean(currentTurnPlayer && !currentTurnPlayer.connected);
-  const buildProgress = turnState
-    ? `${turnState.buildsUsed}/${turnState.maxBuilds}`
-    : "0/0";
-  const scoringResults = [...props.gameState.scoringResults].sort(
-    (first, second) => second.totalScore - first.totalScore
-  );
-
-  useEffect(() => {
-    const firstOpponent = props.gameState.players.find((player) => player.id !== props.playerId);
-    if (!targetPlayerId && firstOpponent) {
-      setTargetPlayerId(firstOpponent.id);
-    }
-  }, [props.gameState.players, props.playerId, targetPlayerId]);
-
-  useEffect(() => {
-    const hasSelectedDistrict = targetDistricts.some(
-      (district) => district.id === targetDistrictCardId
-    );
-    if (targetDistricts[0] && !hasSelectedDistrict) {
-      setTargetDistrictCardId(targetDistricts[0].id);
-    }
-  }, [targetDistrictCardId, targetDistricts]);
-
-  useEffect(() => {
-    const handIds = new Set((self?.hand ?? []).map((card) => card.id));
-    setDiscardCardIds((current) => current.filter((cardId) => handIds.has(cardId)));
-  }, [self?.hand]);
-
-  function toggleDiscardCard(cardId: string) {
-    setDiscardCardIds((current) =>
-      current.includes(cardId)
-        ? current.filter((selectedCardId) => selectedCardId !== cardId)
-        : [...current, cardId]
-    );
-  }
-
-  function renderCitySummary(player: (typeof props.gameState.players)[number]) {
-    if (player.city.length === 0) {
-      return <span className="test-city-empty">城市：无</span>;
-    }
-
-    return (
-      <div className="test-city-list" aria-label={`${player.name} 的城市`}>
-        {player.city.map((district) => (
-          <span className="test-city-chip" key={district.id}>
-            {district.name} · {district.cost}
-          </span>
-        ))}
-      </div>
-    );
-  }
-
-  function skillHint() {
-    if (!selfRoleId) {
-      return "先完成秘密角色选择，进入你的角色行动后才能使用技能。";
-    }
-
-    const hints: Record<string, string> = {
-      assassin: "刺客：选择一个还未行动的目标角色，本轮该角色跳过行动。",
-      thief: "盗贼：选择一个还未行动的目标角色，目标行动前会被偷走金币；不能偷刺客或被刺客跳过的角色。",
-      magician: "魔术师：勾选任意手牌，弃掉后抽等量新牌。",
-      king: "国王：使用后获得下一轮先手权。",
-      bishop: "主教：使用后本轮你的建筑受到保护。",
-      merchant: "商人：按你城市里的绿色建筑数量获得额外金币。",
-      architect: "建筑师：使用后抽额外建筑牌，并且本轮可额外建造。",
-      warlord: "军阀：选择其他玩家的一座建筑，支付建筑费用 -1 的金币后破坏。"
-    };
-
-    return hints[selfRoleId] ?? "当前角色暂无技能说明。";
-  }
-
-  function skillBlockedReason() {
-    if (!isMyTurn) {
-      return "还没有轮到你。";
-    }
-
-    if (skillUsed) {
-      return "本轮你已经使用过技能。";
-    }
-
-    if (needsDiscardCards && discardCardIds.length === 0) {
-      return "请选择要弃置的手牌。";
-    }
-
-    if (needsTargetDistrict && !targetDistrictCardId) {
-      return "请选择要破坏的建筑。";
-    }
-
-    if (!selfRoleId) {
-      return "你还没有可公开使用的角色。";
-    }
-
-    return "";
-  }
-
-  return (
-    <section className="test-game-layout">
-      <GamePanel className="test-game-panel" title="对战测试界面">
-        <header className="test-game-header">
-          <div>
-            <span>房间：{props.gameState.roomId}</span>
-            <strong>
-              第 {props.gameState.currentRound} 轮 · {phaseText(props.gameState.phase)}
-            </strong>
-          </div>
-          <GameButton variant="neutral" size="sm" onClick={props.onLeaveRoom}>
-            返回大厅
-          </GameButton>
-        </header>
-
-        <div className="test-status-strip">
-          <span className="test-status-pill">当前行动：{currentTurnName}</span>
-          <span className="test-status-pill">角色选择：{roleSelectionTurnName}</span>
-          <span className="test-status-pill">你的角色：{roleName(selfRoleId)}</span>
-          <span className="test-status-pill">
-            资源行动：{turnState?.resourceActionTaken ? "已选择" : "未选择"}
-          </span>
-          <span className="test-status-pill">建造次数：{buildProgress}</span>
-          <span className="test-status-pill">
-            技能：{skillUsed ? "已使用" : "未使用"}
-          </span>
-        </div>
-
-        {props.gameState.phase === "ENDED" && scoringResults.length > 0 && (
-          <section className="test-game-section test-game-section--wide">
-            <h3>结算排名</h3>
-            <div className="test-score-table">
-              {scoringResults.map((result, index) => (
-                <div className="test-score-row" key={result.playerId}>
-                  <strong>#{index + 1} {result.playerName}</strong>
-                  <span>建筑分 {result.districtScore}</span>
-                  <span>奖励分 {result.bonusScore}</span>
-                  <span>总分 {result.totalScore}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <div className="test-game-grid">
-          <section className="test-game-section">
-            <h3>玩家状态</h3>
-            <div className="test-player-list">
-              {props.gameState.players.map((player) => (
-                <article
-                  className={`test-player-row ${
-                    props.gameState.currentTurnPlayerId === player.id ? "is-current" : ""
-                  }`}
-                  key={player.id}
-                >
-                  <strong>
-                    {player.name}
-                    {player.id === props.playerId ? "（你）" : ""}
-                  </strong>
-                  <span>
-                    金币 {player.gold} · 手牌 {player.handCount} · 建筑 {player.city.length}
-                  </span>
-                  <span>角色：{roleName(player.selectedRoleId)}</span>
-                  {renderCitySummary(player)}
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="test-game-section">
-            <h3>角色选择</h3>
-            {isSelectingRole ? (
-              <div className="test-action-grid">
-                {props.gameState.availableRoles.map((role) => (
-                  <GameButton
-                    key={role.id}
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => props.onSelectRole(role.id)}
-                  >
-                    {role.name}
-                  </GameButton>
-                ))}
-              </div>
-            ) : (
-              <p>当前选择玩家：{playerName(props.gameState, props.gameState.roleSelectionTurnPlayerId)}</p>
-            )}
-          </section>
-
-          <section className="test-game-section">
-            <h3>行动与技能</h3>
-            <div className="test-action-grid">
-              <GameButton variant="secondary" size="sm" disabled={!canTakeResource} onClick={props.onTakeGold}>
-                拿金币
-              </GameButton>
-              <GameButton variant="secondary" size="sm" disabled={!canTakeResource} onClick={props.onDrawCards}>
-                抽牌
-              </GameButton>
-              <GameButton variant="neutral" size="sm" disabled={!isMyTurn} onClick={props.onEndTurn}>
-                结束回合
-              </GameButton>
-              <GameButton
-                variant="neutral"
-                size="sm"
-                disabled={!canSkipCurrentOfflinePlayer}
-                onClick={props.onSkipCurrentOfflinePlayer}
-              >
-                跳过离线玩家
-              </GameButton>
-            </div>
-
-            <div className="test-skill-box">
-              <p className="test-skill-hint">{skillHint()}</p>
-              {needsTargetRole && (
-                <label>
-                  目标角色
-                  <select value={targetRoleId} onChange={(event) => setTargetRoleId(event.target.value)}>
-                    {roleOptions.map((role) => (
-                      <option key={role.id} value={role.id}>
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              {needsTargetDistrict && (
-                <>
-                  <label>
-                    目标玩家
-                    <select
-                      value={targetPlayer?.id ?? ""}
-                      onChange={(event) => setTargetPlayerId(event.target.value)}
-                    >
-                      {props.gameState.players
-                        .filter((player) => player.id !== props.playerId)
-                        .map((player) => (
-                          <option key={player.id} value={player.id}>
-                            {player.name}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <label>
-                    目标建筑
-                    <select
-                      value={targetDistrictCardId}
-                      onChange={(event) => setTargetDistrictCardId(event.target.value)}
-                    >
-                      {targetDistricts.length === 0 ? (
-                        <option value="">无建筑</option>
-                      ) : (
-                        targetDistricts.map((district) => (
-                          <option key={district.id} value={district.id}>
-                            {district.name} · 费用 {district.cost}
-                          </option>
-                        ))
-                      )}
-                    </select>
-                  </label>
-                </>
-              )}
-              {needsDiscardCards && (
-                <div className="test-discard-options">
-                  <span>魔术师弃牌</span>
-                  <div>
-                    {(self?.hand ?? []).map((card) => (
-                      <label key={card.id}>
-                        <input
-                          type="checkbox"
-                          checked={discardCardIds.includes(card.id)}
-                          onChange={() => toggleDiscardCard(card.id)}
-                        />
-                        {card.name}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <GameButton
-                variant="primary"
-                size="sm"
-                disabled={!canUseSkill}
-                onClick={() =>
-                  props.onUseSkill({
-                    targetRoleId,
-                    targetPlayerId: targetPlayer?.id,
-                    targetDistrictCardId: targetDistrictCardId || undefined,
-                    discardCardIds: discardCardIds.length > 0 ? discardCardIds : undefined
-                  })
-                }
-              >
-                使用技能
-              </GameButton>
-              {skillBlockedReason() && (
-                <span className="test-skill-blocked">{skillBlockedReason()}</span>
-              )}
-            </div>
-          </section>
-
-          <section className="test-game-section test-game-section--wide">
-            <h3>你的手牌</h3>
-            <div className="test-card-row">
-              {(self?.hand ?? []).map((card) => (
-                <TestDistrictCard
-                  key={card.id}
-                  card={card}
-                  disabled={!canBuild}
-                  onBuild={() => props.onBuildDistrict(card.id)}
-                />
-              ))}
-              {(self?.hand ?? []).length === 0 && <p>暂无手牌。</p>}
-            </div>
-          </section>
-
-          <section className="test-game-section test-game-section--wide">
-            <h3>你的城市</h3>
-            <div className="test-card-row">
-              {(self?.city ?? []).map((card) => (
-                <GameCard
-                  key={card.id}
-                  cost={card.cost}
-                  description={card.description}
-                  name={card.name}
-                />
-              ))}
-              {(self?.city ?? []).length === 0 && <p>你还没有建造建筑。</p>}
-            </div>
-          </section>
-
-          <section className="test-game-section test-game-section--wide">
-            <h3>游戏日志</h3>
-            <div className="test-log-list">
-              {props.gameState.gameLog.slice(0, 10).map((log) => (
-                <p key={log.id}>{log.message}</p>
-              ))}
-              {props.gameState.gameLog.length === 0 && <p>暂无日志。</p>}
-            </div>
-          </section>
-        </div>
-
-        {props.message && <p className="fantasy-toast">{props.message}</p>}
-      </GamePanel>
-    </section>
-  );
-}
-
-function TestDistrictCard(props: {
-  card: DistrictCard;
-  disabled: boolean;
-  onBuild: () => void;
-}) {
-  return (
-    <GameCard cost={props.card.cost} description={props.card.description} name={props.card.name}>
-      <GameButton variant="secondary" size="sm" disabled={props.disabled} onClick={props.onBuild}>
-        建造
-      </GameButton>
-    </GameCard>
-  );
-}
-
-function phaseText(phase: VisibleGameState["phase"]) {
-  const text: Record<VisibleGameState["phase"], string> = {
-    LOBBY: "大厅",
-    GAME_START: "游戏开始",
-    ROLE_SELECTION: "角色选择",
-    ROLE_ACTION: "角色行动",
-    ROUND_END: "回合结束",
-    SCORING: "结算",
-    ENDED: "已结束"
-  };
-  return text[phase];
-}
-
-function playerName(gameState: VisibleGameState, playerId: string | null) {
-  return gameState.players.find((player) => player.id === playerId)?.name ?? "无";
-}
-
-function roleName(roleId: string | null) {
-  if (!roleId) {
-    return "未公开";
-  }
-  return roleOptions.find((role) => role.id === roleId)?.name ?? roleId;
 }
 
 function HomeMenu(props: {

@@ -1,23 +1,29 @@
-import type { Server, Socket } from "socket.io";
+﻿import type { Server, Socket } from "socket.io";
 import type {
+  ActionEventPayload,
   ClientToServerEvents,
   InterServerEvents,
   RoomState,
   ServerToClientEvents,
   SocketData
 } from "@zy/shared";
+import { createLatestActionEvent } from "../game/actionEvents";
 import { createRoomManager } from "../game/roomManager";
 import {
+  advanceOfflinePlayers,
   buildDistrict,
+  chooseDrawnDistrictCard,
   drawDistrictCards,
   endTurn,
-  runBotTurns,
+  runNextBotTurn,
   selectRole,
   skipOfflineCurrentPlayer,
   takeGold,
   useRoleSkill,
   visibleStateForPlayer
 } from "../game/gameEngine";
+import { BOT_THINK_DELAY_MS } from "../game/gameConfig";
+import { resolveExpiredTurn } from "../game/timers";
 
 type GameServer = Server<
   ClientToServerEvents,
@@ -32,10 +38,13 @@ type GameSocket = Socket<
   SocketData
 >;
 
-type ActionResult = { ok: boolean; error?: string };
+type ActionResult = { ok: boolean; error?: string; actionEvent?: ActionEventPayload | null };
 
 const roomManager = createRoomManager();
 let nextUid = 100001;
+const startCountdownTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const botTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const crownRevealTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function registerSocketHandlers(io: GameServer) {
   io.on("connection", (socket) => {
@@ -106,7 +115,7 @@ export function registerSocketHandlers(io: GameServer) {
         roomCode: result.room.roomCode,
         playerId: result.playerId
       });
-      broadcastRoomState(io, result.room);
+      syncLobbyStartCountdown(io, result.room);
       console.log(`[room] ${payload.playerName} joined room ${result.room.roomCode}`);
     });
 
@@ -139,6 +148,7 @@ export function registerSocketHandlers(io: GameServer) {
       broadcastRoomState(io, result.room);
       if (result.gameRoom) {
         broadcastGameState(result.gameRoom);
+        scheduleCrownReveal(result.gameRoom);
       }
       console.log(`[room] player ${result.player.id} reconnected to room ${result.room.roomCode}`);
     });
@@ -160,7 +170,7 @@ export function registerSocketHandlers(io: GameServer) {
         return;
       }
 
-      broadcastRoomState(io, result.room);
+      syncLobbyStartCountdown(io, result.room);
     });
 
     socket.on("start_game", (payload) => {
@@ -180,8 +190,10 @@ export function registerSocketHandlers(io: GameServer) {
       }
 
       broadcastRoomState(io, result.room);
-      runBotTurns(result.gameRoom);
+      clearStartCountdownTimer(result.room.roomCode);
       broadcastGameState(result.gameRoom);
+      scheduleCrownReveal(result.gameRoom);
+      scheduleBotTurn(result.gameRoom);
       console.log(`[room] room ${result.room.roomCode} marked as started`);
     });
 
@@ -201,7 +213,108 @@ export function registerSocketHandlers(io: GameServer) {
         return;
       }
 
-      broadcastRoomState(io, result.room);
+      syncLobbyStartCountdown(io, result.room);
+    });
+
+    socket.on("remove_test_bot", (payload) => {
+      const socketPlayer = assertSocketPlayer(socket, payload.roomCode);
+      if (!socketPlayer.ok) {
+        socket.emit("error_message", { message: socketPlayer.error });
+        return;
+      }
+
+      const result = roomManager.removeTestBot({
+        roomCode: payload.roomCode,
+        playerId: socketPlayer.playerId,
+        targetBotPlayerId: payload.targetBotPlayerId
+      });
+      if (!result.ok) {
+        socket.emit("error_message", { message: result.error });
+        return;
+      }
+
+      syncLobbyStartCountdown(io, result.room);
+    });
+
+    socket.on("kick_player", (payload) => {
+      const socketPlayer = assertSocketPlayer(socket, payload.roomCode);
+      if (!socketPlayer.ok) {
+        socket.emit("error_message", { message: socketPlayer.error });
+        return;
+      }
+
+      const result = roomManager.kickPlayer({
+        roomCode: payload.roomCode,
+        playerId: socketPlayer.playerId,
+        targetPlayerId: payload.targetPlayerId
+      });
+      if (!result.ok) {
+        socket.emit("error_message", { message: result.error });
+        return;
+      }
+
+      const kickedSocket = io.sockets.sockets.get(result.kickedPlayer.socketId);
+      if (kickedSocket) {
+        kickedSocket.leave(result.room.roomCode);
+        kickedSocket.data.playerId = undefined;
+        kickedSocket.data.roomCode = undefined;
+        kickedSocket.emit("kicked_from_room", {
+          roomCode: result.room.roomCode,
+          message: "你已被房主移出房间。"
+        });
+      }
+
+      syncLobbyStartCountdown(io, result.room);
+    });
+
+    socket.on("transfer_host", (payload) => {
+      const socketPlayer = assertSocketPlayer(socket, payload.roomCode);
+      if (!socketPlayer.ok) {
+        socket.emit("error_message", { message: socketPlayer.error });
+        return;
+      }
+
+      const result = roomManager.transferHost({
+        roomCode: payload.roomCode,
+        playerId: socketPlayer.playerId,
+        targetPlayerId: payload.targetPlayerId
+      });
+      if (!result.ok) {
+        socket.emit("error_message", { message: result.error });
+        return;
+      }
+
+      syncLobbyStartCountdown(io, result.room);
+    });
+
+    socket.on("update_room_settings", (payload) => {
+      const socketPlayer = assertSocketPlayer(socket, payload.roomCode);
+      if (!socketPlayer.ok) {
+        socket.emit("error_message", { message: socketPlayer.error });
+        return;
+      }
+
+      const result = roomManager.updateRoomSettings({
+        roomCode: payload.roomCode,
+        playerId: socketPlayer.playerId,
+        settings: payload.settings
+      });
+      if (!result.ok) {
+        socket.emit("error_message", { message: result.error });
+        return;
+      }
+
+      syncLobbyStartCountdown(io, result.room);
+    });
+
+    socket.on("resolve_start_countdown", (payload) => {
+      const socketPlayer = assertSocketPlayer(socket, payload.roomCode);
+      if (!socketPlayer.ok) {
+        socket.emit("error_message", { message: socketPlayer.error });
+        return;
+      }
+
+      resolveLobbyStartCountdown(io, payload.roomCode);
     });
 
     socket.on("select_role", (payload) => {
@@ -226,8 +339,13 @@ export function registerSocketHandlers(io: GameServer) {
         return;
       }
 
-      runBotTurns(gameRoom);
+      broadcastActionEvent(
+        createLatestActionEvent(gameRoom, {
+          actorPlayerId: socketPlayer.playerId
+        })
+      );
       broadcastGameState(gameRoom);
+      scheduleBotTurn(gameRoom);
     });
 
     socket.on("take_gold", (payload) => {
@@ -239,6 +357,16 @@ export function registerSocketHandlers(io: GameServer) {
     socket.on("draw_district_cards", (payload) => {
       handleGameAction(socket, payload.roomCode, (playerId) =>
         drawCardsOrError({ roomCode: payload.roomCode, playerId })
+      );
+    });
+
+    socket.on("choose_drawn_district_card", (payload) => {
+      handleGameAction(socket, payload.roomCode, (playerId) =>
+        chooseDrawnCardOrError({
+          roomCode: payload.roomCode,
+          playerId,
+          districtCardId: payload.districtCardId
+        })
       );
     });
 
@@ -276,6 +404,33 @@ export function registerSocketHandlers(io: GameServer) {
       );
     });
 
+    socket.on("resolve_turn_timeout", (payload) => {
+      handleGameAction(socket, payload.roomCode, () =>
+        resolveTurnTimeoutOrError({ roomCode: payload.roomCode })
+      );
+    });
+
+    socket.on("send_chat_message", (payload) => {
+      const socketPlayer = assertSocketPlayer(socket, payload.roomCode);
+      if (!socketPlayer.ok) {
+        socket.emit("error_message", { message: socketPlayer.error });
+        return;
+      }
+
+      const result = roomManager.addChatMessage({
+        roomCode: payload.roomCode,
+        playerId: socketPlayer.playerId,
+        message: payload.message
+      });
+      if (!result.ok) {
+        socket.emit("error_message", { message: result.error });
+        return;
+      }
+
+      io.to(result.room.roomCode).emit("chat_message", result.message);
+      broadcastRoomState(io, result.room);
+    });
+
     socket.on("leave_room", (payload) => {
       const socketPlayer = assertSocketPlayer(socket, payload.roomCode);
       if (!socketPlayer.ok) {
@@ -297,10 +452,15 @@ export function registerSocketHandlers(io: GameServer) {
       }
 
       if (result.room) {
-        broadcastRoomState(io, result.room);
+        syncLobbyStartCountdown(io, result.room);
         const gameRoom = roomManager.getGameRoom(result.room.roomCode);
         if (gameRoom) {
+          const advanceResult = advanceOfflinePlayers(gameRoom);
+          if (!advanceResult.ok) {
+            socket.emit("error_message", { message: advanceResult.error });
+          }
           broadcastGameState(gameRoom);
+          scheduleBotTurn(gameRoom);
         }
       }
     });
@@ -308,7 +468,7 @@ export function registerSocketHandlers(io: GameServer) {
     socket.on("disconnect", (reason) => {
       const room = roomManager.markDisconnectedBySocket(socket.id);
       if (room) {
-        broadcastRoomState(io, room);
+        syncLobbyStartCountdown(io, room);
         const gameRoom = roomManager.getGameRoom(room.roomCode);
         if (gameRoom) {
           broadcastGameState(gameRoom);
@@ -354,10 +514,11 @@ export function registerSocketHandlers(io: GameServer) {
       return;
     }
 
+    broadcastActionEvent(result.actionEvent);
     const gameRoom = roomManager.getGameRoom(roomCode);
     if (gameRoom) {
-      runBotTurns(gameRoom);
       broadcastGameState(gameRoom);
+      scheduleBotTurn(gameRoom);
     }
   }
 
@@ -366,7 +527,7 @@ export function registerSocketHandlers(io: GameServer) {
     if (!gameRoom) {
       return { ok: false, error: "游戏房间不存在。" };
     }
-    return takeGold(gameRoom, payload);
+    return withActionEvent(gameRoom, takeGold(gameRoom, payload), payload.playerId);
   }
 
   function drawCardsOrError(payload: { roomCode: string; playerId: string }) {
@@ -374,7 +535,19 @@ export function registerSocketHandlers(io: GameServer) {
     if (!gameRoom) {
       return { ok: false, error: "游戏房间不存在。" };
     }
-    return drawDistrictCards(gameRoom, payload);
+    return withActionEvent(gameRoom, drawDistrictCards(gameRoom, payload), payload.playerId);
+  }
+
+  function chooseDrawnCardOrError(payload: {
+    roomCode: string;
+    playerId: string;
+    districtCardId: string;
+  }) {
+    const gameRoom = roomManager.getGameRoom(payload.roomCode);
+    if (!gameRoom) {
+      return { ok: false, error: "游戏房间不存在。" };
+    }
+    return withActionEvent(gameRoom, chooseDrawnDistrictCard(gameRoom, payload), payload.playerId);
   }
 
   function buildDistrictOrError(payload: {
@@ -386,7 +559,7 @@ export function registerSocketHandlers(io: GameServer) {
     if (!gameRoom) {
       return { ok: false, error: "游戏房间不存在。" };
     }
-    return buildDistrict(gameRoom, payload);
+    return withActionEvent(gameRoom, buildDistrict(gameRoom, payload), payload.playerId);
   }
 
   function useRoleSkillOrError(payload: {
@@ -401,7 +574,7 @@ export function registerSocketHandlers(io: GameServer) {
     if (!gameRoom) {
       return { ok: false, error: "游戏房间不存在。" };
     }
-    return useRoleSkill(gameRoom, payload);
+    return withActionEvent(gameRoom, useRoleSkill(gameRoom, payload), payload.playerId);
   }
 
   function endTurnOrError(payload: { roomCode: string; playerId: string }) {
@@ -409,7 +582,7 @@ export function registerSocketHandlers(io: GameServer) {
     if (!gameRoom) {
       return { ok: false, error: "游戏房间不存在。" };
     }
-    return endTurn(gameRoom, payload);
+    return withActionEvent(gameRoom, endTurn(gameRoom, payload), payload.playerId);
   }
 
   function skipOfflineCurrentPlayerOrError(payload: {
@@ -420,18 +593,235 @@ export function registerSocketHandlers(io: GameServer) {
     if (!gameRoom) {
       return { ok: false, error: "游戏房间不存在。" };
     }
-    return skipOfflineCurrentPlayer(gameRoom, {
-      requesterPlayerId: payload.requesterPlayerId
-    });
+    return withActionEvent(
+      gameRoom,
+      skipOfflineCurrentPlayer(gameRoom, {
+        requesterPlayerId: payload.requesterPlayerId
+      }),
+      payload.requesterPlayerId
+    );
+  }
+
+  function resolveTurnTimeoutOrError(payload: { roomCode: string }) {
+    const gameRoom = roomManager.getGameRoom(payload.roomCode);
+    if (!gameRoom) {
+      return { ok: false, error: "游戏房间不存在。" };
+    }
+
+    const actorPlayerId = gameRoom.turnTimer?.playerId ?? "";
+    const result = resolveExpiredTurn(gameRoom);
+    if (!result.ok) {
+      return result;
+    }
+
+    if (!result.timedOut) {
+      return { ...result, actionEvent: null };
+    }
+
+    return withActionEvent(gameRoom, result, actorPlayerId);
+  }
+
+  function withActionEvent<T extends ActionResult>(
+    gameRoom: NonNullable<ReturnType<typeof roomManager.getGameRoom>>,
+    result: T,
+    actorPlayerId: string
+  ): T {
+    if (!result.ok) {
+      return result;
+    }
+
+    return {
+      ...result,
+      actionEvent: createLatestActionEvent(gameRoom, { actorPlayerId })
+    };
+  }
+
+  function broadcastActionEvent(event: ActionEventPayload | null | undefined) {
+    if (!event || event.visibility !== "public") {
+      return;
+    }
+
+    io.to(event.roomCode).emit("action_event", event);
   }
 
   function broadcastGameState(gameRoom: NonNullable<ReturnType<typeof roomManager.getGameRoom>>) {
     for (const player of gameRoom.players) {
+      if (!player.connected) {
+        continue;
+      }
+
       io.to(player.socketId).emit("game_state", visibleStateForPlayer(gameRoom, player.id));
     }
+  }
+
+  function scheduleCrownReveal(gameRoom: NonNullable<ReturnType<typeof roomManager.getGameRoom>>) {
+    const roomCode = gameRoom.roomId;
+    if (gameRoom.phase !== "CROWN_REVEAL" || gameRoom.turnTimer?.phase !== "CROWN_REVEAL") {
+      clearCrownRevealTimer(roomCode);
+      return;
+    }
+
+    if (crownRevealTimers.has(roomCode)) {
+      return;
+    }
+
+    const delayMs = Math.max(0, new Date(gameRoom.turnTimer.deadlineAt).getTime() - Date.now());
+    const timeout = setTimeout(() => {
+      crownRevealTimers.delete(roomCode);
+      const latestGameRoom = roomManager.getGameRoom(roomCode);
+      if (!latestGameRoom) {
+        return;
+      }
+
+      const result = resolveExpiredTurn(latestGameRoom);
+      if (!result.ok) {
+        io.to(roomCode).emit("error_message", { message: result.error });
+        broadcastGameState(latestGameRoom);
+        return;
+      }
+
+      broadcastGameState(latestGameRoom);
+      scheduleBotTurn(latestGameRoom);
+    }, delayMs);
+
+    crownRevealTimers.set(roomCode, timeout);
+  }
+  function scheduleBotTurn(gameRoom: NonNullable<ReturnType<typeof roomManager.getGameRoom>>) {
+    const roomCode = gameRoom.roomId;
+    const autoPlayer = getAutoTurnPlayer(gameRoom);
+    if (!autoPlayer) {
+      clearBotTurnTimer(roomCode);
+      return;
+    }
+
+    if (botTurnTimers.has(roomCode)) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      botTurnTimers.delete(roomCode);
+      const latestGameRoom = roomManager.getGameRoom(roomCode);
+      if (!latestGameRoom) {
+        return;
+      }
+
+      const result = runNextBotTurn(latestGameRoom);
+      if (!result.ok) {
+        io.to(roomCode).emit("error_message", { message: result.error });
+        broadcastGameState(latestGameRoom);
+        return;
+      }
+
+      broadcastGameState(latestGameRoom);
+      scheduleBotTurn(latestGameRoom);
+    }, BOT_THINK_DELAY_MS);
+
+    botTurnTimers.set(roomCode, timeout);
+  }
+
+  function getAutoTurnPlayer(gameRoom: NonNullable<ReturnType<typeof roomManager.getGameRoom>>) {
+    if (gameRoom.phase === "ROLE_SELECTION") {
+      const player = gameRoom.players.find(
+        (candidate) => candidate.id === gameRoom.roleSelectionTurnPlayerId
+      );
+      return player && (player.isBot || !player.connected) ? player : null;
+    }
+
+    if (gameRoom.phase === "ROLE_ACTION") {
+      const player = gameRoom.players.find(
+        (candidate) => candidate.id === gameRoom.currentTurnPlayerId
+      );
+      return player?.isBot ? player : null;
+    }
+
+    return null;
+  }
+
+  function syncLobbyStartCountdown(io: GameServer, room: RoomState) {
+    if (room.status !== "LOBBY") {
+      clearStartCountdownTimer(room.roomCode);
+      broadcastRoomState(io, room);
+      return;
+    }
+
+    if (!room.startCountdown) {
+      roomManager.beginStartCountdown(room.roomCode);
+    }
+
+    const latestRoom = roomManager.getRoom(room.roomCode) ?? room;
+    if (!latestRoom.startCountdown) {
+      clearStartCountdownTimer(latestRoom.roomCode);
+      broadcastRoomState(io, latestRoom);
+      return;
+    }
+
+    scheduleStartCountdown(io, latestRoom);
+    broadcastRoomState(io, latestRoom);
+  }
+
+  function scheduleStartCountdown(io: GameServer, room: RoomState) {
+    clearStartCountdownTimer(room.roomCode);
+    if (!room.startCountdown) {
+      return;
+    }
+
+    const delayMs = Math.max(
+      0,
+      new Date(room.startCountdown.deadlineAt).getTime() - Date.now()
+    );
+    const timeout = setTimeout(() => {
+      resolveLobbyStartCountdown(io, room.roomCode);
+    }, delayMs);
+    startCountdownTimers.set(room.roomCode, timeout);
+  }
+
+  function resolveLobbyStartCountdown(io: GameServer, roomCode: string) {
+    clearStartCountdownTimer(roomCode);
+    const result = roomManager.resolveStartCountdown(roomCode);
+    if (!result.ok) {
+      const room = roomManager.getRoom(roomCode);
+      if (room) {
+        broadcastRoomState(io, room);
+      }
+      return;
+    }
+
+    broadcastRoomState(io, result.room);
+    if (result.started && result.gameRoom) {
+      broadcastGameState(result.gameRoom);
+      scheduleCrownReveal(result.gameRoom);
+      scheduleBotTurn(result.gameRoom);
+      console.log(`[room] room ${result.room.roomCode} auto-started after ready countdown`);
+    }
+  }
+}
+
+function clearStartCountdownTimer(roomCode: string) {
+  const timer = startCountdownTimers.get(roomCode);
+  if (timer) {
+    clearTimeout(timer);
+    startCountdownTimers.delete(roomCode);
+  }
+}
+
+function clearCrownRevealTimer(roomCode: string) {
+  const timer = crownRevealTimers.get(roomCode);
+  if (timer) {
+    clearTimeout(timer);
+    crownRevealTimers.delete(roomCode);
+  }
+}
+function clearBotTurnTimer(roomCode: string) {
+  const timer = botTurnTimers.get(roomCode);
+  if (timer) {
+    clearTimeout(timer);
+    botTurnTimers.delete(roomCode);
   }
 }
 
 function broadcastRoomState(io: GameServer, room: RoomState) {
   io.to(room.roomCode).emit("room_state", room);
 }
+
+
+

@@ -1,53 +1,62 @@
 import type { DistrictCard, GameRoom, LobbyPlayer, Player, RoomState } from "@zy/shared";
 import { randomUUID } from "node:crypto";
-import { loadDistrictCards, loadRoleCards } from "./cardData";
+import { loadDistrictCards } from "./cardData";
+import { startCrownRevealTimer } from "./timerState";
+import { MIN_PLAYERS_TO_START, currentPlayerRangeText } from "./gameConfig";
+import { createRoleSelectionPool } from "./rolePool";
 
 const INITIAL_GOLD = 2;
 const INITIAL_HAND_SIZE = 4;
-const MIN_PLAYERS_TO_START = 2;
 
 export function initializeGameRoom(lobbyRoom: RoomState): GameRoom {
   if (
     lobbyRoom.players.length < MIN_PLAYERS_TO_START ||
     lobbyRoom.players.length > lobbyRoom.maxPlayers
   ) {
-    throw new Error("Game room requires 2-4 players for the current test build.");
+    throw new Error(`Game room requires ${currentPlayerRangeText()} players for the current test build.`);
   }
 
+  const crownPlayerId = selectRandomPlayerId(lobbyRoom.players);
   const districtDeck = shuffleCards(loadDistrictCards());
   const players = lobbyRoom.players.map((lobbyPlayer) =>
     initializePlayer(lobbyPlayer, districtDeck)
   );
+  const rolePool = createRoleSelectionPool(lobbyRoom.settings, players.length);
 
-  return {
+  const gameRoom: GameRoom = {
     roomId: lobbyRoom.roomCode,
     players,
     hostPlayerId: lobbyRoom.hostPlayerId,
     status: "STARTED",
-    phase: "ROLE_SELECTION",
+    settings: lobbyRoom.settings,
+    phase: "CROWN_REVEAL",
     currentRound: 1,
-    crownPlayerId: lobbyRoom.hostPlayerId,
-    roleSelectionOrder: createPlayerOrder(lobbyRoom.players, lobbyRoom.hostPlayerId),
-    roleSelectionTurnPlayerId: lobbyRoom.hostPlayerId,
+    crownPlayerId,
+    roleSelectionOrder: createPlayerOrder(lobbyRoom.players, crownPlayerId),
+    roleSelectionTurnPlayerId: null,
     currentTurnPlayerId: null,
     currentRoleOrder: [],
     completedRoleIds: [],
     turnState: null,
+    turnTimer: null,
+    pendingDrawChoice: null,
     roleEffects: createEmptyRoleEffects(),
-    availableRoles: loadRoleCards(),
-    discardedRoles: [],
+    availableRoles: rolePool.availableRoles,
+    discardedRoles: rolePool.discardedRoles,
     districtDeck,
     districtDiscardPile: [],
     gameLog: [
       {
         id: randomUUID(),
         type: "game_started",
-        message: "游戏开始，进入角色选择阶段。",
+        message: "游戏开始，正在随机皇冠。",
         createdAt: new Date().toISOString()
       }
     ],
     scoringResults: []
   };
+  startCrownRevealTimer(gameRoom, gameRoom.crownPlayerId);
+  return gameRoom;
 }
 
 function createEmptyRoleEffects() {
@@ -87,6 +96,11 @@ function shuffleCards<T>(cards: T[]) {
   }
 
   return copy;
+}
+
+function selectRandomPlayerId(players: LobbyPlayer[]) {
+  const index = Math.floor(Math.random() * players.length);
+  return players[index]?.id ?? players[0]?.id ?? "";
 }
 
 function createPlayerOrder(players: LobbyPlayer[], crownPlayerId: string) {

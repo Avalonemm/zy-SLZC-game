@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { initializeGameRoom } from "./gameSetup";
+import { resolveExpiredTurn } from "./timers";
 import {
   buildDistrict,
+  chooseDrawnDistrictCard,
   drawDistrictCards,
   endTurn,
+  advanceOfflinePlayers,
   runBotTurns,
   selectRole,
   skipOfflineCurrentPlayer,
@@ -11,15 +14,44 @@ import {
   useRoleSkill,
   visibleStateForPlayer
 } from "./gameEngine";
-import type { GameRoom, RoomState } from "@zy/shared";
+import { addLog } from "./gameEngineUtils";
+import type { GameRoom, RoomSettings, RoomState } from "@zy/shared";
+
+function createDefaultSettings(overrides: Partial<RoomSettings> = {}): RoomSettings {
+  return {
+    startCountdownSeconds: 10,
+    turnTimeoutSeconds: 15,
+    endCitySize: 8,
+    enabledRoleIds: [
+      "assassin",
+      "thief",
+      "magician",
+      "king",
+      "bishop",
+      "merchant",
+      "architect",
+      "warlord"
+    ],
+    enableFaceUpRoleDiscard: false,
+    enableFaceDownRoleDiscard: false,
+    drawMode: "draw2Choose1",
+    roleRulePreset: "standard4Player",
+    ...overrides
+  };
+}
 
 function createStartedGame() {
   const lobbyRoom: RoomState = {
     roomCode: "ROOM44",
     hostPlayerId: "player-1",
     status: "STARTED",
+    minPlayers: 2,
     maxPlayers: 4,
+    futureMaxPlayers: 8,
+    settings: createDefaultSettings(),
+    startCountdown: null,
     createdAt: "2026-06-28T00:00:00.000Z",
+    chatMessages: [],
     players: ["Alice", "Bob", "Cici", "Dan"].map((name, index) => ({
       id: `player-${index + 1}`,
       uid: 100001 + index,
@@ -32,7 +64,13 @@ function createStartedGame() {
     }))
   };
 
-  return initializeGameRoom(lobbyRoom);
+  const gameRoom = initializeGameRoom(lobbyRoom);
+  gameRoom.crownPlayerId = "player-1";
+  if (gameRoom.phase === "CROWN_REVEAL") {
+    const result = resolveExpiredTurn(gameRoom, gameRoom.turnTimer?.deadlineAt);
+    expect(result.ok).toBe(true);
+  }
+  return gameRoom;
 }
 
 function selectRolesById(gameRoom: GameRoom, roleIds: string[]) {
@@ -128,7 +166,18 @@ describe("game engine", () => {
 
     const drawResult = drawDistrictCards(gameRoom, { playerId: "player-2" });
     expect(drawResult.ok).toBe(true);
-    expect(gameRoom.players[1].hand.length).toBeGreaterThan(4);
+    expect(gameRoom.pendingDrawChoice?.playerId).toBe("player-2");
+    expect(gameRoom.players[1].hand).toHaveLength(4);
+
+    if (!drawResult.ok) {
+      throw new Error("Expected draw result.");
+    }
+    const chooseResult = chooseDrawnDistrictCard(gameRoom, {
+      playerId: "player-2",
+      districtCardId: drawResult.drawnCards[0].id
+    });
+    expect(chooseResult.ok).toBe(true);
+    expect(gameRoom.players[1].hand).toHaveLength(5);
   });
 
   it("starts a new round after all selected roles act", () => {
@@ -151,8 +200,9 @@ describe("game engine", () => {
     expect(gameRoom.players.every((player) => player.selectedRoleId === null)).toBe(true);
   });
 
-  it("ends the game and scores when a player has four districts after their turn", () => {
+  it("ends the game and scores when a player reaches the configured city size after their turn", () => {
     const gameRoom = createStartedGame();
+    gameRoom.settings.endCitySize = 4;
     const roles = [...gameRoom.availableRoles];
     for (const [index, player] of gameRoom.players.entries()) {
       selectRole(gameRoom, {
@@ -172,6 +222,96 @@ describe("game engine", () => {
     expect(gameRoom.scoringResults).toHaveLength(4);
   });
 
+  it("keeps the unchosen drawn district card at the bottom of the deck", () => {
+    const gameRoom = createStartedGame();
+    selectRolesById(gameRoom, ["assassin", "thief", "magician", "king"]);
+    endTurn(gameRoom, { playerId: "player-1" });
+
+    const player = gameRoom.players[1];
+    const [drawA, drawB, nextCard] = gameRoom.districtDeck;
+    const drawResult = drawDistrictCards(gameRoom, { playerId: player.id });
+
+    expect(drawResult.ok).toBe(true);
+    if (!drawResult.ok) {
+      throw new Error("Expected draw result.");
+    }
+    expect(drawResult.drawnCards.map((card) => card.id)).toEqual([drawA.id, drawB.id]);
+
+    const chooseResult = chooseDrawnDistrictCard(gameRoom, {
+      playerId: player.id,
+      districtCardId: drawA.id
+    });
+
+    expect(chooseResult.ok).toBe(true);
+    expect(player.hand.map((card) => card.id)).toContain(drawA.id);
+    expect(player.hand.map((card) => card.id)).not.toContain(drawB.id);
+    expect(gameRoom.districtDeck[0].id).toBe(nextCard.id);
+    expect(gameRoom.districtDeck.at(-1)?.id).toBe(drawB.id);
+    expect(gameRoom.pendingDrawChoice).toBeNull();
+    expect(gameRoom.turnState?.resourceActionTaken).toBe(true);
+  });
+
+  it("clears unresolved drawn cards when the player turn ends", () => {
+    const gameRoom = createStartedGame();
+    selectRolesById(gameRoom, ["assassin", "thief", "magician", "king"]);
+    endTurn(gameRoom, { playerId: "player-1" });
+
+    const player = gameRoom.players[1];
+    const [drawA, drawB] = gameRoom.districtDeck;
+    const drawResult = drawDistrictCards(gameRoom, { playerId: player.id });
+
+    expect(drawResult.ok).toBe(true);
+    expect(gameRoom.pendingDrawChoice?.playerId).toBe(player.id);
+
+    const endResult = endTurn(gameRoom, { playerId: player.id });
+
+    expect(endResult.ok).toBe(true);
+    expect(gameRoom.pendingDrawChoice).toBeNull();
+    expect(gameRoom.districtDeck.at(-2)?.id).toBe(drawA.id);
+    expect(gameRoom.districtDeck.at(-1)?.id).toBe(drawB.id);
+  });
+  it("rejects draw choices from another player", () => {
+    const gameRoom = createStartedGame();
+    selectRolesById(gameRoom, ["assassin", "thief", "magician", "king"]);
+    endTurn(gameRoom, { playerId: "player-1" });
+
+    const drawResult = drawDistrictCards(gameRoom, { playerId: "player-2" });
+    expect(drawResult.ok).toBe(true);
+    if (!drawResult.ok) {
+      throw new Error("Expected draw result.");
+    }
+
+    expect(
+      chooseDrawnDistrictCard(gameRoom, {
+        playerId: "player-3",
+        districtCardId: drawResult.drawnCards[0].id
+      })
+    ).toEqual({
+      ok: false,
+      error: "当前没有你的抽牌选择。"
+    });
+  });
+
+  it("prevents building another district with the same name", () => {
+    const gameRoom = createStartedGame();
+    selectRolesById(gameRoom, ["assassin", "thief", "magician", "king"]);
+    const player = gameRoom.players[0];
+    const duplicate = { ...player.hand[0], id: "duplicate-copy" };
+    player.city = [player.hand[0]];
+    player.hand = [duplicate];
+    player.gold = duplicate.cost;
+
+    const buildResult = buildDistrict(gameRoom, {
+      playerId: player.id,
+      districtCardId: duplicate.id
+    });
+
+    expect(buildResult).toEqual({
+      ok: false,
+      error: "不能重复建造同名建筑。"
+    });
+  });
+
   it("only exposes the requesting player's hand in visible state", () => {
     const gameRoom = createStartedGame();
     const visible = visibleStateForPlayer(gameRoom, "player-1");
@@ -183,6 +323,21 @@ describe("game engine", () => {
     expect(other?.hand).toBeUndefined();
     expect(other?.handCount).toBe(4);
     expect(visible.districtDeckCount).toBe(gameRoom.districtDeck.length);
+  });
+
+  it("keeps only recent game logs so repeated state broadcasts stay bounded", () => {
+    const gameRoom = createStartedGame();
+
+    for (let index = 1; index <= 120; index += 1) {
+      addLog(gameRoom, "test_log", `Log ${index}`);
+    }
+
+    const visible = visibleStateForPlayer(gameRoom, "player-1");
+
+    expect(gameRoom.gameLog).toHaveLength(80);
+    expect(visible.gameLog).toHaveLength(80);
+    expect(visible.gameLog[0].message).toBe("Log 120");
+    expect(visible.gameLog.at(-1)?.message).toBe("Log 41");
   });
 
   it("hides other players' unrevealed roles during selection and action", () => {
@@ -288,6 +443,41 @@ describe("game engine", () => {
     expect(gameRoom.gameLog.map((log) => log.type)).toContain("skip_offline_player");
   });
 
+  it("auto-selects a role for the current offline chooser so role selection cannot block", () => {
+    const gameRoom = createStartedGame();
+    gameRoom.players[0].connected = false;
+    const firstAvailableRole = gameRoom.availableRoles[0];
+
+    const advanceResult = advanceOfflinePlayers(gameRoom);
+
+    expect(advanceResult.ok).toBe(true);
+    expect(gameRoom.players[0].selectedRoleId).toBe(firstAvailableRole.id);
+    expect(gameRoom.roleSelectionTurnPlayerId).toBe("player-2");
+    expect(gameRoom.availableRoles.map((role) => role.id)).not.toContain(firstAvailableRole.id);
+    expect(gameRoom.gameLog.map((log) => log.type)).toContain("offline_role_auto_selected");
+  });
+
+  it("continues automatic progression when a new round starts with an offline role chooser", () => {
+    const gameRoom = createStartedGame();
+    gameRoom.players[0].connected = false;
+    selectRolesById(gameRoom, ["assassin", "thief", "magician", "king"]);
+
+    for (const player of gameRoom.players) {
+      const endResult = endTurn(gameRoom, { playerId: player.id });
+      expect(endResult.ok).toBe(true);
+    }
+
+    expect(gameRoom.phase).toBe("ROLE_SELECTION");
+    expect(gameRoom.roleSelectionTurnPlayerId).toBe("player-1");
+
+    const progressResult = runBotTurns(gameRoom);
+
+    expect(progressResult.ok).toBe(true);
+    expect(gameRoom.players[0].selectedRoleId).not.toBeNull();
+    expect(gameRoom.roleSelectionTurnPlayerId).toBe("player-2");
+    expect(gameRoom.gameLog.map((log) => log.type)).toContain("offline_role_auto_selected");
+  });
+
   it("lets the assassin skip a selected target role later this round", () => {
     const gameRoom = createStartedGame();
     const roles = [...gameRoom.availableRoles];
@@ -350,6 +540,26 @@ describe("game engine", () => {
     ]);
   });
 
+  it("lets the magician exchange their hand with another player", () => {
+    const gameRoom = createStartedGame();
+    const magician = gameRoom.players[0];
+    const target = gameRoom.players[1];
+    magician.hand = magician.hand.slice(0, 2);
+    target.hand = target.hand.slice(0, 3);
+    const magicianHandIds = magician.hand.map((card) => card.id);
+    const targetHandIds = target.hand.map((card) => card.id);
+    forceRoleActionTurn(gameRoom, magician.id, "magician");
+
+    const skillResult = useRoleSkill(gameRoom, {
+      playerId: magician.id,
+      targetPlayerId: target.id
+    });
+
+    expect(skillResult.ok).toBe(true);
+    expect(magician.hand.map((card) => card.id)).toEqual(targetHandIds);
+    expect(target.hand.map((card) => card.id)).toEqual(magicianHandIds);
+  });
+
   it("rejects magician discards that are not in the player's hand", () => {
     const gameRoom = createStartedGame();
     forceRoleActionTurn(gameRoom, "player-1", "magician");
@@ -366,7 +576,7 @@ describe("game engine", () => {
     expect(gameRoom.roleEffects.usedSkillPlayerIds).not.toContain("player-1");
   });
 
-  it("lets the merchant gain gold for each green district in their city", () => {
+  it("lets the merchant gain one gold plus one for each green district in their city", () => {
     const gameRoom = createStartedGame();
     const merchant = gameRoom.players[0];
     const [greenA, greenB, greenC, blueDistrict] = merchant.hand;
@@ -382,7 +592,33 @@ describe("game engine", () => {
     const skillResult = useRoleSkill(gameRoom, { playerId: merchant.id });
 
     expect(skillResult.ok).toBe(true);
-    expect(merchant.gold).toBe(5);
+    expect(merchant.gold).toBe(6);
+  });
+
+  it("lets standard color roles gain income for their district color", () => {
+    const cases = [
+      { roleId: "king", color: "yellow" as const },
+      { roleId: "bishop", color: "blue" as const },
+      { roleId: "warlord", color: "red" as const }
+    ];
+
+    for (const testCase of cases) {
+      const gameRoom = createStartedGame();
+      const player = gameRoom.players[0];
+      const [districtA, districtB, otherDistrict] = player.hand;
+      player.gold = 1;
+      player.city = [
+        { ...districtA, id: `${testCase.roleId}-a`, color: testCase.color },
+        { ...districtB, id: `${testCase.roleId}-b`, color: testCase.color },
+        { ...otherDistrict, id: `${testCase.roleId}-other`, color: "purple" }
+      ];
+      forceRoleActionTurn(gameRoom, player.id, testCase.roleId);
+
+      const skillResult = useRoleSkill(gameRoom, { playerId: player.id });
+
+      expect(skillResult.ok).toBe(true);
+      expect(player.gold).toBe(3);
+    }
   });
 
   it("charges the warlord one less than the target district cost", () => {
@@ -461,7 +697,13 @@ describe("game engine", () => {
     const cases = [
       { roleId: "king", assert: (room: GameRoom) => expect(room.crownPlayerId).toBe("player-1") },
       { roleId: "bishop", assert: (room: GameRoom) => expect(room.roleEffects.protectedPlayerIds).toContain("player-1") },
-      { roleId: "architect", assert: (room: GameRoom) => expect(room.turnState?.maxBuilds).toBe(2) }
+      {
+        roleId: "architect",
+        assert: (room: GameRoom) => {
+          expect(room.turnState?.maxBuilds).toBe(2);
+          expect(room.players[0].hand).toHaveLength(6);
+        }
+      }
     ];
 
     for (const testCase of cases) {
@@ -517,6 +759,28 @@ describe("game engine", () => {
     expect(protectedResult).toEqual({
       ok: false,
       error: "目标玩家的城市受到保护。"
+    });
+  });
+
+  it("prevents the warlord from destroying districts in a completed city", () => {
+    const gameRoom = createStartedGame();
+    gameRoom.settings.endCitySize = 4;
+    const warlord = gameRoom.players[0];
+    const target = gameRoom.players[1];
+    target.city = target.hand.slice(0, 4);
+    target.hand = [];
+    warlord.gold = 10;
+    forceRoleActionTurn(gameRoom, warlord.id, "warlord");
+
+    const destroyResult = useRoleSkill(gameRoom, {
+      playerId: warlord.id,
+      targetPlayerId: target.id,
+      targetDistrictCardId: target.city[0].id
+    });
+
+    expect(destroyResult).toEqual({
+      ok: false,
+      error: "不能破坏已经完成城市的玩家建筑。"
     });
   });
 });

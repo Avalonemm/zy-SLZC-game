@@ -1,15 +1,43 @@
-import { describe, expect, it } from "vitest";
-import type { RoomState } from "@zy/shared";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { RoomSettings, RoomState } from "@zy/shared";
 import { initializeGameRoom } from "./gameSetup";
 import { loadDistrictCards, loadRoleCards } from "./cardData";
+
+function createDefaultSettings(overrides: Partial<RoomSettings> = {}): RoomSettings {
+  return {
+    startCountdownSeconds: 10,
+    turnTimeoutSeconds: 15,
+    endCitySize: 8,
+    enabledRoleIds: [
+      "assassin",
+      "thief",
+      "magician",
+      "king",
+      "bishop",
+      "merchant",
+      "architect",
+      "warlord"
+    ],
+    enableFaceUpRoleDiscard: true,
+    enableFaceDownRoleDiscard: true,
+    drawMode: "draw2Choose1",
+    roleRulePreset: "standard4Player",
+    ...overrides
+  };
+}
 
 function createLobbyRoom(): RoomState {
   return {
     roomCode: "ABCD12",
     hostPlayerId: "player-a",
     status: "STARTED",
+    minPlayers: 2,
     maxPlayers: 4,
+    futureMaxPlayers: 8,
+    settings: createDefaultSettings(),
+    startCountdown: null,
     createdAt: "2026-06-28T00:00:00.000Z",
+    chatMessages: [],
     players: [
       {
         id: "player-a",
@@ -56,6 +84,10 @@ function createLobbyRoom(): RoomState {
 }
 
 describe("game setup", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("loads configured role and district cards", () => {
     const roles = loadRoleCards();
     const districts = loadDistrictCards();
@@ -80,20 +112,28 @@ describe("game setup", () => {
     );
   });
 
-  it("initializes a complete game room from a four-player lobby", () => {
+  it("starts a complete game room in crown reveal before role selection", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
     const gameRoom = initializeGameRoom(createLobbyRoom());
 
     expect(gameRoom.roomId).toBe("ABCD12");
-    expect(gameRoom.phase).toBe("ROLE_SELECTION");
+    expect(gameRoom.phase).toBe("CROWN_REVEAL");
     expect(gameRoom.currentRound).toBe(1);
-    expect(gameRoom.crownPlayerId).toBe("player-a");
+    expect(gameRoom.crownPlayerId).toBe("player-c");
     expect(gameRoom.currentRoleOrder).toEqual([]);
-    expect(gameRoom.availableRoles).toHaveLength(8);
-    expect(gameRoom.discardedRoles).toEqual([]);
+    expect(gameRoom.roleSelectionTurnPlayerId).toBeNull();
+    expect(gameRoom.roleSelectionOrder[0]).toBe("player-c");
+    expect(gameRoom.turnTimer).toMatchObject({
+      phase: "CROWN_REVEAL",
+      playerId: "player-c",
+      timeoutMs: 5_000
+    });
+    expect(gameRoom.availableRoles).toHaveLength(5);
+    expect(gameRoom.discardedRoles).toHaveLength(2);
     expect(gameRoom.districtDiscardPile).toEqual([]);
     expect(gameRoom.gameLog[0]).toMatchObject({
       type: "game_started",
-      message: "游戏开始，进入角色选择阶段。"
+      message: "游戏开始，正在随机皇冠。"
     });
 
     expect(gameRoom.players).toHaveLength(4);
@@ -106,5 +146,37 @@ describe("game setup", () => {
     }
 
     expect(gameRoom.districtDeck).toHaveLength(loadDistrictCards().length - 16);
+  });
+
+  it("initializes available roles from enabled roles when discards are disabled", () => {
+    const lobbyRoom = createLobbyRoom();
+    lobbyRoom.settings = createDefaultSettings({
+      enabledRoleIds: ["assassin", "thief", "magician", "king"],
+      enableFaceUpRoleDiscard: false,
+      enableFaceDownRoleDiscard: false
+    });
+
+    const gameRoom = initializeGameRoom(lobbyRoom);
+
+    expect(gameRoom.availableRoles.map((role) => role.id)).toEqual([
+      "assassin",
+      "thief",
+      "magician",
+      "king"
+    ]);
+    expect(gameRoom.discardedRoles).toEqual([]);
+  });
+
+  it("rejects role settings that leave too few selectable roles", () => {
+    const lobbyRoom = createLobbyRoom();
+    lobbyRoom.settings = createDefaultSettings({
+      enabledRoleIds: ["assassin", "thief", "magician", "king"],
+      enableFaceUpRoleDiscard: true,
+      enableFaceDownRoleDiscard: true
+    });
+
+    expect(() => initializeGameRoom(lobbyRoom)).toThrow(
+      "启用角色和弃牌设置不足以支持当前玩家人数。"
+    );
   });
 });

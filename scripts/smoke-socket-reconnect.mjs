@@ -23,19 +23,24 @@ function once(socket, event, timeoutMs = 5000) {
 async function main() {
   const first = io(serverUrl, { transports: ["websocket"], forceNew: true });
   const firstStatus = await once(first, "server_status");
+  const createdPromise = once(first, "room_created");
+  const firstRoomStatePromise = once(first, "room_state");
   first.emit("create_room", { playerName: "ReconnectTester" });
-  const created = await once(first, "room_created");
-  await once(first, "room_state");
+  const created = await createdPromise;
+  await firstRoomStatePromise;
   first.disconnect();
 
   await new Promise((resolve) => setTimeout(resolve, 250));
 
   const second = io(serverUrl, { transports: ["websocket"], forceNew: true });
   await once(second, "server_status");
+  const restoredStatusPromise = once(second, "server_status");
+  const restoredPromise = once(second, "reconnected_room");
+  const roomStatePromise = once(second, "room_state");
   second.emit("reconnect_room", created);
-  const restoredStatus = await once(second, "server_status");
-  const restored = await once(second, "reconnected_room");
-  const roomState = await once(second, "room_state");
+  const restoredStatus = await restoredStatusPromise;
+  const restored = await restoredPromise;
+  const roomState = await roomStatePromise;
 
   if (restored.playerId !== created.playerId || restored.roomCode !== created.roomCode) {
     throw new Error("Reconnect identity mismatch.");
