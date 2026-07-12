@@ -6,7 +6,8 @@ import {
   createPlayerOrder,
   findPlayer,
   nextRoleSelectionPlayerId,
-  roleForPlayer
+  roleForPlayer,
+  withActionOrigin
 } from "./gameEngineUtils";
 import { applyStealEffectBeforeTurn } from "./roleSkills";
 import { createRoleSelectionPool } from "./rolePool";
@@ -76,10 +77,14 @@ export function advanceOfflinePlayers(gameRoom: GameRoom): Result {
       return { ok: false, error: "没有可选角色。" };
     }
 
-    const result = selectRole(gameRoom, {
-      playerId: currentChooser.id,
-      roleId: role.id
-    });
+    const result = withActionOrigin(
+      gameRoom,
+      { origin: "offline", autoReason: "offline_progress" },
+      () => selectRole(gameRoom, {
+        playerId: currentChooser.id,
+        roleId: role.id
+      })
+    );
     if (!result.ok) {
       return result;
     }
@@ -87,7 +92,9 @@ export function advanceOfflinePlayers(gameRoom: GameRoom): Result {
     addLog(
       gameRoom,
       "offline_role_auto_selected",
-      `${currentChooser.name} 已离线，系统自动为其选择角色。`
+      `${currentChooser.name} 已离线，系统自动为其选择角色。`,
+      undefined,
+      { origin: "offline", autoReason: "offline_progress" }
     );
   }
 

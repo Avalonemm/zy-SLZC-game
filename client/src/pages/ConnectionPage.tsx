@@ -14,6 +14,7 @@ import { RulebookHelp } from "../components/help/RulebookHelp";
 import type { InfoModalId } from "../components/ui/infoModalTypes";
 import { FirstTimeGuide, getCurrentGuideStep } from "../components/ui/FirstTimeGuide";
 import { GameTableView } from "./game/GameTableView";
+import { useGameCommandFeedback } from "./game/useGameCommandFeedback";
 import {
   defaultHelpDocuments,
   helpTabs,
@@ -99,6 +100,13 @@ export function ConnectionPage() {
   const [dismissedGuideStepId, setDismissedGuideStepId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const reconnectAttemptedRef = useRef(false);
+  const {
+    dismissFeedback: dismissGameFeedback,
+    feedback: gameFeedback,
+    pendingCommand,
+    runCommand,
+    showError: showGameError
+  } = useGameCommandFeedback();
 
   useEffect(() => {
     function handleConnect() {
@@ -175,6 +183,7 @@ export function ConnectionPage() {
 
     function handleError(payload: ErrorPayload) {
       setMessage(payload.message);
+      showGameError(payload.message);
       if (payload.message.includes("无法恢复房间")) {
         clearSavedSession();
       }
@@ -213,7 +222,7 @@ export function ConnectionPage() {
       socket.off("kicked_from_room", handleKickedFromRoom);
       socket.off("error_message", handleError);
     };
-  }, []);
+  }, [showGameError]);
 
   useEffect(() => {
     fetch("/announcements.txt")
@@ -400,57 +409,70 @@ export function ConnectionPage() {
       {gameState ? (
         <GameTableView
           actionEvents={actionEvents}
+          commandFeedback={gameFeedback}
           selfAvatarImage={avatarImage}
           selfAvatarLabel={avatarLabel}
           chatMessages={roomState?.chatMessages ?? []}
           gameState={gameState}
+          pendingCommand={pendingCommand}
           playerId={playerId}
+          onDismissCommandFeedback={dismissGameFeedback}
           onBuildDistrict={(districtCardId) => {
             if (!playerId) {
               return;
             }
-            socket.emit("build_district", {
-              roomCode: gameState.roomId,
-              playerId,
-              districtCardId
-            });
+            runCommand("build", "建造", (ack) =>
+              socket.emit("build_district", {
+                roomCode: gameState.roomId,
+                playerId,
+                districtCardId
+              }, ack)
+            );
           }}
           onChooseDrawnCard={(districtCardId) => {
             if (!playerId) {
               return;
             }
-            socket.emit("choose_drawn_district_card", {
-              roomCode: gameState.roomId,
-              playerId,
-              districtCardId
-            });
+            runCommand("choose-drawn-card", "选择建筑牌", (ack) =>
+              socket.emit("choose_drawn_district_card", {
+                roomCode: gameState.roomId,
+                playerId,
+                districtCardId
+              }, ack)
+            );
           }}
           onDrawCards={() => {
             if (!playerId) {
               return;
             }
-            socket.emit("draw_district_cards", {
-              roomCode: gameState.roomId,
-              playerId
-            });
+            runCommand("draw", "抽卡", (ack) =>
+              socket.emit("draw_district_cards", {
+                roomCode: gameState.roomId,
+                playerId
+              }, ack)
+            );
           }}
           onEndTurn={() => {
             if (!playerId) {
               return;
             }
-            socket.emit("end_turn", {
-              roomCode: gameState.roomId,
-              playerId
-            });
+            runCommand("end-turn", "结束回合", (ack) =>
+              socket.emit("end_turn", {
+                roomCode: gameState.roomId,
+                playerId
+              }, ack)
+            );
           }}
           onSkipCurrentOfflinePlayer={() => {
             if (!playerId) {
               return;
             }
-            socket.emit("skip_current_offline_player", {
-              roomCode: gameState.roomId,
-              playerId
-            });
+            runCommand("skip-offline", "跳过离线玩家", (ack) =>
+              socket.emit("skip_current_offline_player", {
+                roomCode: gameState.roomId,
+                playerId
+              }, ack)
+            );
           }}
           onLeaveRoom={leaveRoom}
           onRematch={() => {
@@ -468,59 +490,71 @@ export function ConnectionPage() {
             if (!playerId) {
               return;
             }
-            socket.emit("resolve_turn_timeout", {
-              roomCode: gameState.roomId,
-              playerId
-            });
+            runCommand("resolve-timeout", "处理超时", (ack) =>
+              socket.emit("resolve_turn_timeout", {
+                roomCode: gameState.roomId,
+                playerId
+              }, ack)
+            );
           }}
           onResolveGraveyardChoice={(buyBack) => {
             if (!playerId) {
               return;
             }
-            socket.emit("resolve_graveyard_choice", {
-              roomCode: gameState.roomId,
-              playerId,
-              buyBack
-            });
+            runCommand("graveyard", "处理墓地效果", (ack) =>
+              socket.emit("resolve_graveyard_choice", {
+                roomCode: gameState.roomId,
+                playerId,
+                buyBack
+              }, ack)
+            );
           }}
           onSelectRole={(roleId) => {
             if (!playerId) {
               return;
             }
-            socket.emit("select_role", {
-              roomCode: gameState.roomId,
-              playerId,
-              roleId
-            });
+            runCommand("select-role", "选择身份", (ack) =>
+              socket.emit("select_role", {
+                roomCode: gameState.roomId,
+                playerId,
+                roleId
+              }, ack)
+            );
           }}
           onTakeGold={() => {
             if (!playerId) {
               return;
             }
-            socket.emit("take_gold", {
-              roomCode: gameState.roomId,
-              playerId
-            });
+            runCommand("take-gold", "获取金币", (ack) =>
+              socket.emit("take_gold", {
+                roomCode: gameState.roomId,
+                playerId
+              }, ack)
+            );
           }}
           onUseSkill={(payload) => {
             if (!playerId) {
               return;
             }
-            socket.emit("use_role_skill", {
-              roomCode: gameState.roomId,
-              playerId,
-              ...payload
-            });
+            runCommand("role-skill", "使用技能", (ack) =>
+              socket.emit("use_role_skill", {
+                roomCode: gameState.roomId,
+                playerId,
+                ...payload
+              }, ack)
+            );
           }}
           onUseDistrictEffect={(payload) => {
             if (!playerId) {
               return;
             }
-            socket.emit("use_district_effect", {
-              roomCode: gameState.roomId,
-              playerId,
-              ...payload
-            });
+            runCommand("district-effect", "使用建筑效果", (ack) =>
+              socket.emit("use_district_effect", {
+                roomCode: gameState.roomId,
+                playerId,
+                ...payload
+              }, ack)
+            );
           }}
         />
       ) : roomState ? (

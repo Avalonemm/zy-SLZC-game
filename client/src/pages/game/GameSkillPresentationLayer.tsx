@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
 import type { ActionEventPayload, ActionEventPresentation, VisibleGameState } from "@zy/shared";
 import { roleName } from "./gameText";
+import { presentationTiming } from "./presentationTiming";
 
 type Point = { x: number; y: number };
 type PresentationGeometry = {
@@ -47,7 +48,7 @@ export function GameSkillPresentationLayer(props: {
     }
     const timeout = window.setTimeout(() => {
       setQueue((current) => current.slice(1));
-    }, presentationDuration(activeEvent.presentation?.kind));
+    }, presentationTiming(activeEvent.presentation?.kind).motionMs);
     return () => window.clearTimeout(timeout);
   }, [activeEvent]);
 
@@ -124,6 +125,7 @@ export function GameSkillPresentationLayer(props: {
 
   const presentation = activeEvent.presentation;
   const kind = presentation.kind;
+  const timing = presentationTiming(kind);
   const selfAssassinated = kind === "assassin_skip" && selfRoleId === presentation.targetRoleId;
   const path = curvedPath(geometry.source, geometry.target);
   const sourceStyle = movingStyle(geometry.source, geometry.target);
@@ -134,6 +136,10 @@ export function GameSkillPresentationLayer(props: {
   return (
     <aside
       className={`citadel-skill-presentation citadel-skill-presentation--${kind} ${isNormalAction ? "is-normal-action" : ""} ${selfAssassinated ? "is-self-affected" : ""}`}
+      style={{
+        "--presentation-motion-duration": `${timing.motionMs}ms`,
+        "--presentation-particle-duration": `${Math.max(600, timing.motionMs - 450)}ms`
+      } as CSSProperties}
       aria-live="polite"
       aria-label={activeEvent.message}
     >
@@ -190,12 +196,6 @@ export function GameSkillPresentationLayer(props: {
         </span>
       )}
 
-      <div className="citadel-skill-presentation__banner">
-        <small>{presentationTitle(kind)}</small>
-        <strong>{activeEvent.message}</strong>
-        <span>{presentationDetail(presentation)}</span>
-      </div>
-
       {selfAssassinated && (
         <div className="citadel-skill-private-warning">
           <b>你被刺杀</b>
@@ -204,12 +204,6 @@ export function GameSkillPresentationLayer(props: {
       )}
     </aside>
   );
-}
-
-function presentationDuration(kind?: ActionEventPresentation["kind"]) {
-  if (!kind) return 700;
-  if (kind === "final_round" || kind === "game_ended") return 1100;
-  return isNormalPresentation(kind) ? 700 : 1500;
 }
 
 function presentationPriority(kind?: ActionEventPresentation["kind"]) {
@@ -278,52 +272,6 @@ function presentationGlyph(kind: ActionEventPresentation["kind"]) {
     return "◆";
   }
   return "$";
-}
-
-function presentationTitle(kind: ActionEventPresentation["kind"]) {
-  const titles: Record<ActionEventPresentation["kind"], string> = {
-    assassin_mark: "刺客出手",
-    assassin_skip: "刺杀生效",
-    thief_mark: "盗贼锁定目标",
-    thief_steal: "金币被盗",
-    magician_swap: "扭转手牌",
-    magician_redraw: "魔术重塑",
-    warlord_destroy: "军阀攻城",
-    role_lock: "身份已锁定",
-    take_gold: "获取金币",
-    draw_cards: "抽取建筑牌",
-    draw_resolved: "建筑牌已收入手牌",
-    build_district: "建筑落成",
-    turn_start: "回合开始",
-    crown_transfer: "王冠转移",
-    final_round: "进入最后一轮",
-    game_ended: "本局结束"
-  };
-  return titles[kind];
-}
-
-function presentationDetail(presentation: ActionEventPresentation) {
-  if (presentation.kind === "magician_swap") {
-    return `${presentation.actorHandCount ?? 0} 张 ↔ ${presentation.targetHandCount ?? 0} 张`;
-  }
-  if (presentation.kind === "magician_redraw") {
-    return `重新抽取 ${presentation.cardCount ?? 0} 张`;
-  }
-  if (presentation.kind === "thief_steal") {
-    return `转移 ${presentation.amount ?? 0} 枚金币`;
-  }
-  if (presentation.kind === "warlord_destroy") {
-    return `${presentation.districtName ?? "建筑"} · 花费 ${presentation.cost ?? 0} 金币`;
-  }
-  if (presentation.kind === "take_gold") return `获得 ${presentation.amount ?? 0} 枚金币`;
-  if (presentation.kind === "draw_cards" || presentation.kind === "draw_resolved") {
-    return `${presentation.cardCount ?? 0} 张建筑牌`;
-  }
-  if (presentation.kind === "build_district") return presentation.districtName ?? "建筑";
-  if (presentation.targetRoleId) {
-    return `目标身份：${roleName(presentation.targetRoleId)}`;
-  }
-  return "";
 }
 
 function isNormalPresentation(kind: ActionEventPresentation["kind"]) {

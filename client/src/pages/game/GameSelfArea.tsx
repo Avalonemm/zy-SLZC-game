@@ -58,7 +58,17 @@ export function GameSelfArea(props: {
             <span>{districtEffectInstruction(props.districtEffectCard)}</span>
           </p>
         )}
-        <div className="citadel-hand-zone" aria-label={selectionMode ? "\u9009\u62e9\u8981\u5f03\u7f6e\u7684\u624b\u724c" : "\u4f60\u7684\u624b\u724c"}>
+        <div
+          className={`citadel-hand-zone ${hand.length > 10 ? "citadel-hand-zone--scrollable" : ""}`}
+          data-hand-count={hand.length}
+          tabIndex={hand.length > 10 ? 0 : undefined}
+          aria-label={selectionMode ? "\u9009\u62e9\u8981\u5f03\u7f6e\u7684\u624b\u724c" : "\u4f60\u7684\u624b\u724c"}
+          onWheel={(event) => {
+            if (hand.length <= 10 || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+            event.currentTarget.scrollLeft += event.deltaY;
+            event.preventDefault();
+          }}
+        >
           {hand.length > 0 ? (
             hand.map((card) => (
               <HandCard

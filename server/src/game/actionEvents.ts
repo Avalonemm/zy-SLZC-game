@@ -19,6 +19,8 @@ export function createActionEventFromLog(
     actorPlayerId: log.presentation?.actorPlayerId ?? options.actorPlayerId,
     targetPlayerId: log.presentation?.targetPlayerId ?? options.targetPlayerId,
     presentation: log.presentation,
+    origin: log.origin,
+    autoReason: log.autoReason,
     visibility: options.visibility ?? "public",
     phase: gameRoom.phase,
     round: gameRoom.currentRound,

@@ -24,7 +24,7 @@ describe("room manager", () => {
     expect(result.room.futureMaxPlayers).toBe(8);
     expect(result.room.settings).toEqual({
       startCountdownSeconds: 10,
-      turnTimeoutSeconds: 60,
+      turnTimeoutSeconds: 45,
       endCitySize: 8,
       enabledRoleIds: [
         "assassin",

@@ -56,6 +56,9 @@ function createGameRoomWithLog(): GameRoom {
         id: "log-1",
         type: "take_gold",
         message: "Alice 拿了 2 枚金币。",
+        origin: "timeout",
+        autoReason: "turn_timeout",
+        round: 3,
         createdAt: "2026-07-03T00:00:00.000Z"
       }
     ],
@@ -78,6 +81,8 @@ describe("action events", () => {
       visibility: "public",
       phase: "ROLE_ACTION",
       round: 3
+      ,origin: "timeout",
+      autoReason: "turn_timeout"
     });
     expect(event.id).toContain("log-1");
     expect("districtDeck" in event).toBe(false);

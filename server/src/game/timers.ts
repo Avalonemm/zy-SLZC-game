@@ -1,6 +1,6 @@
 import type { GameRoom } from "@zy/shared";
 import type { Result } from "./gameEngineTypes";
-import { addLog, findPlayer, roleForPlayer } from "./gameEngineUtils";
+import { addLog, findPlayer, roleForPlayer, withActionOrigin } from "./gameEngineUtils";
 import { chooseDrawnDistrictCard, endTurn, takeGold } from "./actions";
 import { applyRoleSkill } from "./roleSkills";
 import { enterRoleSelectionPhase, selectRole } from "./turnFlow";
@@ -56,15 +56,25 @@ function resolveExpiredRoleSelection(gameRoom: GameRoom): TimeoutResult {
     return { ok: false, error: "无法处理角色选择超时。" };
   }
 
-  const result = selectRole(gameRoom, {
-    playerId: player.id,
-    roleId: role.id
-  });
+  const result = withActionOrigin(
+    gameRoom,
+    { origin: "timeout", autoReason: "role_selection_timeout" },
+    () => selectRole(gameRoom, {
+      playerId: player.id,
+      roleId: role.id
+    })
+  );
   if (!result.ok) {
     return result;
   }
 
-  addLog(gameRoom, "turn_timeout_role_selected", `${player.name} 选择超时，系统自动选择角色。`);
+  addLog(
+    gameRoom,
+    "turn_timeout_role_selected",
+    `${player.name} 选择超时，系统自动选择角色。`,
+    undefined,
+    { origin: "timeout", autoReason: "role_selection_timeout" }
+  );
   return { ok: true, timedOut: true };
 }
 
@@ -79,10 +89,14 @@ function resolveExpiredRoleAction(gameRoom: GameRoom): TimeoutResult {
   }
 
   if (gameRoom.pendingGraveyardChoice) {
-    const declineResult = resolveGraveyardChoice(gameRoom, {
-      playerId: gameRoom.pendingGraveyardChoice.playerId,
-      buyBack: false
-    });
+    const declineResult = withActionOrigin(
+      gameRoom,
+      { origin: "timeout", autoReason: "turn_timeout" },
+      () => resolveGraveyardChoice(gameRoom, {
+        playerId: gameRoom.pendingGraveyardChoice!.playerId,
+        buyBack: false
+      })
+    );
     if (!declineResult.ok) {
       return declineResult;
     }
@@ -96,25 +110,55 @@ function resolveExpiredRoleAction(gameRoom: GameRoom): TimeoutResult {
   if (gameRoom.pendingDrawChoice?.playerId === player.id) {
     const firstDrawnCard = gameRoom.pendingDrawChoice.drawnCards[0];
     if (firstDrawnCard) {
-      const chooseResult = chooseDrawnDistrictCard(gameRoom, {
-        playerId: player.id,
-        districtCardId: firstDrawnCard.id
-      });
+      const chooseResult = withActionOrigin(
+        gameRoom,
+        { origin: "timeout", autoReason: "draw_choice_timeout" },
+        () => chooseDrawnDistrictCard(gameRoom, {
+          playerId: player.id,
+          districtCardId: firstDrawnCard.id
+        })
+      );
       if (!chooseResult.ok) {
         return chooseResult;
       }
-      addLog(gameRoom, "turn_timeout_draw_selected", `${player.name} 抽牌选择超时，系统自动保留第一张建筑牌。`);
+      addLog(
+        gameRoom,
+        "turn_timeout_draw_selected",
+        `${player.name} 抽牌选择超时，系统自动完成了抽牌选择。`,
+        undefined,
+        { origin: "timeout", autoReason: "draw_choice_timeout" }
+      );
     }
   } else if (!gameRoom.turnState?.resourceActionTaken) {
-    const goldResult = takeGold(gameRoom, { playerId: player.id });
+    const goldResult = withActionOrigin(
+      gameRoom,
+      { origin: "timeout", autoReason: "turn_timeout" },
+      () => takeGold(gameRoom, { playerId: player.id })
+    );
     if (!goldResult.ok) {
       return goldResult;
     }
-    addLog(gameRoom, "turn_timeout_gold_taken", `${player.name} 行动超时，系统自动领取 2 枚金币。`);
+    addLog(
+      gameRoom,
+      "turn_timeout_gold_taken",
+      `${player.name} 行动超时，系统自动领取 2 枚金币。`,
+      undefined,
+      { origin: "timeout", autoReason: "turn_timeout" }
+    );
   }
 
-  addLog(gameRoom, "turn_timeout_action_ended", `${player.name} 行动超时，系统自动结束其回合。`);
-  const result = endTurn(gameRoom, { playerId: player.id });
+  addLog(
+    gameRoom,
+    "turn_timeout_action_ended",
+    `${player.name} 行动超时，系统自动结束其回合。`,
+    undefined,
+    { origin: "timeout", autoReason: "turn_timeout" }
+  );
+  const result = withActionOrigin(
+    gameRoom,
+    { origin: "timeout", autoReason: "turn_timeout" },
+    () => endTurn(gameRoom, { playerId: player.id })
+  );
   if (!result.ok) {
     return result;
   }
@@ -133,13 +177,23 @@ function autoResolveTimeoutRoleSkill(gameRoom: GameRoom, playerId: string): Resu
     return { ok: true };
   }
 
-  const result = applyRoleSkill(gameRoom, player, role, { playerId: player.id });
+  const result = withActionOrigin(
+    gameRoom,
+    { origin: "timeout", autoReason: "turn_timeout" },
+    () => applyRoleSkill(gameRoom, player, role, { playerId: player.id })
+  );
   if (!result.ok) {
     return result;
   }
 
   gameRoom.roleEffects.usedSkillPlayerIds.push(player.id);
-  addLog(gameRoom, "turn_timeout_skill_used", `${player.name} 行动超时，系统自动结算职业收益。`);
+  addLog(
+    gameRoom,
+    "turn_timeout_skill_used",
+    `${player.name} 行动超时，系统自动结算职业收益。`,
+    undefined,
+    { origin: "timeout", autoReason: "turn_timeout" }
+  );
   return { ok: true };
 }
 

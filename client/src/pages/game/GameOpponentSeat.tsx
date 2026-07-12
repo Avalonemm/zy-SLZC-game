@@ -1,4 +1,5 @@
 import type { DistrictCard } from "@zy/shared";
+import type { CSSProperties } from "react";
 import type { GameSeatPosition } from "./gameTableLayout";
 import type { GamePlayer } from "./gameTypes";
 import { GamePlayerMiniStatus } from "./GamePlayerMiniStatus";
@@ -13,6 +14,7 @@ export function GameOpponentSeat(props: {
   currentTurnPlayerId: string | null;
   player: GamePlayer;
   position: GameSeatPosition;
+  handStackDepth: number;
   districtTargeting: boolean;
   playerTargeting: boolean;
   playerTargetSelected: boolean;
@@ -43,7 +45,7 @@ export function GameOpponentSeat(props: {
           inspectorPlacement={seatInspectorPlacement(props.position)}
           inspectorSize="table-small"
         />
-        <HiddenHandRow count={props.player.handCount} maxVisible={3} />
+        <HiddenHandStack count={props.player.handCount} maximumDepth={props.handStackDepth} />
       </div>
       <OpponentCityRow
         cards={props.player.city}
@@ -123,19 +125,30 @@ function seatInspectorPlacement(position: GameSeatPosition): "left" | "right" | 
   return "bottom";
 }
 
-function HiddenHandRow(props: { count: number; maxVisible: number }) {
-  const count = Math.min(props.maxVisible, Math.max(0, props.count));
+function HiddenHandStack(props: { count: number; maximumDepth: number }) {
+  const count = Math.max(0, Math.floor(props.count));
   if (count === 0) {
     return <div className="citadel-mini-card-row citadel-mini-card-row--empty" />;
   }
+  const maximumDepth = props.maximumDepth;
+  const layerOffset = count <= 1 ? 0 : Math.min(2.5, maximumDepth / (count - 1));
+  const stackDepth = layerOffset * Math.max(0, count - 1);
   return (
-    <div className="citadel-mini-card-row" aria-label={`\u672a\u516c\u5f00\u624b\u724c ${props.count} \u5f20`}>
+    <div
+      className="citadel-mini-card-row citadel-mini-card-row--stacked"
+      aria-label={`\u672a\u516c\u5f00\u624b\u724c ${count} \u5f20`}
+      data-hand-count={count}
+      style={{ "--opponent-stack-depth": `${stackDepth}px` } as CSSProperties}
+    >
       {Array.from({ length: count }, (_, index) => (
-        <span key={index} className="citadel-mini-card citadel-mini-card--back" aria-hidden="true" />
+        <span
+          key={index}
+          className="citadel-mini-card citadel-mini-card--back"
+          style={{ left: `${index * layerOffset}px` }}
+          aria-hidden="true"
+        />
       ))}
-      {props.count > props.maxVisible && (
-        <b className="citadel-mini-card-count">+{props.count - props.maxVisible}</b>
-      )}
+      <b className="citadel-mini-card-count" aria-hidden="true">{count}</b>
     </div>
   );
 }

@@ -61,6 +61,7 @@ Windows 下可以直接双击项目根目录里的 `启动游戏.cmd`。
 
 ```text
 VITE_SERVER_URL=https://你的后端地址
+VITE_CARD_FACE_MODE=overlay
 ```
 
 连接规则：
@@ -88,6 +89,7 @@ ROOM_SNAPSHOT_PATH=/var/data/active-rooms.json
 - 生产环境使用 `CLIENT_ORIGIN` 配置允许访问的前端地址。
 - `CLIENT_ORIGIN` 支持多个地址，用英文逗号分隔。
 - `ROOM_SNAPSHOT_PATH` 保存活动房间、对局状态和恢复凭证；生产环境应指向持久磁盘。
+- 新建正式房间的身份选择与行动倒计时默认都是 45 秒；测试场景可显式改为 15 秒。
 
 示例：
 
@@ -229,6 +231,20 @@ powershell -ExecutionPolicy Bypass -File scripts/check-deploy.ps1
 npm run verify:art
 npm run verify:art -- --strict  # 正式卡图全部交付后使用
 ```
+
+快速功能回归与完整发布回归：
+
+```bash
+npm run verify:quick
+npm run verify:release
+```
+
+- 快速回归包含 105 项服务器测试、125 局固定种子模拟、正式四人冒烟流程、八人密集布局、行动反馈和 0–40 张手牌极端布局。
+- 完整回归额外包含所有身份 / 技能选择、4–8 人满建筑、悬浮检视、服务器真实重启恢复和美术完整度。
+- 报告生成到 `output/regression/<时间>/report.md` 与 `report.json`；浏览器只使用无界面临时页面，并在 `finally` 中清理。
+- 当前正式美术资源不完整时，功能回归仍可通过，但报告会明确阻止 `1.0.0`。
+
+开发环境可在对局地址后增加 `?uiTune=1` 打开 UI 调参面板。面板分为快速与高级设置，会自动阻止手牌、建筑区和操作区产生不安全穿插。卡牌模式由 `VITE_CARD_FACE_MODE=overlay|baked` 控制；图片缺失时自动回退到程序卡面。
 
 ## 目录结构
 

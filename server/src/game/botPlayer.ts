@@ -1,7 +1,7 @@
 import type { GameRoom, Player } from "@zy/shared";
 import { buildDistrict, chooseDrawnDistrictCard, drawDistrictCards, endTurn, takeGold } from "./actions";
 import type { Result } from "./gameEngineTypes";
-import { addLog, roleForPlayer } from "./gameEngineUtils";
+import { addLog, roleForPlayer, withActionOrigin } from "./gameEngineUtils";
 import { applyRoleSkill } from "./roleSkills";
 import { selectRole } from "./turnFlow";
 
@@ -41,12 +41,20 @@ export function runNextBotTurn(gameRoom: GameRoom): Result<{ advanced: boolean }
       return { ok: false, error: "没有可选角色。" };
     }
 
-    const result = selectRole(gameRoom, { playerId: player.id, roleId: role.id });
+    const result = withActionOrigin(gameRoom, { origin: "bot" }, () =>
+      selectRole(gameRoom, { playerId: player.id, roleId: role.id })
+    );
     if (!result.ok) {
       return result;
     }
     if (!player.connected) {
-      addLog(gameRoom, "offline_role_auto_selected", `${player.name} 已离线，系统自动为其选择角色。`);
+      addLog(
+        gameRoom,
+        "offline_role_auto_selected",
+        `${player.name} 已离线，系统自动为其选择角色。`,
+        undefined,
+        { origin: "offline", autoReason: "offline_progress" }
+      );
     }
 
     return { ok: true, advanced: true };
@@ -60,12 +68,16 @@ export function runNextBotTurn(gameRoom: GameRoom): Result<{ advanced: boolean }
       return { ok: true, advanced: false };
     }
 
-    const actionResult = playBotAction(gameRoom, player);
+    const actionResult = withActionOrigin(gameRoom, { origin: "bot" }, () =>
+      playBotAction(gameRoom, player)
+    );
     if (!actionResult.ok) {
       return actionResult;
     }
 
-    const endResult = endTurn(gameRoom, { playerId: player.id });
+    const endResult = withActionOrigin(gameRoom, { origin: "bot" }, () =>
+      endTurn(gameRoom, { playerId: player.id })
+    );
     if (!endResult.ok) {
       return endResult;
     }

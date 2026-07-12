@@ -149,6 +149,11 @@ describe("turn timers", () => {
     );
     expect(gameRoom.roleSelectionTurnPlayerId).not.toBe(chooserId);
     expect(gameRoom.gameLog.map((log) => log.type)).toContain("turn_timeout_role_selected");
+    const timeoutLog = gameRoom.gameLog.find((log) => log.type === "turn_timeout_role_selected");
+    expect(timeoutLog).toMatchObject({
+      origin: "timeout",
+      autoReason: "role_selection_timeout"
+    });
   });
 
   it("ends the current action turn when role action expires", () => {
@@ -167,6 +172,8 @@ describe("turn timers", () => {
     expect(gameRoom.currentTurnPlayerId).not.toBe(firstActionPlayerId);
     expect(gameRoom.completedRoleIds).toContain(roles[0].id);
     expect(gameRoom.gameLog.map((log) => log.type)).toContain("turn_timeout_action_ended");
+    const timeoutLog = gameRoom.gameLog.find((log) => log.type === "turn_timeout_action_ended");
+    expect(timeoutLog).toMatchObject({ origin: "timeout", autoReason: "turn_timeout" });
   });
   it("takes gold before ending an expired action turn with no resource action", () => {
     const gameRoom = createStartedGame();

@@ -18,6 +18,7 @@ import {
   visibleStateForPlayer
 } from "./gameEngine";
 import { addLog } from "./gameEngineUtils";
+import { inspectDistrictCardIntegrity } from "./cardIntegrity";
 import type { DistrictCard, DistrictColor, GameRoom, RoomSettings, RoomState } from "@zy/shared";
 
 function createDefaultSettings(overrides: Partial<RoomSettings> = {}): RoomSettings {
@@ -310,6 +311,11 @@ describe("game engine", () => {
     expect(endResult.ok).toBe(true);
     expect(player.gold).toBe(initialGold + 2);
     expect(gameRoom.gameLog.map((log) => log.type)).toContain("auto_take_gold");
+    expect(gameRoom.gameLog.find((log) => log.type === "auto_take_gold")).toMatchObject({
+      origin: "rule",
+      autoReason: "resource_skipped",
+      presentation: { kind: "take_gold", amount: 2 }
+    });
   });
 
   it("does not grant automatic gold after a completed resource action", () => {
@@ -427,6 +433,38 @@ describe("game engine", () => {
     expect(player.gold).toBe(initialGold + 2);
     expect(gameRoom.pendingDrawChoice).toBeNull();
     expect(gameRoom.turnState?.resourceActionTaken).toBe(true);
+    expect(gameRoom.gameLog.find((log) => log.type === "draw_empty_take_gold")).toMatchObject({
+      origin: "rule",
+      autoReason: "deck_empty"
+    });
+  });
+
+  it("keeps draw actions usable through repeated deck refill and pending-choice cycles", () => {
+    const gameRoom = createStartedGame();
+    selectRolesById(gameRoom, ["assassin", "thief", "magician", "king"]);
+    const player = gameRoom.players.find((candidate) => candidate.id === gameRoom.currentTurnPlayerId);
+    if (!player || !gameRoom.turnState) throw new Error("Expected an active player turn.");
+
+    for (let cycle = 0; cycle < 100; cycle += 1) {
+      const drawResult = drawDistrictCards(gameRoom, { playerId: player.id });
+      expect(drawResult.ok, `draw failed at cycle ${cycle}`).toBe(true);
+      if (!drawResult.ok) throw new Error(drawResult.error);
+
+      if (gameRoom.pendingDrawChoice) {
+        expect(drawDistrictCards(gameRoom, { playerId: player.id }).ok).toBe(false);
+        const chooseResult = chooseDrawnDistrictCard(gameRoom, {
+          playerId: player.id,
+          districtCardId: gameRoom.pendingDrawChoice.drawnCards[0].id
+        });
+        expect(chooseResult.ok).toBe(true);
+      }
+
+      const recycled = player.hand.pop();
+      if (recycled) gameRoom.districtDiscardPile.push(recycled);
+      gameRoom.turnState.resourceActionTaken = false;
+      gameRoom.turnState.actionStep = "RESOURCE";
+      expect(inspectDistrictCardIntegrity(gameRoom).ok, `card integrity failed at cycle ${cycle}`).toBe(true);
+    }
   });
   it("rejects draw choices from another player", () => {
     const gameRoom = createStartedGame();
@@ -494,16 +532,16 @@ describe("game engine", () => {
   it("keeps only recent game logs so repeated state broadcasts stay bounded", () => {
     const gameRoom = createStartedGame();
 
-    for (let index = 1; index <= 120; index += 1) {
+    for (let index = 1; index <= 520; index += 1) {
       addLog(gameRoom, "test_log", `Log ${index}`);
     }
 
     const visible = visibleStateForPlayer(gameRoom, "player-1");
 
-    expect(gameRoom.gameLog).toHaveLength(80);
-    expect(visible.gameLog).toHaveLength(80);
-    expect(visible.gameLog[0].message).toBe("Log 120");
-    expect(visible.gameLog.at(-1)?.message).toBe("Log 41");
+    expect(gameRoom.gameLog).toHaveLength(500);
+    expect(visible.gameLog).toHaveLength(500);
+    expect(visible.gameLog[0].message).toBe("Log 520");
+    expect(visible.gameLog.at(-1)?.message).toBe("Log 21");
   });
 
   it("hides other players' unrevealed roles during selection and action", () => {
@@ -927,9 +965,10 @@ describe("game engine", () => {
     const gameRoom = createStartedGame();
     const warlord = gameRoom.players[0];
     const target = gameRoom.players[3];
-    const district = { ...target.hand[0], id: "far-target-district", cost: 3 };
+    const district = { ...target.hand[0], id: "far-target-district", cost: 3, effectType: "none" as const };
     target.city = [district];
     target.hand = [];
+    target.selectedRoleId = "merchant";
     warlord.gold = 2;
     forceRoleActionTurn(gameRoom, warlord.id, "warlord");
 

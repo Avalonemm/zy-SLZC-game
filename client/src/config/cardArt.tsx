@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-export const CARD_FACE_MODE = "overlay" as "overlay" | "baked";
+export const CARD_FACE_MODE: "overlay" | "baked" =
+  import.meta.env.VITE_CARD_FACE_MODE === "baked" ? "baked" : "overlay";
 const CARD_ART_ROOT = "/assets/visual/cards";
 
 export function cardFaceAttributes() {

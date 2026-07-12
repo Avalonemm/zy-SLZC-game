@@ -8,6 +8,7 @@ export function RoleIdentityCard(props: {
   className?: string;
   compact?: boolean;
   caption?: string;
+  disabled?: boolean;
   onClick?: () => void;
   roleId: string | null;
   self?: boolean;
@@ -41,7 +42,7 @@ export function RoleIdentityCard(props: {
 
   if (props.onClick) {
     return (
-      <button className={className} type="button" onClick={props.onClick} aria-label={ariaLabel} {...cardFaceAttributes()} {...inspectorAttributes}>
+      <button className={className} disabled={props.disabled} type="button" onClick={props.onClick} aria-label={ariaLabel} {...cardFaceAttributes()} {...inspectorAttributes}>
         {body}
       </button>
     );

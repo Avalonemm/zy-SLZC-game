@@ -33,7 +33,7 @@
   background:
     radial-gradient(circle at 50% 44%, transparent 18%, rgb(0 0 0 / 22%) 64%, rgb(0 0 0 / 48%)),
     linear-gradient(180deg, rgb(0 0 0 / 12%), transparent 34%, rgb(0 0 0 / 18%));
-  animation: citadel-skill-vignette 2.3s ease both;
+  animation: citadel-skill-vignette var(--presentation-motion-duration, 2200ms) ease both;
 }
 
 .citadel-skill-presentation__route {
@@ -51,7 +51,7 @@
   stroke-linecap: round;
   stroke-dasharray: 0.12 0.05;
   filter: drop-shadow(0 0 7px var(--skill-accent));
-  animation: citadel-skill-route 1.15s ease-out both;
+  animation: citadel-skill-route var(--presentation-motion-duration, 2200ms) ease-out both;
 }
 
 .citadel-skill-presentation__halo {
@@ -62,7 +62,7 @@
   border-radius: 50%;
   box-shadow: 0 0 18px var(--skill-accent), inset 0 0 24px rgb(255 255 255 / 8%);
   transform: translate(-50%, -50%);
-  animation: citadel-skill-halo 1.8s ease-out both;
+  animation: citadel-skill-halo var(--presentation-motion-duration, 2200ms) ease-out both;
 }
 
 .citadel-skill-presentation__halo--target {
@@ -88,7 +88,7 @@
   box-shadow: 0 0 22px var(--skill-accent);
   color: #fff9dc;
   font-size: 1.3rem;
-  animation: citadel-skill-fly 1.05s cubic-bezier(.22, .74, .22, 1) both;
+  animation: citadel-skill-fly var(--presentation-motion-duration, 2200ms) cubic-bezier(.22, .74, .22, 1) both;
 }
 
 .citadel-skill-presentation--warlord_destroy .citadel-skill-projectile {
@@ -109,11 +109,11 @@
 }
 
 .citadel-skill-card-stack--forward {
-  animation: citadel-skill-swap-forward 1.35s cubic-bezier(.2, .72, .2, 1) both;
+  animation: citadel-skill-swap-forward var(--presentation-motion-duration, 2200ms) cubic-bezier(.2, .72, .2, 1) both;
 }
 
 .citadel-skill-card-stack--reverse {
-  animation: citadel-skill-swap-reverse 1.35s cubic-bezier(.2, .72, .2, 1) both;
+  animation: citadel-skill-swap-reverse var(--presentation-motion-duration, 2200ms) cubic-bezier(.2, .72, .2, 1) both;
 }
 
 .citadel-skill-coin-stream > span {
@@ -128,7 +128,7 @@
   box-shadow: 0 0 12px #f6bd45;
   color: #4d2a08;
   font-weight: 900;
-  animation: citadel-skill-coin-fly 1s var(--skill-delay) cubic-bezier(.18, .7, .2, 1) both;
+  animation: citadel-skill-coin-fly var(--presentation-particle-duration, 1750ms) var(--skill-delay) cubic-bezier(.18, .7, .2, 1) both;
 }
 
 .citadel-skill-district-ghost {
@@ -145,7 +145,7 @@
   box-shadow: 0 0 26px #e2623c;
   transform: translate(-50%, -50%);
   transform-origin: center;
-  animation: citadel-skill-district-break 1.75s 480ms ease-in both;
+  animation: citadel-skill-district-break var(--presentation-motion-duration, 2200ms) ease-in both;
 }
 
 .citadel-skill-district-ghost--blue { background: linear-gradient(160deg, #477096, #16314c); }
@@ -182,7 +182,7 @@
   background: linear-gradient(160deg, rgb(27 17 30 / 96%), rgb(5 8 12 / 98%));
   box-shadow: 0 0 28px var(--skill-accent);
   transform: translate(-50%, -50%);
-  animation: citadel-skill-role-seal 1.8s 280ms ease both;
+  animation: citadel-skill-role-seal var(--presentation-motion-duration, 2200ms) ease both;
 }
 
 .citadel-skill-role-seal b {
@@ -237,23 +237,15 @@
 
 .citadel-skill-presentation.is-normal-action .citadel-skill-presentation__vignette {
   background: radial-gradient(circle at 50% 48%, transparent 30%, rgb(0 0 0 / 12%) 78%);
-  animation-duration: 700ms;
 }
 
 .citadel-skill-presentation.is-normal-action .citadel-skill-presentation__route path {
   stroke-width: 2;
-  animation-duration: 520ms;
 }
 
 .citadel-skill-presentation.is-normal-action .citadel-skill-presentation__halo {
   width: clamp(58px, 5vw, 86px);
-  animation-duration: 650ms;
   animation-delay: 0ms;
-}
-
-.citadel-skill-presentation.is-normal-action .citadel-skill-projectile,
-.citadel-skill-presentation.is-normal-action .citadel-skill-coin-stream > span {
-  animation-duration: 560ms;
 }
 
 .citadel-skill-presentation.is-normal-action .citadel-skill-presentation__banner {
@@ -312,7 +304,7 @@
   border: clamp(5px, 0.55vw, 10px) solid rgb(173 27 30 / 58%);
   background: radial-gradient(circle, transparent 24%, rgb(83 0 4 / 18%) 72%, rgb(61 0 3 / 36%));
   box-shadow: inset 0 0 72px rgb(154 13 19 / 52%);
-  animation: citadel-skill-private-warning 2.8s ease both;
+  animation: citadel-skill-private-warning var(--presentation-motion-duration, 2200ms) ease both;
 }
 
 .citadel-skill-private-warning b {
@@ -400,6 +392,137 @@
   10% { opacity: 1; }
   18% { opacity: .45; }
   25%, 76% { opacity: 1; }
+}
+
+.citadel-action-notices {
+  position: absolute;
+  z-index: 48;
+  top: 52%;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: min(720px, 72vw);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.citadel-action-notices article {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 9px 28px 11px;
+  border-block: 1px solid rgb(232 193 111 / 56%);
+  background: linear-gradient(90deg, transparent, rgb(5 8 12 / 96%) 16% 84%, transparent);
+  text-align: center;
+  text-shadow: 0 2px 8px #000;
+  animation: citadel-action-notice-lifecycle var(--action-notice-duration, 3000ms) ease both;
+}
+
+.citadel-action-notices article.is-automatic {
+  border-color: rgb(106 196 216 / 62%);
+}
+
+.citadel-action-notices small {
+  color: #e9c36f;
+  font-size: clamp(0.66rem, 0.76vw, 0.82rem);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.citadel-action-notices small b {
+  display: inline-block;
+  margin-left: 8px;
+  border: 1px solid rgb(105 206 221 / 44%);
+  border-radius: 999px;
+  background: rgb(18 74 84 / 72%);
+  padding: 3px 7px;
+  color: #bff6ff;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+}
+
+.citadel-action-notices strong {
+  color: #fff0c8;
+  font-size: clamp(0.84rem, 1.05vw, 1.12rem);
+  line-height: 1.35;
+}
+
+@keyframes citadel-action-notice-lifecycle {
+  0% { opacity: 0; transform: translateY(8px); }
+  7%, 88% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .citadel-action-notices article { animation: none; }
+}
+
+.citadel-action-notices {
+  position: absolute;
+  z-index: 48;
+  top: 52%;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: min(720px, 72vw);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.citadel-action-notices article {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 9px 28px 11px;
+  border-block: 1px solid rgb(232 193 111 / 56%);
+  background: linear-gradient(90deg, transparent, rgb(5 8 12 / 96%) 16% 84%, transparent);
+  text-align: center;
+  text-shadow: 0 2px 8px #000;
+  animation: citadel-action-notice-in 200ms ease-out both;
+}
+
+.citadel-action-notices article.is-automatic {
+  border-color: rgb(106 196 216 / 62%);
+}
+
+.citadel-action-notices small {
+  color: #e9c36f;
+  font-size: clamp(0.66rem, 0.76vw, 0.82rem);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.citadel-action-notices small b {
+  display: inline-block;
+  margin-left: 8px;
+  border: 1px solid rgb(105 206 221 / 44%);
+  border-radius: 999px;
+  background: rgb(18 74 84 / 72%);
+  padding: 3px 7px;
+  color: #bff6ff;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+}
+
+.citadel-action-notices strong {
+  color: #fff0c8;
+  font-size: clamp(0.84rem, 1.05vw, 1.12rem);
+  line-height: 1.35;
+}
+
+@keyframes citadel-action-notice-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .citadel-action-notices article { animation: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -168,6 +168,22 @@
 .citadel-opponent-seat:is(.citadel-opponent-seat--left-upper, .citadel-opponent-seat--left-lower, .citadel-opponent-seat--right-upper, .citadel-opponent-seat--right-lower)
   .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(8)) { --citadel-opponent-district-overlap: -34px; }
 
+.citadel-game-shell:is(.citadel-game-shell--players-4, .citadel-game-shell--players-5, .citadel-game-shell--players-6)
+  .citadel-opponent-seat:is(.citadel-opponent-seat--top-left, .citadel-opponent-seat--top-center, .citadel-opponent-seat--top-right)
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(8)) { --citadel-opponent-district-overlap: -44px; }
+
+.citadel-game-shell:is(.citadel-game-shell--players-4, .citadel-game-shell--players-5, .citadel-game-shell--players-6)
+  .citadel-opponent-seat:is(.citadel-opponent-seat--left-upper, .citadel-opponent-seat--left-lower, .citadel-opponent-seat--right-upper, .citadel-opponent-seat--right-lower)
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(8)) { --citadel-opponent-district-overlap: -38px; }
+
+@media (max-width: 1500px) and (max-height: 720px) {
+  .citadel-opponent-seat:is(.citadel-opponent-seat--top-left, .citadel-opponent-seat--top-center, .citadel-opponent-seat--top-right)
+    .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(8)) { --citadel-opponent-district-overlap: -34px; }
+
+  .citadel-opponent-seat:is(.citadel-opponent-seat--left-upper, .citadel-opponent-seat--left-lower, .citadel-opponent-seat--right-upper, .citadel-opponent-seat--right-lower)
+    .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(8)) { --citadel-opponent-district-overlap: -24px; }
+}
+
 .citadel-opponent-seat:is(
   .citadel-opponent-seat--top-left,
   .citadel-opponent-seat--top-center,

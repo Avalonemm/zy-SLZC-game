@@ -64,7 +64,8 @@ export function drawDistrictCards(
       gameRoom,
       "draw_empty_take_gold",
       `${result.player.name} 抽牌时牌堆已空，系统改为领取 2 枚金币。`,
-      { kind: "take_gold", actorPlayerId: result.player.id, amount: 2 }
+      { kind: "take_gold", actorPlayerId: result.player.id, amount: 2 },
+      { origin: "rule", autoReason: "deck_empty" }
     );
     return { ok: true, drawnCards };
   }
@@ -208,7 +209,9 @@ export function endTurn(gameRoom: GameRoom, input: { playerId: string }): Result
     addLog(
       gameRoom,
       "auto_take_gold",
-      `${result.player.name} 未选择资源行动，系统自动为其领取 2 枚金币。`
+      `${result.player.name} 未选择资源行动，系统自动为其领取 2 枚金币。`,
+      { kind: "take_gold", actorPlayerId: result.player.id, amount: 2 },
+      { origin: "rule", autoReason: "resource_skipped" }
     );
   }
   addLog(gameRoom, "end_turn", `${result.player.name} 结束了回合。`);

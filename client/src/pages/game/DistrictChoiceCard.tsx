@@ -12,6 +12,7 @@ const colorLabels: Record<BuildableDistrictCard["color"], string> = {
 
 export function DistrictChoiceCard(props: {
   card: BuildableDistrictCard;
+  disabled?: boolean;
   onChoose: () => void;
 }) {
   return (
@@ -19,6 +20,7 @@ export function DistrictChoiceCard(props: {
       className={`citadel-district-choice-card citadel-district-choice-card--${props.card.color}`}
       {...cardFaceAttributes()}
       {...districtInspectorAttributes(props.card)}
+      disabled={props.disabled}
       type="button"
       onClick={props.onChoose}
     >

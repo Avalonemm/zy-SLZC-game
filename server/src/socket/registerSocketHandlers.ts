@@ -2,12 +2,14 @@ import type { Server, Socket } from "socket.io";
 import type {
   ActionEventPayload,
   ClientToServerEvents,
+  GameCommandAck,
   InterServerEvents,
   RoomState,
   ServerToClientEvents,
   SocketData
 } from "@zy/shared";
 import { createActionEventsFromLogs, createLatestActionEvent } from "../game/actionEvents";
+import { loadDistrictCards } from "../game/cardData";
 import { createRoomManager } from "../game/roomManager";
 import {
   advanceOfflinePlayers,
@@ -376,16 +378,16 @@ export function registerSocketHandlers(io: GameServer) {
       broadcastRoomState(io, result.room);
     });
 
-    socket.on("select_role", (payload) => {
+    socket.on("select_role", (payload, ack) => {
       const socketPlayer = assertSocketPlayer(socket, payload.roomCode);
       if (!socketPlayer.ok) {
-        socket.emit("error_message", { message: socketPlayer.error });
+        reportGameCommandError(socket, ack, socketPlayer.error);
         return;
       }
 
       const gameRoom = roomManager.getGameRoom(payload.roomCode);
       if (!gameRoom) {
-        socket.emit("error_message", { message: "游戏房间不存在。" });
+        reportGameCommandError(socket, ack, "游戏房间不存在。");
         return;
       }
 
@@ -394,7 +396,7 @@ export function registerSocketHandlers(io: GameServer) {
         roleId: payload.roleId
       });
       if (!result.ok) {
-        socket.emit("error_message", { message: result.error });
+        reportGameCommandError(socket, ack, result.error ?? "操作失败。");
         return;
       }
 
@@ -405,88 +407,143 @@ export function registerSocketHandlers(io: GameServer) {
       );
       broadcastGameState(gameRoom);
       scheduleBotTurn(gameRoom);
+      ack?.({ ok: true });
     });
 
-    socket.on("take_gold", (payload) => {
+    socket.on("take_gold", (payload, ack) => {
       handleGameAction(socket, payload.roomCode, (playerId) =>
         takeGoldOrError({ roomCode: payload.roomCode, playerId })
-      );
+      , ack);
     });
 
-    socket.on("draw_district_cards", (payload) => {
+    socket.on("draw_district_cards", (payload, ack) => {
       handleGameAction(socket, payload.roomCode, (playerId) =>
         drawCardsOrError({ roomCode: payload.roomCode, playerId })
-      );
+      , ack);
     });
 
-    socket.on("choose_drawn_district_card", (payload) => {
+    socket.on("choose_drawn_district_card", (payload, ack) => {
       handleGameAction(socket, payload.roomCode, (playerId) =>
         chooseDrawnCardOrError({
           roomCode: payload.roomCode,
           playerId,
           districtCardId: payload.districtCardId
-        })
+        }),
+        ack
       );
     });
 
-    socket.on("build_district", (payload) => {
+    socket.on("build_district", (payload, ack) => {
       handleGameAction(socket, payload.roomCode, (playerId) =>
         buildDistrictOrError({
           roomCode: payload.roomCode,
           playerId,
           districtCardId: payload.districtCardId
-        })
+        }),
+        ack
       );
     });
 
-    socket.on("use_role_skill", (payload) => {
+    socket.on("use_role_skill", (payload, ack) => {
       handleGameAction(socket, payload.roomCode, (playerId) =>
         useRoleSkillOrError({
           ...payload,
           playerId
-        })
+        }),
+        ack
       );
     });
 
 
-    socket.on("use_district_effect", (payload) => {
+    socket.on("use_district_effect", (payload, ack) => {
       handleGameAction(socket, payload.roomCode, (playerId) =>
         useDistrictEffectOrError({
           ...payload,
           playerId
-        })
+        }),
+        ack
       );
     });
 
-    socket.on("resolve_graveyard_choice", (payload) => {
+    socket.on("resolve_graveyard_choice", (payload, ack) => {
       handleGameAction(socket, payload.roomCode, (playerId) =>
         resolveGraveyardChoiceOrError({
           roomCode: payload.roomCode,
           playerId,
           buyBack: payload.buyBack
-        })
+        }),
+        ack
       );
     });
-    socket.on("end_turn", (payload) => {
+    socket.on("end_turn", (payload, ack) => {
       handleGameAction(socket, payload.roomCode, (playerId) =>
         endTurnOrError({ roomCode: payload.roomCode, playerId })
-      );
+      , ack);
     });
 
-    socket.on("skip_current_offline_player", (payload) => {
+    socket.on("skip_current_offline_player", (payload, ack) => {
       handleGameAction(socket, payload.roomCode, (playerId) =>
         skipOfflineCurrentPlayerOrError({
           roomCode: payload.roomCode,
           requesterPlayerId: playerId
-        })
+        }),
+        ack
       );
     });
 
-    socket.on("resolve_turn_timeout", (payload) => {
+    socket.on("resolve_turn_timeout", (payload, ack) => {
       handleGameAction(socket, payload.roomCode, () =>
         resolveTurnTimeoutOrError({ roomCode: payload.roomCode })
-      );
+      , ack);
     });
+
+    if (process.env.ZY_ENABLE_UI_QA === "1") {
+      socket.on("qa_configure_game", (payload, ack) => {
+        const socketPlayer = assertSocketPlayer(socket, payload.roomCode);
+        if (!socketPlayer.ok || socketPlayer.playerId !== payload.playerId) {
+          reportGameCommandError(socket, ack, socketPlayer.ok ? "仅当前玩家可配置验收场景。" : socketPlayer.error);
+          return;
+        }
+        const gameRoom = roomManager.getGameRoom(payload.roomCode);
+        if (!gameRoom) {
+          reportGameCommandError(socket, ack, "游戏房间不存在。");
+          return;
+        }
+        const cards = loadDistrictCards();
+        const cloneCards = (count: number, prefix: string) => Array.from({ length: count }, (_, index) => ({
+          ...cards[index % cards.length],
+          id: `qa-${prefix}-${index}-${cards[index % cards.length].id}`
+        }));
+        if (payload.ensureSelectedRoleId) {
+          const existingRolePlayer = gameRoom.players.find(
+            (player) => player.selectedRoleId === payload.ensureSelectedRoleId
+          );
+          if (!existingRolePlayer) {
+            const target = gameRoom.players.find((player) => player.id !== payload.playerId);
+            if (target) target.selectedRoleId = payload.ensureSelectedRoleId;
+          }
+        }
+        if (
+          payload.selfHandCount !== undefined ||
+          payload.opponentHandCount !== undefined ||
+          payload.cityCount !== undefined
+        ) {
+          const selfHandCount = Math.max(0, Math.min(40, Math.floor(payload.selfHandCount ?? 4)));
+          const opponentHandCount = Math.max(0, Math.min(40, Math.floor(payload.opponentHandCount ?? 4)));
+          const cityCount = Math.max(0, Math.min(8, Math.floor(payload.cityCount ?? 0)));
+          for (const player of gameRoom.players) {
+            player.gold = 99;
+            player.hand = cloneCards(
+              player.id === payload.playerId ? selfHandCount : opponentHandCount,
+              `${player.id}-hand`
+            );
+            player.city = cloneCards(cityCount, `${player.id}-city`);
+          }
+        }
+        broadcastGameState(gameRoom);
+        ack?.({ ok: true });
+      });
+    }
 
     socket.on("send_chat_message", (payload) => {
       if (!allowSocketAction(socket.id, "chat", 5, 5_000)) {
@@ -583,21 +640,22 @@ export function registerSocketHandlers(io: GameServer) {
   function handleGameAction(
     socket: GameSocket,
     roomCode: string,
-    action: (playerId: string) => ActionResult
+    action: (playerId: string) => ActionResult,
+    ack?: GameCommandAck
   ) {
     if (!allowSocketAction(socket.id, "game", 30, 2_000)) {
-      socket.emit("error_message", { message: "操作过于频繁，请稍后再试。" });
+      reportGameCommandError(socket, ack, "操作过于频繁，请稍后再试。");
       return;
     }
     const socketPlayer = assertSocketPlayer(socket, roomCode);
     if (!socketPlayer.ok) {
-      socket.emit("error_message", { message: socketPlayer.error });
+      reportGameCommandError(socket, ack, socketPlayer.error);
       return;
     }
 
     const result = action(socketPlayer.playerId);
     if (!result.ok) {
-      socket.emit("error_message", { message: result.error ?? "操作失败。" });
+      reportGameCommandError(socket, ack, result.error ?? "操作失败。");
       return;
     }
 
@@ -607,6 +665,19 @@ export function registerSocketHandlers(io: GameServer) {
       broadcastGameState(gameRoom);
       scheduleBotTurn(gameRoom);
     }
+    ack?.({ ok: true });
+  }
+
+  function reportGameCommandError(
+    socket: GameSocket,
+    ack: GameCommandAck | undefined,
+    message: string
+  ) {
+    if (ack) {
+      ack({ ok: false, error: message });
+      return;
+    }
+    socket.emit("error_message", { message });
   }
 
   function takeGoldOrError(payload: { roomCode: string; playerId: string }) {

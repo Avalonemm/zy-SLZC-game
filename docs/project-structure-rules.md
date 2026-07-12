@@ -41,13 +41,14 @@
 - `DistrictChoiceCard.tsx`：抽卡二选一 / 三选一使用的完整建筑卡牌组件，并预留正式卡图区域。
 - `GameCardInspector.tsx`：对局内角色牌、手牌、抽牌候选和公开建筑共用的悬停检视器，负责 50ms 关闭延迟和视口边缘自适应定位。
 - `GameSkillPresentationLayer.tsx`：对局关键技能的独立桌面演出覆盖层，根据玩家标签的实时 DOM 位置绘制技能路径、目标光圈、卡牌 / 金币移动和结果横幅，不参与座位与手牌布局。
-- `GameSkillPresentationLayer.tsx`：对局关键技能的独立桌面演出覆盖层，根据玩家标签的实时 DOM 位置绘制技能路径、目标光圈、卡牌 / 金币移动和结果横幅，不参与座位与手牌布局。
+- `GameActionNoticeLayer.tsx`：与移动动画解耦的文字结果层，最多显示两条并按表现配置保留阅读时间。
+- `presentationTiming.ts`：金币 / 抽卡、普通行动、技能和阶段提示共用的唯一时长配置；CSS 动画必须读取这里下发的变量。
+- `useGameCommandFeedback.ts`、`GameCommandFeedbackToast.tsx`：对局命令的处理中、超时解锁和失败原因反馈，不把 Socket 确认逻辑散落进按钮组件。
+- `gameUiTuning.ts`、`GameUiTuningPanel.tsx`：V2 调参配置、人数密度预设、V1 迁移和组件间安全值计算；正式环境不注册调参入口。
 - `cardInspectorData.ts`：把角色 / 建筑公开信息转换为统一检视器数据属性，禁止把未公开身份或对手私有手牌送入检视器。
 - `GameActionDock.tsx`：角色选择、抽牌选择、行动阶段按钮、角色技能和建筑效果入口。
 - `GameCornerDocks.tsx`：游戏日志和聊天入口。
 - `gameTableLayout.ts`：4 到 8 人对局座位位置分配。
-
-大厅、准备房间与对局右上角共用 `client/src/components/ui/UtilityMenuButton.tsx`。公告、帮助、设置和退出房间必须从该共享组件进入，避免各阶段再次复制或用 CSS 临时绘制不同图标。
 
 大厅、准备房间与对局右上角共用 `client/src/components/ui/UtilityMenuButton.tsx`。公告、帮助、设置和退出房间必须从该共享组件进入，避免各阶段再次复制或用 CSS 临时绘制不同图标。
 
@@ -62,6 +63,16 @@
 - 只由服务端裁定的规则放到 `server/src/game`。
 - 背景、美术资源、可替换 UI 资源要保持路径清晰，方便后续换皮。
 - 如果某个文件开始同时负责太多事情，优先拆出小模块，而不是继续堆逻辑。
+
+## 对局可靠性与验收归类
+
+- 前后端共用的命令确认、日志来源和表现事件字段放在 `shared/src/index.ts`；服务端仍是唯一结算方。
+- 自动操作必须使用 `player / bot / timeout / offline / rule` 来源，并通过 `server/src/game/gameEngineUtils.ts` 的上下文写入日志和表现事件。
+- 卡牌守恒检查集中在 `server/src/game/cardIntegrity.ts`，规则覆盖和 4–8 人固定种子模拟放在同目录测试中。
+- UI 极端场景只能通过 `ZY_ENABLE_UI_QA=1` 注册，生产环境不得暴露 `qa_configure_game`。
+- `scripts/run-regression.mjs` 负责快速与完整报告；本次启动的服务、页面和浏览器必须在 `finally` 中关闭，不能在桌面留下递归预览窗口。
+- `scripts/smoke-server-restart-recovery.mjs` 必须真实停止并重启服务，验证房间快照、恢复令牌和恢复后继续行动。
+- 正式卡图使用固定同名目录与 `VITE_CARD_FACE_MODE`，资源缺失必须回退程序卡面并由严格美术检查报告，不得伪装为已交付。
 
 ## 前端归类
 

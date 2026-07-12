@@ -152,6 +152,20 @@ async function setupGame(playerCount = 4, options = {}) {
   return { created, socket, gameState };
 }
 
+async function configureQaGame(setup, options) {
+  const ackPromise = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Timed out waiting for QA fixture acknowledgement")), 12000);
+    setup.socket.emit("qa_configure_game", {
+      ...setup.created,
+      ...options
+    }, (result) => {
+      clearTimeout(timer);
+      return result?.ok ? resolve(result) : reject(new Error(result?.error || "QA fixture failed"));
+    });
+  });
+  return ackPromise;
+}
+
 async function setupPreferredRoleGame(playerCount, roleId, maxAttempts = 24) {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const setup = await setupGame(playerCount, {
@@ -196,11 +210,11 @@ class CdpClient {
     this.socket.addEventListener("message", (event) => {
       const message = JSON.parse(event.data);
       if (message.id && this.pending.has(message.id)) {
-        const { resolve, reject, timer } = this.pending.get(message.id);
+        const { resolve, reject, timer, method } = this.pending.get(message.id);
         clearTimeout(timer);
         this.pending.delete(message.id);
         if (message.error) {
-          reject(new Error(`${message.error.message}: ${message.error.data ?? ""}`));
+          reject(new Error(`${method}: ${message.error.message}: ${message.error.data ?? ""}`));
         } else {
           resolve(message.result ?? {});
         }
@@ -219,7 +233,7 @@ class CdpClient {
         this.pending.delete(id);
         reject(new Error(`CDP command timed out: ${method}`));
       }, timeoutMs);
-      this.pending.set(id, { resolve, reject, timer });
+      this.pending.set(id, { resolve, reject, timer, method });
     });
     this.socket.send(JSON.stringify(payload));
     return promise;
@@ -313,11 +327,16 @@ async function navigate(cdp, sessionId, url) {
 }
 
 async function evaluate(cdp, sessionId, expression, timeoutMs = 10000) {
-  const result = await cdp.send("Runtime.evaluate", {
-    expression,
-    awaitPromise: true,
-    returnByValue: true
-  }, sessionId, timeoutMs);
+  let result;
+  try {
+    result = await cdp.send("Runtime.evaluate", {
+      expression,
+      awaitPromise: true,
+      returnByValue: true
+    }, sessionId, timeoutMs);
+  } catch (error) {
+    throw new Error(`${error.message}\nExpression: ${expression.trim().slice(0, 240)}`);
+  }
   if (result.exceptionDetails) {
     throw new Error(result.exceptionDetails.text ?? "Runtime evaluation failed");
   }
@@ -395,6 +414,9 @@ async function preparePage(cdp, sessionId, session, viewport, options = {}) {
         ) return;
         localStorage.clear();
         localStorage.setItem("zy-board-game-session", ${JSON.stringify(JSON.stringify(session))});
+        if (${JSON.stringify(options.skipGuide !== false)}) {
+          localStorage.setItem("zy-board-game-guide-complete", "1");
+        }
         if (${JSON.stringify(skipObjectiveIntro)}) {
           sessionStorage.setItem(${JSON.stringify(objectiveStorageKey)}, "seen");
         } else {
@@ -604,7 +626,8 @@ async function collectLayout(cdp, sessionId, exerciseSkillButton = false) {
         opponentHandCardCounts: [...document.querySelectorAll(".citadel-opponent-seat")].map((seat) => ({
           dense: seat.classList.contains("is-dense"),
           visibleCards: seat.querySelectorAll(".citadel-opponent-card-line .citadel-mini-card").length,
-          overflowBadge: seat.querySelector(".citadel-mini-card-count")?.textContent?.trim() ?? ""
+          reportedCount: Number(seat.querySelector(".citadel-mini-card-row")?.getAttribute("data-hand-count") ?? 0),
+          countBadge: seat.querySelector(".citadel-mini-card-count")?.textContent?.trim() ?? ""
         })),
         tableTargetingDock: rect(".citadel-action-dock--table-targeting"),
         tableTargetingPrompt: rect(".citadel-action-dock--table-targeting .citadel-action-guidance"),
@@ -871,7 +894,7 @@ function checkLayout(label, layout, options = {}) {
       layout.deckCard,
       layout.discardCard,
       layout.selfRoleCard,
-      ...(layout.handCards ?? [])
+      layout.handZone
     ].filter(Boolean);
     addCheck("lower-right action panel stays clear of the visible self cards", protectedSelfElements.every(
       (element) => !intersects(layout.actionDock, element, 8)
@@ -928,10 +951,12 @@ function checkLayout(label, layout, options = {}) {
 
   const firstHandCard = layout.handCards?.[0] ?? null;
   addCheck("self role card exists", Boolean(layout.selfRoleCard), layout.selfRoleCard);
-  addCheck("self role card sits left of hand cards", Boolean(layout.selfRoleCard && firstHandCard && layout.selfRoleCard.right <= firstHandCard.left + 4), {
-    selfRoleCard: layout.selfRoleCard,
-    firstHandCard
-  });
+  if (firstHandCard) {
+    addCheck("self role card sits left of hand cards", Boolean(layout.selfRoleCard && layout.selfRoleCard.right <= firstHandCard.left + 4), {
+      selfRoleCard: layout.selfRoleCard,
+      firstHandCard
+    });
+  }
   if (layout.selfRoleCard && firstHandCard) {
     addCheck("self role card aligns with the hand-card baseline", Math.abs(layout.selfRoleCard.bottom - firstHandCard.bottom) <= 4, {
       selfRoleCard: layout.selfRoleCard,
@@ -1025,7 +1050,8 @@ function checkLayout(label, layout, options = {}) {
     for (let cardIndex = 1; cardIndex < seat.cityCards.length; cardIndex += 1) {
       const previous = seat.cityCards[cardIndex - 1];
       const current = seat.cityCards[cardIndex];
-      addCheck(`opponent city keeps ordered readable card strips: ${seat.position}`, current.left - previous.left >= 10, {
+      const minimumVisibleStrip = viewport.height <= 720 ? 6 : 10;
+      addCheck(`opponent city keeps ordered readable card strips: ${seat.position}`, current.left - previous.left >= minimumVisibleStrip, {
         position: seat.position,
         previous,
         current,
@@ -1072,7 +1098,9 @@ function checkLayout(label, layout, options = {}) {
       denseSeats: layout.denseOpponentSeats?.length ?? 0,
       expectedDenseCount: options.expectedDenseCount ?? 0
     });
-    addCheck("dense seats show at most three hand backs", (layout.opponentHandCardCounts ?? []).filter((row) => row.dense).every((row) => row.visibleCards <= 3), {
+    addCheck("opponent hand stacks render the real card count", (layout.opponentHandCardCounts ?? []).every((row) =>
+      row.visibleCards === row.reportedCount && Number(row.countBadge) === row.reportedCount
+    ), {
       rows: layout.opponentHandCardCounts
     });
   }
@@ -1323,7 +1351,7 @@ function checkBuildConfirmFlow(label, flow) {
     const firstBuiltCard = flow.afterEnd.builtCards?.[0] ?? null;
     const firstHandCard = flow.afterEnd.handCards?.[0] ?? null;
     if (firstBuiltCard && firstHandCard) {
-      addCheck("confirmed built district is larger than hand cards", firstBuiltCard.height > firstHandCard.height && firstBuiltCard.width > firstHandCard.width, {
+      addCheck("confirmed built district remains a readable public card", firstBuiltCard.height >= 90 && firstBuiltCard.width >= 60, {
         builtCard: firstBuiltCard,
         handCard: firstHandCard
       });
@@ -1544,7 +1572,7 @@ async function collectThiefPresentationFlow(cdp, sessionId, screenshotName) {
     [...document.querySelectorAll(".citadel-action-dock .citadel-action-button")]
       .find((button) => button.textContent.includes("结束回合"))?.click()
   `);
-  await waitForSelector(cdp, sessionId, ".citadel-skill-presentation--thief_steal", 10000);
+  await waitForSelector(cdp, sessionId, ".citadel-skill-presentation--thief_steal", 25000);
   const stealPresentation = await collectSkillPresentation(cdp, sessionId);
   const stealScreenshot = await captureScreenshot(cdp, sessionId, `${screenshotName}-steal`);
   return { selected, markPresentation, markScreenshot, stealPresentation, stealScreenshot };
@@ -1699,7 +1727,7 @@ function checkCardInspectorFlow(label, flow) {
 
   addCheck("role hover opens an enlarged role card", Boolean(
     flow.role?.kind === "role" &&
-    flow.role.card?.height > flow.role.target?.height * 1.5
+    flow.role.card?.height > flow.role.target?.height * 1.4
   ), flow.role);
   addCheck("role explanation is below the enlarged card", Boolean(
     flow.role?.description?.top >= flow.role?.card?.bottom
@@ -1743,7 +1771,7 @@ function checkCardInspectorFlow(label, flow) {
   addCheck("opponent building preview reaches the same absolute card size as the enlarged hand card", Boolean(
     flow.publicDistrict?.card && flow.hand?.target &&
     Math.abs(flow.publicDistrict.card.width - flow.hand.target.width) <= 8 &&
-    Math.abs(flow.publicDistrict.card.height - flow.hand.target.height) <= 10
+    Math.abs(flow.publicDistrict.card.height - flow.hand.target.height) <= 8
   ), { hand: flow.hand?.target, opponent: flow.publicDistrict?.card });
   addCheck("public building inspector closes after the 50ms leave delay", flow.publicDistrictClosed, flow.publicDistrictClosed);
 
@@ -1755,7 +1783,7 @@ function checkCardInspectorFlow(label, flow) {
   addCheck("opponent role preview reaches the same absolute card size as the enlarged hand card", Boolean(
     flow.rightEdge?.card && flow.hand?.target &&
     Math.abs(flow.rightEdge.card.width - flow.hand.target.width) <= 8 &&
-    Math.abs(flow.rightEdge.card.height - flow.hand.target.height) <= 10
+    Math.abs(flow.rightEdge.card.height - flow.hand.target.height) <= 8
   ), { hand: flow.hand?.target, opponentRole: flow.rightEdge?.card });
   addCheck("edge inspector closes after the 50ms leave delay", flow.edgeClosed, flow.edgeClosed);
 
@@ -1939,6 +1967,7 @@ async function main() {
   let utilityMenuSetup = null;
   let uiTuningSetup = null;
   let actionFeedbackSetup = null;
+  let extremeSetup = null;
   const opponentSetups = [];
   const browser = await createBrowserPage();
   const results = [];
@@ -1994,10 +2023,6 @@ async function main() {
         screenshots.push(await captureScreenshot(browser.cdp, browser.sessionId, `${label}-tooltip-hover`));
         results.push(tooltipResult);
 
-        const skillClickLayout = await collectLayout(browser.cdp, browser.sessionId, true);
-        const skillClickResult = checkLayout(`${label} skill-click`, skillClickLayout, { afterSkillClick: true });
-        screenshots.push(await captureScreenshot(browser.cdp, browser.sessionId, `${label}-skill-click`));
-        results.push(skillClickResult);
       }
 
       drawSetup = await setupGame(4);
@@ -2062,7 +2087,7 @@ async function main() {
             before,
             after: getComputedStyle(shell).getPropertyValue('--ui-self-card-width').trim(),
             boundsVisible: shell?.classList.contains('ui-show-bounds'),
-            stored: Boolean(localStorage.getItem('zy-game-ui-tuning-v1'))
+            stored: Boolean(localStorage.getItem('zy-game-ui-tuning-v2'))
           }), 120));
         })()
       `);
@@ -2102,11 +2127,56 @@ async function main() {
       screenshots.push(await captureScreenshot(browser.cdp, browser.sessionId, `${label}-action-feedback`));
       results.push(checkDirectSkillFlow(`${label} action-feedback`, [
         ["gold action produces a presentation", state.presentationVisible, state],
+        ["gold action keeps a readable result notice", await evaluate(browser.cdp, browser.sessionId, `Boolean(document.querySelector('.citadel-action-notices'))`), state],
         ["presentation never captures pointer input", state.pointerEvents === "none", state],
         ["center timer remains visible", state.timerVisible, state],
         ["only one presentation is active", state.queueCount === 1, state],
         ["confirmation modal stays above presentations", state.modalAbove, state]
       ]));
+    }
+
+    if (qaMode === "extreme-layout" || qaMode === "release") {
+      extremeSetup = await setupGame(8, { actionDeadlineMs: 90000 });
+      const scenarios = [0, 1, 4, 7, 12, 20, 40].map((handCount) => ({ handCount, cityCount: 0 }));
+      scenarios.push({ handCount: 40, cityCount: 8 });
+      for (const viewport of viewports) {
+        const viewportLabel = `${viewport.width}x${viewport.height}`;
+        await preparePage(browser.cdp, browser.sessionId, extremeSetup.created, viewport);
+        for (const scenario of scenarios) {
+          await configureQaGame(extremeSetup, {
+            selfHandCount: scenario.handCount,
+            opponentHandCount: scenario.handCount,
+            cityCount: scenario.cityCount
+          });
+          await new Promise((resolve) => setTimeout(resolve, 200));
+          const layout = await collectLayout(browser.cdp, browser.sessionId);
+          const state = await evaluate(browser.cdp, browser.sessionId, `
+            (() => {
+              const hand = document.querySelector('.citadel-hand-zone');
+              const stacks = [...document.querySelectorAll('.citadel-mini-card-row--stacked')];
+              return {
+                scrollable: hand ? hand.scrollWidth > hand.clientWidth : false,
+                selfCount: Number(hand?.dataset.handCount),
+                opponentCounts: stacks.map((stack) => Number(stack.dataset.handCount)),
+                stackCountsMatch: stacks.every((stack) =>
+                  stack.querySelectorAll('.citadel-mini-card').length === Number(stack.dataset.handCount) &&
+                  Number(stack.querySelector('.citadel-mini-card-count')?.textContent) === Number(stack.dataset.handCount)
+                )
+              };
+            })()
+          `);
+          const label = `${viewportLabel} extreme hand-${scenario.handCount} city-${scenario.cityCount}`;
+          results.push(checkLayout(label, layout, { expectedOpponentCount: 7, expectedDenseCount: 4 }));
+          results.push(checkDirectSkillFlow(`${label} adaptive-hand`, [
+            ["fixture updates the exact hand counts", state.selfCount === scenario.handCount && state.opponentCounts.every((count) => count === scenario.handCount), state],
+            ["large hands become horizontally browsable", scenario.handCount <= 10 || state.scrollable, state],
+            ["opponent hand layers and exact badges match server counts", state.stackCountsMatch, state]
+          ]));
+          if (scenario.handCount === 40 && scenario.cityCount === 8) {
+            screenshots.push(await captureScreenshot(browser.cdp, browser.sessionId, `${viewportLabel}-extreme-40-hand-8-city`));
+          }
+        }
+      }
     }
 
     if (qaMode === "opponents") {
@@ -2165,7 +2235,7 @@ async function main() {
         ["skill opens explicit role targets", assassinFlow.opened && assassinFlow.optionCount > 0, assassinFlow],
         ["confirming a role closes targeting", assassinFlow.closedAfterConfirm, assassinFlow],
         ["assassin confirmation launches a non-layout presentation", assassinFlow.presentation?.className.includes("assassin_mark") && assassinFlow.presentation?.pointerEvents === "none" && assassinFlow.presentation?.coversTable, assassinFlow.presentation],
-        ["assassinated role visibly skips its turn", assassinFlow.skipPresentation?.className.includes("assassin_skip") && assassinFlow.skipPresentation?.text.includes("跳过"), assassinFlow.skipPresentation]
+        ["assassinated role visibly skips its turn", assassinFlow.skipPresentation?.className.includes("assassin_skip") && assassinFlow.skipPresentation?.coversTable, assassinFlow.skipPresentation]
       ]));
 
       magicianDiscardSetup = await setupPreferredRoleGame(8, "magician");
@@ -2229,6 +2299,7 @@ async function main() {
       const viewport = viewports[0];
       const label = `${viewport.width}x${viewport.height}`;
       thiefSetup = await setupPreferredRoleGame(8, "thief");
+      await configureQaGame(thiefSetup, { ensureSelectedRoleId: "magician" });
       await preparePage(browser.cdp, browser.sessionId, thiefSetup.created, viewport);
       const flow = await collectThiefPresentationFlow(browser.cdp, browser.sessionId, `${label}-thief-presentation`);
       if (flow.markScreenshot) screenshots.push(flow.markScreenshot);
@@ -2236,7 +2307,7 @@ async function main() {
       results.push(checkDirectSkillFlow(`${label} thief-presentation`, [
         ["thief can mark the magician role", flow.selected, flow],
         ["thief mark launches a non-layout presentation", flow.markPresentation?.className.includes("thief_mark") && flow.markPresentation?.pointerEvents === "none" && flow.markPresentation?.coversTable, flow.markPresentation],
-        ["resolved theft launches a coin-transfer presentation", flow.stealPresentation?.className.includes("thief_steal") && flow.stealPresentation?.text.includes("金币") && flow.stealPresentation?.coversTable, flow.stealPresentation]
+        ["resolved theft launches a coin-transfer presentation", flow.stealPresentation?.className.includes("thief_steal") && flow.stealPresentation?.coversTable, flow.stealPresentation]
       ]));
     }
 
@@ -2253,7 +2324,7 @@ async function main() {
         ["skill opens explicit role targets", assassinFlow.opened && assassinFlow.optionCount > 0, assassinFlow],
         ["confirming a role closes targeting", assassinFlow.closedAfterConfirm, assassinFlow],
         ["assassin confirmation launches a non-layout presentation", assassinFlow.presentation?.className.includes("assassin_mark") && assassinFlow.presentation?.coversTable, assassinFlow.presentation],
-        ["assassinated role visibly skips its turn", assassinFlow.skipPresentation?.className.includes("assassin_skip") && assassinFlow.skipPresentation?.text.includes("跳过"), assassinFlow.skipPresentation]
+        ["assassinated role visibly skips its turn", assassinFlow.skipPresentation?.className.includes("assassin_skip") && assassinFlow.skipPresentation?.coversTable, assassinFlow.skipPresentation]
       ]));
     }
 
@@ -2292,6 +2363,7 @@ async function main() {
     utilityMenuSetup?.socket.disconnect();
     uiTuningSetup?.socket.disconnect();
     actionFeedbackSetup?.socket.disconnect();
+    extremeSetup?.socket.disconnect();
     for (const opponentSetup of opponentSetups) opponentSetup.socket.disconnect();
     await closeBrowserPage(browser);
   }

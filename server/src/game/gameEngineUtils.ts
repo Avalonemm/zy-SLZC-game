@@ -1,9 +1,41 @@
-import type { ActionEventPresentation, GameLog, GameRoom, Player } from "@zy/shared";
+import type {
+  ActionEventPresentation,
+  GameActionAutoReason,
+  GameActionOrigin,
+  GameLog,
+  GameRoom,
+  Player
+} from "@zy/shared";
 import { randomUUID } from "node:crypto";
 import { loadRoleCards } from "./cardData";
 import type { Result } from "./gameEngineTypes";
 
-export const MAX_GAME_LOGS = 80;
+export const MAX_GAME_LOGS = 500;
+
+type ActionOriginContext = {
+  origin: GameActionOrigin;
+  autoReason?: GameActionAutoReason;
+};
+
+const actionOriginContexts = new WeakMap<GameRoom, ActionOriginContext>();
+
+export function withActionOrigin<T>(
+  gameRoom: GameRoom,
+  context: ActionOriginContext,
+  action: () => T
+): T {
+  const previous = actionOriginContexts.get(gameRoom);
+  actionOriginContexts.set(gameRoom, context);
+  try {
+    return action();
+  } finally {
+    if (previous) {
+      actionOriginContexts.set(gameRoom, previous);
+    } else {
+      actionOriginContexts.delete(gameRoom);
+    }
+  }
+}
 
 export function findRole(roleId?: string) {
   if (!roleId) {
@@ -29,13 +61,18 @@ export function addLog(
   gameRoom: GameRoom,
   type: string,
   message: string,
-  presentation?: ActionEventPresentation
+  presentation?: ActionEventPresentation,
+  contextOverride?: ActionOriginContext
 ) {
+  const context = contextOverride ?? actionOriginContexts.get(gameRoom);
   const log: GameLog = {
     id: randomUUID(),
     type,
     message,
     presentation,
+    origin: context?.origin ?? "player",
+    autoReason: context?.autoReason,
+    round: gameRoom.currentRound,
     createdAt: new Date().toISOString()
   };
   gameRoom.gameLog.unshift(log);

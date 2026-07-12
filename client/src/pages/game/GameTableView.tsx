@@ -24,23 +24,30 @@ import { useTableDistrictTargeting } from "./useTableDistrictTargeting";
 import { legalRoleTargets, type RoleSkillTargeting } from "./roleSkillTargeting";
 import { GameCardInspector } from "./GameCardInspector";
 import { GameSkillPresentationLayer } from "./GameSkillPresentationLayer";
+import { GameActionNoticeLayer } from "./GameActionNoticeLayer";
 import { GameUiTuningPanel } from "./GameUiTuningPanel";
+import { GameCommandFeedbackToast } from "./GameCommandFeedbackToast";
+import type { GameCommandFeedback } from "./useGameCommandFeedback";
 import {
   canShowUiTuningPanel,
   defaultGameUiTuning,
   densityForPlayerCount,
   GAME_UI_TUNING_STORAGE_KEY,
   gameUiTuningStyle,
-  readStoredGameUiTuning
+  readStoredGameUiTuning,
+  resolveSafeGameUiTuning
 } from "./gameUiTuning";
 
 export type GameTableViewProps = {
   actionEvents: ActionEventPayload[];
   chatMessages: ChatMessage[];
+  commandFeedback: GameCommandFeedback | null;
   gameState: VisibleGameState;
+  pendingCommand: string | null;
   playerId: string | null;
   selfAvatarImage: string | null;
   selfAvatarLabel: string;
+  onDismissCommandFeedback: () => void;
   onBuildDistrict: (districtCardId: string) => void;
   onChooseDrawnCard: (districtCardId: string) => void;
   onDrawCards: () => void;
@@ -78,9 +85,10 @@ export function GameTableView(props: GameTableViewProps) {
   const [roleSkillTargeting, setRoleSkillTargeting] = useState<RoleSkillTargeting | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [objectiveIntroVisible, setObjectiveIntroVisible] = useState(false);
+  const [tuningSafetyMessages, setTuningSafetyMessages] = useState<string[]>([]);
   const density = densityForPlayerCount(props.gameState.players.length);
   const tuningDefaults = useMemo(
-    () => defaultGameUiTuning(props.gameState.players.length, window.innerHeight <= 700),
+    () => defaultGameUiTuning(props.gameState.players.length, window.innerHeight <= 720),
     [props.gameState.players.length]
   );
   const tuningPanelVisible = canShowUiTuningPanel();
@@ -427,25 +435,36 @@ export function GameTableView(props: GameTableViewProps) {
   }
 
   function updateUiTuning(nextConfig: typeof uiTuning) {
-    setUiTuning(nextConfig);
-    window.localStorage.setItem(GAME_UI_TUNING_STORAGE_KEY, JSON.stringify(nextConfig));
+    const resolved = resolveSafeGameUiTuning(
+      nextConfig,
+      window.innerWidth,
+      window.innerHeight <= 720
+    );
+    setUiTuning(resolved.config);
+    setTuningSafetyMessages(resolved.corrections);
+    window.localStorage.setItem(GAME_UI_TUNING_STORAGE_KEY, JSON.stringify(resolved.config));
   }
+
+  const appliedUiTuning = tuningPanelVisible ? uiTuning : tuningDefaults;
 
   return (
     <section
       ref={gameShellRef}
       className={`citadel-game-shell citadel-game-shell--players-${props.gameState.players.length} citadel-game-shell--density-${density} ${pendingConfirm ? "citadel-game-shell--confirming" : ""} ${districtEffectCard ? "citadel-game-shell--hand-choice" : ""} ${tableTargeting.source ? "citadel-game-shell--table-targeting" : ""} ${objectiveIntroVisible ? "citadel-game-shell--objective-intro" : ""} ${props.gameState.pendingDrawChoice ? "citadel-game-shell--draw-choice" : ""} ${tuningPanelVisible && uiTuning.showBounds ? "ui-show-bounds" : ""}`}
       data-crown-player-id={props.gameState.crownPlayerId}
-      style={gameUiTuningStyle(tuningPanelVisible ? uiTuning : tuningDefaults)}
+      aria-busy={Boolean(props.pendingCommand)}
+      style={gameUiTuningStyle(appliedUiTuning)}
     >
       {tuningPanelVisible && (
         <GameUiTuningPanel
           config={uiTuning}
           density={density}
+          safetyMessages={tuningSafetyMessages}
           onChange={updateUiTuning}
           onReset={() => {
             window.localStorage.removeItem(GAME_UI_TUNING_STORAGE_KEY);
             setUiTuning(tuningDefaults);
+            setTuningSafetyMessages([]);
           }}
         />
       )}
@@ -490,6 +509,7 @@ export function GameTableView(props: GameTableViewProps) {
             onSelectPlayerTarget={() => requestMagicianPlayerTarget(seat.player)}
             player={seat.player}
             position={seat.position}
+            handStackDepth={appliedUiTuning.opponentHandStackDepth}
           />
         ))}
         <GameCenterStatus
@@ -536,6 +556,8 @@ export function GameTableView(props: GameTableViewProps) {
           canUseSkill={viewModel.canUseSkill}
           discardCardIds={viewModel.discardCardIds}
           gameState={props.gameState}
+          pendingCommand={props.pendingCommand}
+          remainingSeconds={remainingSeconds}
           isMyTurn={viewModel.isMyTurn}
           isSelectingRole={viewModel.isSelectingRole}
           currentTurnName={viewModel.currentTurnName}
@@ -593,6 +615,7 @@ export function GameTableView(props: GameTableViewProps) {
           selfPlayerId={props.playerId}
           tableRef={gameTableRef}
         />
+        <GameActionNoticeLayer actionEvents={props.actionEvents} />
         {props.gameState.phase === "ENDED" && viewModel.scoringResults.length > 0 && (
           <GameResultOverlay
             avatarImage={props.selfAvatarImage}
@@ -606,6 +629,10 @@ export function GameTableView(props: GameTableViewProps) {
           />
         )}
       </main>
+      <GameCommandFeedbackToast
+        feedback={props.commandFeedback}
+        onDismiss={props.onDismissCommandFeedback}
+      />
       {pendingConfirm && (
         <ConfirmDialog
           title={pendingConfirm.type === "build"

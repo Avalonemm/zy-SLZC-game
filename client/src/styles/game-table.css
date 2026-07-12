@@ -27,6 +27,130 @@
   isolation: isolate;
 }
 
+.citadel-command-feedback {
+  position: fixed;
+  z-index: 360;
+  top: 88px;
+  left: 50%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: min(560px, calc(100vw - 32px));
+  border: 1px solid rgb(228 155 100 / 72%);
+  border-radius: 9px;
+  background: rgb(31 13 13 / 98%);
+  padding: 11px 14px;
+  color: #ffe5c9;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 48%);
+  transform: translateX(-50%);
+}
+
+.citadel-command-feedback strong { color: #ffbd87; white-space: nowrap; }
+.citadel-command-feedback span { min-width: 0; line-height: 1.35; }
+.citadel-command-feedback button {
+  border: 0;
+  background: transparent;
+  color: #ffe4c0;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.game-log-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.game-log-panel__header label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: rgb(220 239 243 / 78%);
+  font-size: 0.7rem;
+}
+
+.game-log-entry {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 8px;
+  border-left: 2px solid transparent;
+  padding-left: 7px;
+}
+
+.game-log-entry.is-automatic { border-left-color: #66bfce; }
+.game-log-entry small { color: rgb(236 211 157 / 58%); font-size: 0.64rem; }
+.game-log-entry small b {
+  margin-left: 6px;
+  border-radius: 999px;
+  background: rgb(26 91 103 / 64%);
+  padding: 2px 5px;
+  color: #bff4fc;
+}
+.game-log-entry p { margin: 0 !important; }
+
+.citadel-selection-layer {
+  position: absolute;
+  z-index: 72;
+  inset: 0;
+  pointer-events: none;
+}
+
+.citadel-selection-layer__backdrop {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: rgb(1 5 8 / 54%);
+  backdrop-filter: blur(1.5px);
+}
+
+.citadel-selection-layer > .citadel-action-dock,
+.citadel-action-layer.citadel-selection-layer > .citadel-action-dock {
+  z-index: 1;
+  border: 1px solid rgb(229 185 97 / 42%);
+  border-radius: 10px;
+  background: #071018;
+  padding: clamp(12px, 1.25vw, 20px);
+  box-shadow: 0 18px 42px rgb(0 0 0 / 58%), inset 0 1px 0 rgb(255 255 255 / 5%);
+  pointer-events: auto;
+}
+
+.citadel-selection-header {
+  display: flex;
+  flex: 0 0 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #ffe5aa;
+}
+
+.citadel-selection-header b,
+.citadel-action-dock--draw-choice > header > b,
+.citadel-skill-target-header > b {
+  border: 1px solid rgb(233 190 99 / 46%);
+  border-radius: 999px;
+  background: #111921;
+  padding: 5px 9px;
+  color: #ffd477;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.citadel-action-dock--draw-choice > header > b {
+  margin-top: 3px;
+}
+
+.citadel-game-shell:has(.citadel-selection-layer) .citadel-game-center,
+.citadel-game-shell:has(.citadel-selection-layer) .citadel-action-notices,
+.citadel-game-shell:has(.citadel-selection-layer) .citadel-skill-presentation {
+  opacity: 0.08;
+}
+
+.citadel-game-shell:has(.citadel-selection-layer) .citadel-card-inspector {
+  display: none;
+}
+
 .citadel-game-topbar {
   position: absolute;
   z-index: 30;
@@ -2153,8 +2277,8 @@ button.citadel-player-mini {
 
 .citadel-card-inspector--role { width: 128px; }
 .citadel-card-inspector--district { width: 132px; }
-.citadel-card-inspector--table-small.citadel-card-inspector--role { width: 98px; }
-.citadel-card-inspector--table-small.citadel-card-inspector--district { width: 100px; }
+.citadel-card-inspector--table-small.citadel-card-inspector--role { width: 104px; }
+.citadel-card-inspector--table-small.citadel-card-inspector--district { width: 104px; }
 .citadel-card-inspector--hand {
   width: auto;
   gap: 0;
@@ -2189,14 +2313,14 @@ button.citadel-player-mini {
 }
 
 .citadel-card-inspector--table-small .citadel-card-inspector__role {
-  width: 98px;
-  height: 140px;
+  width: 104px;
+  height: 156px;
   padding: 7px;
 }
 
 .citadel-card-inspector--table-small .citadel-card-inspector__district {
-  width: 100px;
-  height: 143px;
+  width: 104px;
+  height: 156px;
   padding: 7px;
 }
 
@@ -3758,6 +3882,42 @@ button.citadel-player-mini {
     .citadel-opponent-seat--top-right
   ) {
     top: 72px;
+  }
+
+  .citadel-game-shell--players-7 .citadel-opponent-seat.is-dense.citadel-opponent-seat--left-upper,
+  .citadel-game-shell--players-8 .citadel-opponent-seat.is-dense.citadel-opponent-seat--left-upper,
+  .citadel-game-shell--players-7 .citadel-opponent-seat.is-dense.citadel-opponent-seat--right-upper,
+  .citadel-game-shell--players-8 .citadel-opponent-seat.is-dense.citadel-opponent-seat--right-upper {
+    top: calc(42% + 8px);
+    transform: translateY(calc(-50% + 8px));
+  }
+
+  .citadel-game-center {
+    width: min(340px, 27%);
+  }
+
+  .citadel-game-center p {
+    margin-top: 2px;
+    font-size: 0.68rem;
+    line-height: 1.15;
+  }
+
+  .citadel-game-center__callout {
+    font-size: 0.7rem;
+  }
+
+  .citadel-game-center__timer {
+    margin-top: 2px;
+    font-size: 1.1rem;
+  }
+
+  .citadel-self-city__cards {
+    min-height: 88px;
+  }
+
+  .citadel-built-card {
+    width: clamp(62px, 5.2vw, 72px);
+    height: clamp(82px, 7vw, 90px);
   }
 }
 

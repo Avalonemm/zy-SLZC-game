@@ -134,8 +134,29 @@ export type GameLog = {
   type: string;
   message: string;
   presentation?: ActionEventPresentation;
+  origin?: GameActionOrigin;
+  autoReason?: GameActionAutoReason;
+  round?: number;
   createdAt: string;
 };
+
+export type GameActionOrigin = "player" | "bot" | "timeout" | "offline" | "rule";
+
+export type GameActionAutoReason =
+  | "turn_timeout"
+  | "role_selection_timeout"
+  | "draw_choice_timeout"
+  | "offline_progress"
+  | "resource_skipped"
+  | "deck_empty"
+  | "rule_resolution";
+
+export type GameCommandResult = {
+  ok: boolean;
+  error?: string;
+};
+
+export type GameCommandAck = (result: GameCommandResult) => void;
 
 export type ActionEventPresentationKind =
   | "assassin_mark"
@@ -306,6 +327,8 @@ export type ActionEventPayload = {
   actorPlayerId?: string;
   targetPlayerId?: string;
   presentation?: ActionEventPresentation;
+  origin?: GameActionOrigin;
+  autoReason?: GameActionAutoReason;
   visibility: "public" | "private";
   phase: GamePhase;
   round: number;
@@ -349,21 +372,29 @@ export type ClientToServerEvents = {
     playerId: string;
     settings: RoomSettingsUpdate;
   }) => void;
-  select_role: (payload: { roomCode: string; playerId: string; roleId: string }) => void;
-  take_gold: (payload: { roomCode: string; playerId: string }) => void;
-  draw_district_cards: (payload: { roomCode: string; playerId: string }) => void;
+  select_role: (payload: { roomCode: string; playerId: string; roleId: string }, ack?: GameCommandAck) => void;
+  take_gold: (payload: { roomCode: string; playerId: string }, ack?: GameCommandAck) => void;
+  draw_district_cards: (payload: { roomCode: string; playerId: string }, ack?: GameCommandAck) => void;
   choose_drawn_district_card: (payload: {
     roomCode: string;
     playerId: string;
     districtCardId: string;
-  }) => void;
-  build_district: (payload: { roomCode: string; playerId: string; districtCardId: string }) => void;
-  use_role_skill: (payload: UseRoleSkillPayload) => void;
-  use_district_effect: (payload: UseDistrictEffectPayload) => void;
-  resolve_graveyard_choice: (payload: ResolveGraveyardChoicePayload) => void;
-  end_turn: (payload: { roomCode: string; playerId: string }) => void;
-  skip_current_offline_player: (payload: { roomCode: string; playerId: string }) => void;
-  resolve_turn_timeout: (payload: { roomCode: string; playerId: string }) => void;
+  }, ack?: GameCommandAck) => void;
+  build_district: (payload: { roomCode: string; playerId: string; districtCardId: string }, ack?: GameCommandAck) => void;
+  use_role_skill: (payload: UseRoleSkillPayload, ack?: GameCommandAck) => void;
+  use_district_effect: (payload: UseDistrictEffectPayload, ack?: GameCommandAck) => void;
+  resolve_graveyard_choice: (payload: ResolveGraveyardChoicePayload, ack?: GameCommandAck) => void;
+  end_turn: (payload: { roomCode: string; playerId: string }, ack?: GameCommandAck) => void;
+  skip_current_offline_player: (payload: { roomCode: string; playerId: string }, ack?: GameCommandAck) => void;
+  resolve_turn_timeout: (payload: { roomCode: string; playerId: string }, ack?: GameCommandAck) => void;
+  qa_configure_game: (payload: {
+    roomCode: string;
+    playerId: string;
+    selfHandCount?: number;
+    opponentHandCount?: number;
+    cityCount?: number;
+    ensureSelectedRoleId?: string;
+  }, ack?: GameCommandAck) => void;
   send_chat_message: (payload: { roomCode: string; playerId: string; message: string }) => void;
 };
 

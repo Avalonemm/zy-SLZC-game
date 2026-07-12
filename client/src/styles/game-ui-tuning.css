@@ -5,12 +5,19 @@
   --ui-player-plate-width: 268px;
   --ui-player-plate-height: 56px;
   --ui-avatar-size: 46px;
+  --ui-resource-icon-size: 15px;
+  --ui-resource-font-size: 14px;
+  --ui-resource-gap: 8px;
   --ui-opponent-role-width: 54px;
   --ui-opponent-hand-width: 42px;
+  --ui-opponent-hand-stack-depth: 18px;
   --ui-opponent-district-width: 56px;
   --ui-center-top: 44%;
   --ui-city-top: 55.2%;
-  --ui-action-top: 75.4%;
+  --ui-action-dock-width: 246px;
+  --ui-action-dock-right: 5%;
+  --ui-action-dock-bottom: 5%;
+  --ui-action-top: 70%;
   --ui-self-bottom: 2.4%;
 }
 
@@ -22,6 +29,29 @@
 .citadel-game-shell .citadel-hand-zone {
   max-width: var(--ui-hand-max-width);
   justify-self: center;
+}
+
+.citadel-game-shell .citadel-hand-zone--scrollable {
+  justify-content: flex-start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 18px 6px 4px;
+  scrollbar-color: rgb(219 178 91 / 70%) rgb(2 8 12 / 48%);
+  scrollbar-width: thin;
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
+}
+
+.citadel-game-shell .citadel-hand-zone--scrollable .citadel-hand-card + .citadel-hand-card {
+  margin-left: 4px !important;
+}
+
+.citadel-game-shell .citadel-hand-zone--scrollable .citadel-hand-card {
+  flex: 0 0 var(--ui-self-card-width);
+}
+
+.citadel-game-shell .citadel-self-area:has(.citadel-hand-zone--scrollable) .citadel-self-role-card {
+  transform: translateY(-14px);
 }
 
 .citadel-game-shell .citadel-hand-card,
@@ -71,7 +101,19 @@
 .citadel-game-shell .citadel-player-mini__resources {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--ui-resource-gap);
+}
+
+.citadel-game-shell .citadel-player-mini__stat {
+  min-width: calc(var(--ui-resource-icon-size) + 12px);
+  font-size: var(--ui-resource-font-size);
+}
+
+.citadel-game-shell .citadel-player-mini__stat::before,
+.citadel-game-shell .citadel-opponent-seat.is-dense .citadel-player-mini__stat::before {
+  width: var(--ui-resource-icon-size);
+  height: var(--ui-resource-icon-size);
+  margin-right: 4px;
 }
 
 .citadel-game-shell .citadel-player-mini__turn-badge {
@@ -109,6 +151,64 @@
   aspect-ratio: 2 / 3;
 }
 
+.citadel-game-shell .citadel-mini-card-row--stacked {
+  position: relative;
+  display: block;
+  width: calc(var(--ui-opponent-hand-width) + var(--opponent-stack-depth) + 22px);
+  min-width: calc(var(--ui-opponent-hand-width) + var(--opponent-stack-depth) + 22px);
+  min-height: calc(var(--ui-opponent-hand-width) * 1.5);
+  padding: 0;
+}
+
+.citadel-game-shell .citadel-mini-card-row--stacked .citadel-mini-card {
+  position: absolute;
+  bottom: 0;
+  margin-left: 0;
+}
+
+.citadel-game-shell .citadel-mini-card-row--stacked .citadel-mini-card-count {
+  position: absolute;
+  z-index: 20;
+  right: 0;
+  bottom: -2px;
+  margin: 0;
+}
+
+@media (min-width: 1501px) and (min-height: 700px) {
+  .citadel-game-shell .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]),
+  .citadel-game-shell .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]):has(> .citadel-action-button:nth-of-type(5)) {
+    right: var(--ui-action-dock-right);
+    bottom: var(--ui-action-dock-bottom);
+    left: auto;
+    top: auto;
+    width: var(--ui-action-dock-width);
+  }
+}
+
+@media (max-height: 720px) {
+  .citadel-game-shell--players-4 .citadel-opponent-seat--top-center,
+  .citadel-game-shell--players-5 .citadel-opponent-seat--top-center,
+  .citadel-game-shell--players-6 .citadel-opponent-seat--top-center {
+    top: 92px;
+  }
+
+  .citadel-game-shell--players-5 .citadel-opponent-seat--left-upper,
+  .citadel-game-shell--players-5 .citadel-opponent-seat--right-upper,
+  .citadel-game-shell--players-6 .citadel-opponent-seat--left-upper,
+  .citadel-game-shell--players-6 .citadel-opponent-seat--right-upper {
+    transform: translateY(calc(-50% + 32px));
+  }
+
+  .citadel-game-shell .citadel-self-city__cards {
+    min-height: 88px;
+  }
+
+  .citadel-game-shell .citadel-built-card {
+    width: clamp(62px, 5.2vw, 72px);
+    height: clamp(98px, 7.6vw, 100px);
+  }
+}
+
 .citadel-game-shell .citadel-opponent-seat {
   --citadel-opponent-district-width: var(--ui-opponent-district-width);
   --citadel-opponent-district-height: calc(var(--ui-opponent-district-width) * 1.464);
@@ -129,7 +229,7 @@
 
 .game-ui-tuning-panel {
   position: fixed;
-  z-index: 260;
+  z-index: 400;
   top: 12px;
   left: 12px;
   display: grid;
@@ -154,7 +254,21 @@
 }
 
 .game-ui-tuning-panel__fields { display: grid; gap: 7px; }
+.game-ui-tuning-panel__group { display: grid; gap: 7px; }
+.game-ui-tuning-panel__group > b,
+.game-ui-tuning-panel__group > summary { color: #9fe7f5; font-size: 12px; font-weight: 800; cursor: pointer; }
+.game-ui-tuning-panel__group[open] > summary { margin-bottom: 7px; }
 .game-ui-tuning-panel label { display: grid; gap: 3px; font-size: 12px; }
 .game-ui-tuning-panel input[type="range"] { width: 100%; }
 .game-ui-tuning-panel__check { grid-template-columns: auto 1fr; align-items: center; }
 .game-ui-tuning-panel footer button { flex: 1; padding: 6px; }
+.game-ui-tuning-panel__safety {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(241, 187, 87, 0.38);
+  border-radius: 7px;
+  background: rgba(87, 58, 14, 0.38);
+  padding: 8px;
+  color: #ffe0a1;
+  font-size: 11px;
+}
