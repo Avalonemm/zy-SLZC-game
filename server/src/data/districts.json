@@ -1,30 +1,782 @@
 [
-  { "id": "temple-1", "name": "神殿", "cost": 1, "color": "blue", "score": 1, "description": "基础蓝色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "temple-2", "name": "神殿", "cost": 1, "color": "blue", "score": 1, "description": "基础蓝色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "market-1", "name": "市场", "cost": 2, "color": "green", "score": 2, "description": "基础绿色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "market-2", "name": "市场", "cost": 2, "color": "green", "score": 2, "description": "基础绿色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "watchtower-1", "name": "瞭望塔", "cost": 3, "color": "red", "score": 3, "description": "基础红色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "watchtower-2", "name": "瞭望塔", "cost": 3, "color": "red", "score": 3, "description": "基础红色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "tavern-1", "name": "酒馆", "cost": 1, "color": "green", "score": 1, "description": "基础绿色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "tavern-2", "name": "酒馆", "cost": 1, "color": "green", "score": 1, "description": "基础绿色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "manor-1", "name": "庄园", "cost": 3, "color": "yellow", "score": 3, "description": "基础黄色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "manor-2", "name": "庄园", "cost": 3, "color": "yellow", "score": 3, "description": "基础黄色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "harbor-1", "name": "港口", "cost": 4, "color": "green", "score": 4, "description": "基础绿色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "harbor-2", "name": "港口", "cost": 4, "color": "green", "score": 4, "description": "基础绿色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "cathedral-1", "name": "大教堂", "cost": 5, "color": "blue", "score": 5, "description": "高价值蓝色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "cathedral-2", "name": "大教堂", "cost": 5, "color": "blue", "score": 5, "description": "高价值蓝色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "fortress-1", "name": "堡垒", "cost": 5, "color": "red", "score": 5, "description": "高价值红色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "fortress-2", "name": "堡垒", "cost": 5, "color": "red", "score": 5, "description": "高价值红色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "castle-1", "name": "城堡", "cost": 4, "color": "yellow", "score": 4, "description": "基础黄色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "castle-2", "name": "城堡", "cost": 4, "color": "yellow", "score": 4, "description": "基础黄色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "library", "name": "图书馆", "cost": 6, "color": "purple", "score": 6, "description": "特殊紫色建筑，第一版暂不触发额外效果。", "effectType": "none", "effectParams": {} },
-  { "id": "laboratory", "name": "实验室", "cost": 5, "color": "purple", "score": 5, "description": "特殊紫色建筑，第一版暂不触发额外效果。", "effectType": "none", "effectParams": {} },
-  { "id": "school", "name": "学校", "cost": 4, "color": "purple", "score": 4, "description": "特殊紫色建筑，第一版暂不触发额外效果。", "effectType": "none", "effectParams": {} },
-  { "id": "garden", "name": "花园", "cost": 3, "color": "purple", "score": 3, "description": "特殊紫色建筑，第一版暂不触发额外效果。", "effectType": "none", "effectParams": {} },
-  { "id": "prison", "name": "监狱", "cost": 2, "color": "red", "score": 2, "description": "基础红色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "town-hall", "name": "市政厅", "cost": 5, "color": "yellow", "score": 5, "description": "高价值黄色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "trading-post", "name": "商站", "cost": 2, "color": "green", "score": 2, "description": "基础绿色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "monastery", "name": "修道院", "cost": 3, "color": "blue", "score": 3, "description": "基础蓝色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "barracks", "name": "兵营", "cost": 3, "color": "red", "score": 3, "description": "基础红色建筑。", "effectType": "none", "effectParams": {} },
-  { "id": "palace", "name": "宫殿", "cost": 5, "color": "yellow", "score": 5, "description": "高价值黄色建筑。", "effectType": "none", "effectParams": {} }
+    {
+        "id":  "temple-1",
+        "name":  "神殿",
+        "cost":  1,
+        "color":  "blue",
+        "score":  1,
+        "description":  "基础蓝色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "temple-2",
+        "name":  "神殿",
+        "cost":  1,
+        "color":  "blue",
+        "score":  1,
+        "description":  "基础蓝色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "temple-3",
+        "name":  "神殿",
+        "cost":  1,
+        "color":  "blue",
+        "score":  1,
+        "description":  "基础蓝色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "church-1",
+        "name":  "教堂",
+        "cost":  2,
+        "color":  "blue",
+        "score":  2,
+        "description":  "基础蓝色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "church-2",
+        "name":  "教堂",
+        "cost":  2,
+        "color":  "blue",
+        "score":  2,
+        "description":  "基础蓝色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "church-3",
+        "name":  "教堂",
+        "cost":  2,
+        "color":  "blue",
+        "score":  2,
+        "description":  "基础蓝色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "monastery-1",
+        "name":  "修道院",
+        "cost":  3,
+        "color":  "blue",
+        "score":  3,
+        "description":  "基础蓝色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "monastery-2",
+        "name":  "修道院",
+        "cost":  3,
+        "color":  "blue",
+        "score":  3,
+        "description":  "基础蓝色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "monastery-3",
+        "name":  "修道院",
+        "cost":  3,
+        "color":  "blue",
+        "score":  3,
+        "description":  "基础蓝色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "cathedral-1",
+        "name":  "大教堂",
+        "cost":  5,
+        "color":  "blue",
+        "score":  5,
+        "description":  "高价值蓝色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "cathedral-2",
+        "name":  "大教堂",
+        "cost":  5,
+        "color":  "blue",
+        "score":  5,
+        "description":  "高价值蓝色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "tavern-1",
+        "name":  "酒馆",
+        "cost":  1,
+        "color":  "green",
+        "score":  1,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "tavern-2",
+        "name":  "酒馆",
+        "cost":  1,
+        "color":  "green",
+        "score":  1,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "tavern-3",
+        "name":  "酒馆",
+        "cost":  1,
+        "color":  "green",
+        "score":  1,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "tavern-4",
+        "name":  "酒馆",
+        "cost":  1,
+        "color":  "green",
+        "score":  1,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "tavern-5",
+        "name":  "酒馆",
+        "cost":  1,
+        "color":  "green",
+        "score":  1,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "market-1",
+        "name":  "市场",
+        "cost":  2,
+        "color":  "green",
+        "score":  2,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "market-2",
+        "name":  "市场",
+        "cost":  2,
+        "color":  "green",
+        "score":  2,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "market-3",
+        "name":  "市场",
+        "cost":  2,
+        "color":  "green",
+        "score":  2,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "market-4",
+        "name":  "市场",
+        "cost":  2,
+        "color":  "green",
+        "score":  2,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "trading-post-1",
+        "name":  "商站",
+        "cost":  2,
+        "color":  "green",
+        "score":  2,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "trading-post-2",
+        "name":  "商站",
+        "cost":  2,
+        "color":  "green",
+        "score":  2,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "trading-post-3",
+        "name":  "商站",
+        "cost":  2,
+        "color":  "green",
+        "score":  2,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "docks-1",
+        "name":  "码头",
+        "cost":  3,
+        "color":  "green",
+        "score":  3,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "docks-2",
+        "name":  "码头",
+        "cost":  3,
+        "color":  "green",
+        "score":  3,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "docks-3",
+        "name":  "码头",
+        "cost":  3,
+        "color":  "green",
+        "score":  3,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "harbor-1",
+        "name":  "港口",
+        "cost":  4,
+        "color":  "green",
+        "score":  4,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "harbor-2",
+        "name":  "港口",
+        "cost":  4,
+        "color":  "green",
+        "score":  4,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "harbor-3",
+        "name":  "港口",
+        "cost":  4,
+        "color":  "green",
+        "score":  4,
+        "description":  "基础绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "town-hall-1",
+        "name":  "市政厅",
+        "cost":  5,
+        "color":  "green",
+        "score":  5,
+        "description":  "高价值绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "town-hall-2",
+        "name":  "市政厅",
+        "cost":  5,
+        "color":  "green",
+        "score":  5,
+        "description":  "高价值绿色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "watchtower-1",
+        "name":  "瞭望塔",
+        "cost":  1,
+        "color":  "red",
+        "score":  1,
+        "description":  "基础红色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "watchtower-2",
+        "name":  "瞭望塔",
+        "cost":  1,
+        "color":  "red",
+        "score":  1,
+        "description":  "基础红色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "watchtower-3",
+        "name":  "瞭望塔",
+        "cost":  1,
+        "color":  "red",
+        "score":  1,
+        "description":  "基础红色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "prison-1",
+        "name":  "监狱",
+        "cost":  2,
+        "color":  "red",
+        "score":  2,
+        "description":  "基础红色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "prison-2",
+        "name":  "监狱",
+        "cost":  2,
+        "color":  "red",
+        "score":  2,
+        "description":  "基础红色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "prison-3",
+        "name":  "监狱",
+        "cost":  2,
+        "color":  "red",
+        "score":  2,
+        "description":  "基础红色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "battlefield-1",
+        "name":  "战场",
+        "cost":  3,
+        "color":  "red",
+        "score":  3,
+        "description":  "基础红色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "battlefield-2",
+        "name":  "战场",
+        "cost":  3,
+        "color":  "red",
+        "score":  3,
+        "description":  "基础红色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "battlefield-3",
+        "name":  "战场",
+        "cost":  3,
+        "color":  "red",
+        "score":  3,
+        "description":  "基础红色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "fortress-1",
+        "name":  "堡垒",
+        "cost":  5,
+        "color":  "red",
+        "score":  5,
+        "description":  "高价值红色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "fortress-2",
+        "name":  "堡垒",
+        "cost":  5,
+        "color":  "red",
+        "score":  5,
+        "description":  "高价值红色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "manor-1",
+        "name":  "庄园",
+        "cost":  3,
+        "color":  "yellow",
+        "score":  3,
+        "description":  "基础黄色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "manor-2",
+        "name":  "庄园",
+        "cost":  3,
+        "color":  "yellow",
+        "score":  3,
+        "description":  "基础黄色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "manor-3",
+        "name":  "庄园",
+        "cost":  3,
+        "color":  "yellow",
+        "score":  3,
+        "description":  "基础黄色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "manor-4",
+        "name":  "庄园",
+        "cost":  3,
+        "color":  "yellow",
+        "score":  3,
+        "description":  "基础黄色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "manor-5",
+        "name":  "庄园",
+        "cost":  3,
+        "color":  "yellow",
+        "score":  3,
+        "description":  "基础黄色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "castle-1",
+        "name":  "城堡",
+        "cost":  4,
+        "color":  "yellow",
+        "score":  4,
+        "description":  "基础黄色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "castle-2",
+        "name":  "城堡",
+        "cost":  4,
+        "color":  "yellow",
+        "score":  4,
+        "description":  "基础黄色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "castle-3",
+        "name":  "城堡",
+        "cost":  4,
+        "color":  "yellow",
+        "score":  4,
+        "description":  "基础黄色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "castle-4",
+        "name":  "城堡",
+        "cost":  4,
+        "color":  "yellow",
+        "score":  4,
+        "description":  "基础黄色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "palace-1",
+        "name":  "宫殿",
+        "cost":  5,
+        "color":  "yellow",
+        "score":  5,
+        "description":  "高价值黄色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "palace-2",
+        "name":  "宫殿",
+        "cost":  5,
+        "color":  "yellow",
+        "score":  5,
+        "description":  "高价值黄色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "palace-3",
+        "name":  "宫殿",
+        "cost":  5,
+        "color":  "yellow",
+        "score":  5,
+        "description":  "高价值黄色建筑。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "haunted-city",
+        "name":  "鬼城",
+        "cost":  2,
+        "color":  "purple",
+        "score":  2,
+        "description":  "结算时可视为任意一种颜色。",
+        "effectType":  "wildcard_scoring_color",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "keep",
+        "name":  "要塞",
+        "cost":  3,
+        "color":  "purple",
+        "score":  3,
+        "description":  "不能被军阀破坏。",
+        "effectType":  "indestructible",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "laboratory",
+        "name":  "实验室",
+        "cost":  5,
+        "color":  "purple",
+        "score":  5,
+        "description":  "每回合一次，可弃 1 张手牌获得 1 枚金币。",
+        "effectType":  "discard_hand_for_gold",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "smithy",
+        "name":  "铁匠铺",
+        "cost":  5,
+        "color":  "purple",
+        "score":  5,
+        "description":  "每回合一次，可支付 2 枚金币抽 3 张建筑牌。",
+        "effectType":  "pay_gold_draw_cards",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "observatory",
+        "name":  "天文台",
+        "cost":  5,
+        "color":  "purple",
+        "score":  5,
+        "description":  "抽建筑牌时改为抽 3 选 1。",
+        "effectType":  "draw_three_choose_one",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "graveyard",
+        "name":  "墓地",
+        "cost":  5,
+        "color":  "purple",
+        "score":  5,
+        "description":  "你的建筑被破坏时，可支付 1 枚金币将其收入手牌。",
+        "effectType":  "destroyed_card_buyback",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "library",
+        "name":  "图书馆",
+        "cost":  6,
+        "color":  "purple",
+        "score":  6,
+        "description":  "抽建筑牌时保留所有抽到的牌。",
+        "effectType":  "keep_all_drawn",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "school-of-magic",
+        "name":  "魔法学校",
+        "cost":  6,
+        "color":  "purple",
+        "score":  6,
+        "description":  "获得角色颜色收入时，可视为当前角色对应颜色。",
+        "effectType":  "wildcard_income_color",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "dragon-gate",
+        "name":  "龙门",
+        "cost":  6,
+        "color":  "purple",
+        "score":  8,
+        "description":  "结算时价值 8 分。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "university",
+        "name":  "大学",
+        "cost":  6,
+        "color":  "purple",
+        "score":  8,
+        "description":  "结算时价值 8 分。",
+        "effectType":  "none",
+        "effectParams":  {
+
+                         }
+    },
+    {
+        "id":  "great-wall",
+        "name":  "长城",
+        "cost":  6,
+        "color":  "purple",
+        "score":  6,
+        "description":  "其他玩家破坏你的建筑时，费用增加 1 枚金币。",
+        "effectType":  "destroy_cost_plus_one",
+        "effectParams":  {
+
+                         }
+    }
 ]

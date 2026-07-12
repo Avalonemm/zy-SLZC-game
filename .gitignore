@@ -6,9 +6,12 @@ npm-debug.log*
 *.tsbuildinfo
 *.log
 .codex-run
+.codex/
+.superpowers/
 .playwright-cli
 .tools
 output
+outputs/
 /.tmp
 /*.png
 Thumbs.db

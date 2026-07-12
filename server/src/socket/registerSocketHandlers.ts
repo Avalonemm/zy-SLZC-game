@@ -1,4 +1,4 @@
-﻿import type { Server, Socket } from "socket.io";
+import type { Server, Socket } from "socket.io";
 import type {
   ActionEventPayload,
   ClientToServerEvents,
@@ -20,6 +20,8 @@ import {
   skipOfflineCurrentPlayer,
   takeGold,
   useRoleSkill,
+  useDistrictEffect,
+  resolveGraveyardChoice,
   visibleStateForPlayer
 } from "../game/gameEngine";
 import { BOT_THINK_DELAY_MS } from "../game/gameConfig";
@@ -389,6 +391,25 @@ export function registerSocketHandlers(io: GameServer) {
       );
     });
 
+
+    socket.on("use_district_effect", (payload) => {
+      handleGameAction(socket, payload.roomCode, (playerId) =>
+        useDistrictEffectOrError({
+          ...payload,
+          playerId
+        })
+      );
+    });
+
+    socket.on("resolve_graveyard_choice", (payload) => {
+      handleGameAction(socket, payload.roomCode, (playerId) =>
+        resolveGraveyardChoiceOrError({
+          roomCode: payload.roomCode,
+          playerId,
+          buyBack: payload.buyBack
+        })
+      );
+    });
     socket.on("end_turn", (payload) => {
       handleGameAction(socket, payload.roomCode, (playerId) =>
         endTurnOrError({ roomCode: payload.roomCode, playerId })
@@ -577,6 +598,31 @@ export function registerSocketHandlers(io: GameServer) {
     return withActionEvent(gameRoom, useRoleSkill(gameRoom, payload), payload.playerId);
   }
 
+
+  function useDistrictEffectOrError(payload: {
+    roomCode: string;
+    playerId: string;
+    districtCardId: string;
+    discardCardId?: string;
+  }) {
+    const gameRoom = roomManager.getGameRoom(payload.roomCode);
+    if (!gameRoom) {
+      return { ok: false, error: "游戏房间不存在。" };
+    }
+    return withActionEvent(gameRoom, useDistrictEffect(gameRoom, payload), payload.playerId);
+  }
+
+  function resolveGraveyardChoiceOrError(payload: {
+    roomCode: string;
+    playerId: string;
+    buyBack: boolean;
+  }) {
+    const gameRoom = roomManager.getGameRoom(payload.roomCode);
+    if (!gameRoom) {
+      return { ok: false, error: "游戏房间不存在。" };
+    }
+    return withActionEvent(gameRoom, resolveGraveyardChoice(gameRoom, payload), payload.playerId);
+  }
   function endTurnOrError(payload: { roomCode: string; playerId: string }) {
     const gameRoom = roomManager.getGameRoom(payload.roomCode);
     if (!gameRoom) {

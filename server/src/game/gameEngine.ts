@@ -1,16 +1,19 @@
-import type { GameRoom, UseRoleSkillPayload } from "@zy/shared";
+import type { GameRoom, UseDistrictEffectPayload, UseRoleSkillPayload } from "@zy/shared";
 import {
   buildDistrict,
   chooseDrawnDistrictCard,
   drawDistrictCards,
   endTurn,
   takeGold,
+  validateNoPendingDrawChoice,
   validateCurrentTurn
 } from "./actions";
 import type { Result } from "./gameEngineTypes";
 import { addLog, findPlayer, roleForPlayer } from "./gameEngineUtils";
+import { useDistrictEffect as applyDistrictEffect } from "./districtEffects";
 import { applyRoleSkill } from "./roleSkills";
 import { advanceOfflinePlayers, selectRole } from "./turnFlow";
+import { resolveGraveyardChoice as applyGraveyardChoice } from "./districtDestruction";
 
 export { buildDistrict, chooseDrawnDistrictCard, drawDistrictCards, endTurn, takeGold } from "./actions";
 export { runBotTurns, runNextBotTurn } from "./botPlayer";
@@ -24,6 +27,11 @@ export function useRoleSkill(
   const result = validateCurrentTurn(gameRoom, input.playerId);
   if (!result.ok) {
     return result;
+  }
+
+  const pendingChoiceResult = validateNoPendingDrawChoice(gameRoom, input.playerId);
+  if (!pendingChoiceResult.ok) {
+    return pendingChoiceResult;
   }
 
   if (gameRoom.roleEffects.usedSkillPlayerIds.includes(input.playerId)) {
@@ -44,6 +52,19 @@ export function useRoleSkill(
   return { ok: true };
 }
 
+export function useDistrictEffect(
+  gameRoom: GameRoom,
+  input: Omit<UseDistrictEffectPayload, "roomCode">
+): Result {
+  return applyDistrictEffect(gameRoom, input);
+}
+
+export function resolveGraveyardChoice(
+  gameRoom: GameRoom,
+  input: { playerId: string; buyBack: boolean }
+): Result {
+  return applyGraveyardChoice(gameRoom, input);
+}
 export function skipOfflineCurrentPlayer(
   gameRoom: GameRoom,
   input: { requesterPlayerId: string } | string

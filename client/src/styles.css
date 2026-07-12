@@ -24,6 +24,66 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/* Shared announcement/help/settings/exit chrome used by lobby and match screens. */
+.utility-menu-button {
+  --utility-menu-size: var(--utility-menu-button-size, clamp(54px, 4.8vw, 72px));
+  --utility-menu-label-size: var(--utility-menu-button-label-size, clamp(0.8rem, 0.95vw, 1rem));
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto;
+  align-content: start;
+  justify-items: center;
+  gap: 6px;
+  width: auto;
+  height: auto;
+  min-width: var(--utility-menu-size);
+  min-height: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  color: #f2cc85;
+  padding: 0;
+}
+
+.utility-menu-button__image {
+  display: block;
+  width: var(--utility-menu-size);
+  height: var(--utility-menu-size);
+  object-fit: contain;
+  transition: filter 160ms ease, transform 160ms ease;
+  filter: drop-shadow(0 10px 18px rgb(0 0 0 / 46%));
+}
+
+.utility-menu-button span {
+  display: block;
+  position: static;
+  width: auto;
+  height: auto;
+  clip: auto;
+  overflow: visible;
+  color: #e7c276;
+  margin-top: 0;
+  font-size: var(--utility-menu-label-size);
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 2px 8px rgb(0 0 0 / 74%);
+  white-space: nowrap;
+}
+
+.utility-menu-button:hover .utility-menu-button__image,
+.utility-menu-button:focus-visible .utility-menu-button__image {
+  transform: translateY(-1px);
+  filter:
+    drop-shadow(0 10px 18px rgb(0 0 0 / 46%))
+    drop-shadow(0 0 12px rgb(226 185 92 / 24%));
+}
+
+.utility-menu-button:focus-visible {
+  border-radius: 8px;
+  outline: 2px solid rgb(242 204 133 / 82%);
+  outline-offset: 4px;
+}
+
 .hidden-file-input {
   display: none;
 }
@@ -2422,55 +2482,11 @@ button.tabletop-district-card:disabled {
   gap: 12px;
 }
 
-.fantasy-screen--lobby .footer-image-button span {
-  display: none;
-}
-
-.fantasy-screen--lobby .footer-image-button img {
-  width: 44px;
-  height: 44px;
-}
-
 .fantasy-screen--lobby .fantasy-footer--image > span {
   position: fixed;
   right: 34px;
   bottom: 26px;
   margin-left: 0;
-}
-
-.footer-image-button {
-  display: inline-grid;
-  grid-template-columns: auto auto;
-  align-items: center;
-  gap: 8px;
-  border: 0;
-  background: transparent;
-  color: var(--color-gold-light);
-  padding: 0;
-  text-shadow: 0 2px 8px rgb(0 0 0 / 88%);
-}
-
-.footer-image-button img {
-  width: 48px;
-  height: 48px;
-  object-fit: contain;
-  filter: drop-shadow(0 7px 10px rgb(0 0 0 / 42%));
-  transition:
-    transform 120ms ease,
-    filter 120ms ease;
-}
-
-.footer-image-button span {
-  font-size: 1.08rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.footer-image-button:hover img {
-  transform: translateY(-1px) scale(1.04);
-  filter:
-    drop-shadow(0 7px 10px rgb(0 0 0 / 42%))
-    drop-shadow(0 0 8px rgb(226 185 92 / 30%));
 }
 
 .modal-backdrop {
@@ -2762,14 +2778,6 @@ button.tabletop-district-card:disabled {
     display: none;
   }
 
-  .footer-image-button span {
-    display: none;
-  }
-
-  .footer-image-button img {
-    width: 42px;
-    height: 42px;
-  }
 }
 
 .lightweight-ui {
@@ -3158,26 +3166,6 @@ button.tabletop-district-card:disabled {
   margin-left: auto;
 }
 
-.lightweight-ui .footer-image-button {
-  width: auto;
-  height: 38px;
-  border: 1px solid rgb(206 158 76 / 38%);
-  border-radius: 6px;
-  background: rgb(7 13 22 / 66%);
-  padding: 0 12px;
-}
-
-.lightweight-ui .footer-image-button span {
-  display: inline;
-  position: static;
-  width: auto;
-  height: auto;
-  clip: auto;
-  overflow: visible;
-  color: #f4d895;
-  font-size: 0.9rem;
-}
-
 @media (max-width: 1280px) {
   .lightweight-ui.fantasy-screen--lobby {
     overflow: auto;
@@ -3448,4 +3436,271 @@ button.tabletop-district-card:disabled {
 .tabletop-public-flow--action .test-skill-blocked {
   font-size: 0.78rem;
   line-height: 1.35;
+}
+.tabletop-public-flow--action .test-district-effect-box {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(230, 183, 92, 0.28);
+}
+
+.tabletop-public-flow--action .test-district-effect-box > strong {
+  grid-column: 1 / -1;
+  color: var(--color-gold-bright);
+  font-size: 0.82rem;
+}
+
+.tabletop-public-flow--action .test-district-effect-row {
+  display: grid;
+  gap: 6px;
+}
+
+.tabletop-public-flow--action .test-district-effect-row label {
+  display: grid;
+  gap: 4px;
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+}
+
+/* Stage 25C lightweight tabletop template */
+.test-game-layout--tabletop {
+  width: min(100vw - 16px, calc((100vh - 16px) * 16 / 9));
+  height: auto;
+  aspect-ratio: 16 / 9;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+.test-game-layout--tabletop .tabletop-game-panel {
+  height: 100%;
+  grid-template-rows: 50px minmax(0, 1fr) auto;
+  gap: 8px;
+  overflow: hidden;
+  padding: 10px;
+}
+
+.test-game-layout--tabletop .tabletop-content {
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.test-game-layout--tabletop .tabletop-board {
+  grid-template-rows: minmax(0, 1fr) 216px;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.test-game-layout--tabletop .tabletop-center-stack {
+  inset: 0;
+  top: 0;
+  left: 0;
+  width: auto;
+  max-height: none;
+  display: block;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  transform: none;
+  pointer-events: none;
+}
+
+.test-game-layout--tabletop .tabletop-public-title {
+  position: absolute;
+  top: 7%;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.test-game-layout--tabletop .tabletop-public-title span {
+  display: none;
+}
+
+.test-game-layout--tabletop .tabletop-public-title strong {
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.test-game-layout--tabletop .tabletop-countdown {
+  position: absolute;
+  top: 11%;
+  left: 50%;
+  width: 148px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.test-game-layout--tabletop .tabletop-countdown__meta {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 0;
+  text-align: center;
+}
+
+.test-game-layout--tabletop .tabletop-countdown__meta span {
+  display: none;
+}
+
+.test-game-layout--tabletop .tabletop-countdown__meta strong {
+  max-width: 168px;
+  font-size: 0.76rem;
+  opacity: 0.84;
+  text-align: center;
+}
+
+.test-game-layout--tabletop .tabletop-countdown__meta b {
+  color: #ffe8a6;
+  font-family: var(--font-fantasy);
+  font-size: clamp(2rem, 4.8vh, 3.2rem);
+  line-height: 0.95;
+  text-align: center;
+}
+
+.test-game-layout--tabletop .tabletop-countdown__track {
+  height: 4px;
+  margin-top: 3px;
+  border: 0;
+  background: rgb(241 210 138 / 16%);
+}
+
+.test-game-layout--tabletop .tabletop-public-flow {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  bottom: 5%;
+  width: min(720px, 52%);
+  max-height: 54%;
+  overflow: auto;
+  border: 1px solid rgb(241 210 138 / 24%);
+  border-radius: 8px;
+  background: rgb(2 10 18 / 72%);
+  padding: 8px;
+  text-align: center;
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+
+.test-game-layout--tabletop .tabletop-flow-heading span,
+.test-game-layout--tabletop .tabletop-role-card p,
+.test-game-layout--tabletop .tabletop-role-card small,
+.test-game-layout--tabletop .tabletop-crown-reveal p {
+  display: none;
+}
+
+.test-game-layout--tabletop .tabletop-role-card {
+  flex-basis: 76px;
+  padding: 7px;
+}
+
+.test-game-layout--tabletop .tabletop-opponent-area {
+  width: 188px;
+  height: 112px;
+  grid-template-rows: auto minmax(0, 1fr);
+  border-color: rgb(241 210 138 / 18%);
+  background: rgb(3 11 20 / 42%);
+  box-shadow: none;
+  padding: 6px;
+}
+
+.test-game-layout--tabletop .tabletop-opponent-area__status span,
+.test-game-layout--tabletop .tabletop-seat__body span,
+.test-game-layout--tabletop .tabletop-opponent-area__city-title strong {
+  display: none;
+}
+
+.test-game-layout--tabletop .tabletop-seat__avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 0.78rem;
+}
+
+.test-game-layout--tabletop .tabletop-seat--self {
+  left: 36px;
+  bottom: 10px;
+  width: 170px;
+  border-color: rgb(241 210 138 / 20%);
+  background: rgb(3 11 20 / 46%);
+  box-shadow: none;
+}
+
+.test-game-layout--tabletop .tabletop-self-zone {
+  grid-template-columns: 1fr;
+  grid-template-rows: 86px minmax(0, 1fr);
+  min-height: 0;
+}
+
+.test-game-layout--tabletop .tabletop-card-lane:first-child {
+  order: 2;
+}
+
+.test-game-layout--tabletop .tabletop-card-lane:last-child {
+  order: 1;
+}
+
+.test-game-layout--tabletop .tabletop-card-lane {
+  padding: 8px;
+}
+
+.test-game-layout--tabletop .tabletop-card-row {
+  gap: 7px;
+  overflow: hidden;
+}
+
+.test-game-layout--tabletop .tabletop-district-card--hand {
+  width: 86px;
+}
+
+.test-game-layout--tabletop .tabletop-district-card--city {
+  width: 58px;
+  padding: 6px;
+}
+
+.test-game-layout--tabletop .tabletop-district-card--city p,
+.test-game-layout--tabletop .tabletop-district-card--city small {
+  display: none;
+}
+
+.test-game-layout--tabletop .tabletop-district-card--opponent {
+  width: 36px;
+  height: 50px;
+}
+
+.test-game-layout--tabletop .tabletop-drawer {
+  grid-template-rows: auto minmax(0, 1fr) 168px;
+  gap: 8px;
+}
+
+.test-game-layout--tabletop .tabletop-drawer-stack {
+  overflow: hidden;
+}
+
+.test-game-layout--tabletop .tabletop-drawer-stack details {
+  max-height: 42px;
+  overflow: hidden;
+}
+
+.test-game-layout--tabletop .tabletop-drawer-stack details[open] {
+  max-height: 170px;
+}
+
+.test-game-layout--tabletop .tabletop-side-info {
+  gap: 6px;
+  padding: 8px;
+}
+
+.test-game-layout--tabletop .tabletop-side-info > strong {
+  font-family: inherit;
+  font-size: 0.88rem;
+}
+
+.test-game-layout--tabletop .tabletop-side-info__grid span,
+.test-game-layout--tabletop .tabletop-side-info__grid b {
+  font-size: 0.72rem;
 }

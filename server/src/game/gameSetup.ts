@@ -13,7 +13,7 @@ export function initializeGameRoom(lobbyRoom: RoomState): GameRoom {
     lobbyRoom.players.length < MIN_PLAYERS_TO_START ||
     lobbyRoom.players.length > lobbyRoom.maxPlayers
   ) {
-    throw new Error(`Game room requires ${currentPlayerRangeText()} players for the current test build.`);
+    throw new Error(`Game room requires ${currentPlayerRangeText(lobbyRoom.maxPlayers)} players for the current room.`);
   }
 
   const crownPlayerId = selectRandomPlayerId(lobbyRoom.players);
@@ -37,9 +37,11 @@ export function initializeGameRoom(lobbyRoom: RoomState): GameRoom {
     currentTurnPlayerId: null,
     currentRoleOrder: [],
     completedRoleIds: [],
+    firstCompletedCityPlayerId: null,
     turnState: null,
     turnTimer: null,
     pendingDrawChoice: null,
+    pendingGraveyardChoice: null,
     roleEffects: createEmptyRoleEffects(),
     availableRoles: rolePool.availableRoles,
     discardedRoles: rolePool.discardedRoles,

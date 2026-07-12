@@ -1,7 +1,8 @@
-import type { ChatMessage, GameRoom, LobbyPlayer, RoomSettings, RoomState } from "@zy/shared";
+import type { ChatMessage, GameRoom, LobbyPlayer, RoomSettings, RoomSettingsUpdate, RoomState } from "@zy/shared";
 import { randomUUID } from "node:crypto";
 import {
   DEFAULT_END_CITY_SIZE,
+  DEFAULT_MAX_PLAYERS,
   DEFAULT_TURN_TIMEOUT_SECONDS,
   FUTURE_MAX_PLAYERS,
   MAX_END_CITY_SIZE,
@@ -53,7 +54,7 @@ type TargetPlayerInput = PlayerActionInput & {
 };
 
 type UpdateRoomSettingsInput = PlayerActionInput & {
-  settings: Partial<RoomSettings>;
+  settings: RoomSettingsUpdate;
 };
 
 type ChatInput = PlayerActionInput & {
@@ -94,7 +95,7 @@ export function createRoomManager() {
       status: "LOBBY",
       players: [host],
       minPlayers: MIN_PLAYERS_TO_START,
-      maxPlayers: MAX_PLAYERS,
+      maxPlayers: DEFAULT_MAX_PLAYERS,
       futureMaxPlayers: FUTURE_MAX_PLAYERS,
       settings: createDefaultRoomSettings(),
       startCountdown: null,
@@ -125,8 +126,8 @@ export function createRoomManager() {
       return { ok: false, error: "游戏已开始，不能加入。" };
     }
 
-    if (room.players.length >= MAX_PLAYERS) {
-      return { ok: false, error: `房间已满，当前测试版最多 ${MAX_PLAYERS} 人。` };
+    if (room.players.length >= room.maxPlayers) {
+      return { ok: false, error: `\u623f\u95f4\u5df2\u6ee1\uff0c\u5f53\u524d\u623f\u95f4\u6700\u591a ${room.maxPlayers} \u4eba\u3002` };
     }
 
     const nameResult = normalizePlayerName(input.playerName);
@@ -161,15 +162,15 @@ export function createRoomManager() {
     }
 
     if (!playerResult.player.isHost) {
-      return { ok: false, error: "只有房主可以添加测试人机。" };
+      return { ok: false, error: "只有房主可以添加人机。" };
     }
 
     if (playerResult.room.status !== "LOBBY") {
-      return { ok: false, error: "游戏已开始，不能添加测试人机。" };
+      return { ok: false, error: "游戏已开始，不能添加人机。" };
     }
 
-    if (playerResult.room.players.length >= MAX_PLAYERS) {
-      return { ok: false, error: `房间已满，当前测试版最多 ${MAX_PLAYERS} 人。` };
+    if (playerResult.room.players.length >= playerResult.room.maxPlayers) {
+      return { ok: false, error: `\u623f\u95f4\u5df2\u6ee1\uff0c\u5f53\u524d\u623f\u95f4\u6700\u591a ${playerResult.room.maxPlayers} \u4eba\u3002` };
     }
 
     const botIndex = playerResult.room.players.filter((player) => player.isBot).length + 1;
@@ -177,7 +178,7 @@ export function createRoomManager() {
       id: randomUUID(),
       uid: TEST_BOT_UID_BASE + botIndex,
       socketId: `bot-${playerResult.room.roomCode}-${botIndex}`,
-      name: `测试人机 ${botIndex}`,
+      name: `人机 ${botIndex}`,
       connected: true,
       isHost: false,
       isReady: true,
@@ -195,22 +196,22 @@ export function createRoomManager() {
     }
 
     if (!playerResult.player.isHost) {
-      return { ok: false, error: "只有房主可以删除测试人机。" };
+      return { ok: false, error: "只有房主可以删除人机。" };
     }
 
     if (playerResult.room.status !== "LOBBY") {
-      return { ok: false, error: "游戏已开始，不能删除测试人机。" };
+      return { ok: false, error: "游戏已开始，不能删除人机。" };
     }
 
     const botIndex = playerResult.room.players.findIndex(
       (player) => player.id === input.targetBotPlayerId
     );
     if (botIndex === -1) {
-      return { ok: false, error: "测试人机不存在。" };
+      return { ok: false, error: "人机不存在。" };
     }
 
     if (!playerResult.room.players[botIndex].isBot) {
-      return { ok: false, error: "只能删除测试人机。" };
+      return { ok: false, error: "只能删除人机。" };
     }
 
     playerResult.room.players.splice(botIndex, 1);
@@ -270,7 +271,7 @@ export function createRoomManager() {
     }
 
     if (targetPlayer.isBot) {
-      return { ok: false, error: "不能把房主移交给测试人机。" };
+      return { ok: false, error: "不能把房主移交给人机。" };
     }
 
     if (!targetPlayer.connected) {
@@ -296,12 +297,19 @@ export function createRoomManager() {
       return { ok: false, error: "游戏开始后不能修改房间设置。" };
     }
 
+    const nextMaxPlayers = normalizeRoomMaxPlayers(playerResult.room, input.settings.maxPlayers);
+    if (!nextMaxPlayers.ok) {
+      return nextMaxPlayers;
+    }
+
     const nextSettings = normalizeRoomSettings(playerResult.room.settings, input.settings);
     if (!nextSettings.ok) {
       return nextSettings;
     }
 
+    playerResult.room.maxPlayers = nextMaxPlayers.maxPlayers;
     playerResult.room.settings = nextSettings.settings;
+    playerResult.room.startCountdown = null;
     return { ok: true, room: playerResult.room };
   }
 
@@ -384,11 +392,11 @@ export function createRoomManager() {
 
     if (
       playerResult.room.players.length < MIN_PLAYERS_TO_START ||
-      playerResult.room.players.length > MAX_PLAYERS
+      playerResult.room.players.length > playerResult.room.maxPlayers
     ) {
       return {
         ok: false,
-        error: `当前测试版需要 ${currentPlayerRangeText()} 名玩家才能开始。`
+        error: `\u5f53\u524d\u623f\u95f4\u9700\u8981 ${currentPlayerRangeText(playerResult.room.maxPlayers)} \u540d\u73a9\u5bb6\u624d\u80fd\u5f00\u59cb\u3002`
       };
     }
 
@@ -402,7 +410,18 @@ export function createRoomManager() {
 
     playerResult.room.status = "STARTED";
     playerResult.room.startCountdown = null;
-    const gameRoom = initializeGameRoom(playerResult.room);
+
+    let gameRoom: GameRoom;
+    try {
+      gameRoom = initializeGameRoom(playerResult.room);
+    } catch (error) {
+      playerResult.room.status = "LOBBY";
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : "\u6e38\u620f\u65e0\u6cd5\u5f00\u59cb\u3002"
+      };
+    }
+
     gameRooms.set(playerResult.room.roomCode, gameRoom);
 
     return { ok: true, room: playerResult.room, gameRoom };
@@ -541,7 +560,7 @@ export function createRoomManager() {
     }
 
     if (player.isBot) {
-      return { ok: false, error: "测试人机不能重连。" };
+      return { ok: false, error: "人机不能重连。" };
     }
 
     player.socketId = input.socketId;
@@ -698,6 +717,29 @@ function createDefaultRoomSettings(): RoomSettings {
     drawMode: "draw2Choose1",
     roleRulePreset: "standard4Player"
   };
+}
+
+function normalizeRoomMaxPlayers(
+  room: RoomState,
+  nextMaxPlayers: number | undefined
+): Result<{ maxPlayers: number }> {
+  if (nextMaxPlayers === undefined) {
+    return { ok: true, maxPlayers: room.maxPlayers };
+  }
+
+  const maxPlayers = Math.floor(nextMaxPlayers);
+  if (!Number.isFinite(maxPlayers) || maxPlayers < MIN_PLAYERS_TO_START || maxPlayers > MAX_PLAYERS) {
+    return {
+      ok: false,
+      error: `\u623f\u95f4\u4eba\u6570\u4e0a\u9650\u5fc5\u987b\u5728 ${MIN_PLAYERS_TO_START}-${MAX_PLAYERS} \u4e4b\u95f4\u3002`
+    };
+  }
+
+  if (maxPlayers < room.players.length) {
+    return { ok: false, error: "\u623f\u95f4\u4eba\u6570\u4e0a\u9650\u4e0d\u80fd\u5c11\u4e8e\u5f53\u524d\u73a9\u5bb6\u6570\u3002" };
+  }
+
+  return { ok: true, maxPlayers };
 }
 
 function normalizeRoomSettings(

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { GameRoom, RoomState } from "@zy/shared";
+import type { DistrictCard, GameRoom, RoomState } from "@zy/shared";
 import { initializeGameRoom } from "./gameSetup";
 import { selectRole } from "./turnFlow";
 import { resolveExpiredTurn } from "./timers";
@@ -65,6 +65,19 @@ function selectRolesById(gameRoom: GameRoom, roleIds: string[]) {
   }
 }
 
+
+function makeYellowDistrict(id: string): DistrictCard {
+  return {
+    id,
+    name: `Yellow ${id}`,
+    cost: 0,
+    color: "yellow",
+    score: 1,
+    description: "",
+    effectType: "none",
+    effectParams: {}
+  };
+}
 describe("turn timers", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -154,6 +167,40 @@ describe("turn timers", () => {
     expect(gameRoom.currentTurnPlayerId).not.toBe(firstActionPlayerId);
     expect(gameRoom.completedRoleIds).toContain(roles[0].id);
     expect(gameRoom.gameLog.map((log) => log.type)).toContain("turn_timeout_action_ended");
+  });
+  it("takes gold before ending an expired action turn with no resource action", () => {
+    const gameRoom = createStartedGame();
+    const roles = [...gameRoom.availableRoles];
+    selectRolesById(gameRoom, [roles[0].id, roles[1].id]);
+    const firstActionPlayerId = gameRoom.currentTurnPlayerId;
+    const player = gameRoom.players.find((candidate) => candidate.id === firstActionPlayerId);
+    if (!player) {
+      throw new Error("Expected current player.");
+    }
+    const initialGold = player.gold;
+
+    const result = resolveExpiredTurn(gameRoom, new Date(Date.now() + 120_000).toISOString());
+
+    expect(result.ok).toBe(true);
+    expect(player.gold).toBe(initialGold + 2);
+    expect(gameRoom.currentTurnPlayerId).not.toBe(firstActionPlayerId);
+  });
+  it("auto-resolves income role skills before ending an expired action turn", () => {
+    const gameRoom = createStartedGame();
+    selectRolesById(gameRoom, ["king", "merchant"]);
+    const kingPlayer = gameRoom.players.find((player) => player.selectedRoleId === "king");
+    if (!kingPlayer) {
+      throw new Error("Expected king player.");
+    }
+    kingPlayer.city = [makeYellowDistrict("temple")];
+    kingPlayer.gold = 2;
+
+    const result = resolveExpiredTurn(gameRoom, new Date(Date.now() + 120_000).toISOString());
+
+    expect(result.ok).toBe(true);
+    expect(kingPlayer.gold).toBe(5);
+    expect(gameRoom.roleEffects.usedSkillPlayerIds).toContain(kingPlayer.id);
+    expect(gameRoom.completedRoleIds).toContain("king");
   });
 });
 

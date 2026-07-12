@@ -16,4 +16,9 @@ export type UseRoleSkillPayload = {
   discardCardIds?: string[];
 };
 
+
+export type UseDistrictEffectPayload = {
+  districtCardId: string;
+  discardCardId?: string;
+};
 export type BuildableDistrictCard = DistrictCard;

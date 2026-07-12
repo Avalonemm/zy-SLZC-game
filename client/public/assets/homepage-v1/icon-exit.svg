@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 221 248" role="img" aria-labelledby="title">
+  <title id="title">退出房间</title>
+  <defs>
+    <radialGradient id="panel" cx="42%" cy="32%" r="72%">
+      <stop offset="0" stop-color="#26343a"/>
+      <stop offset="0.58" stop-color="#111b20"/>
+      <stop offset="1" stop-color="#050b0f"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff2ac"/>
+      <stop offset="0.2" stop-color="#f7d66f"/>
+      <stop offset="0.5" stop-color="#b97018"/>
+      <stop offset="0.72" stop-color="#f1c45e"/>
+      <stop offset="1" stop-color="#7d430c"/>
+    </linearGradient>
+    <linearGradient id="gold-light" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff5bb"/>
+      <stop offset="0.45" stop-color="#edbd4d"/>
+      <stop offset="1" stop-color="#98500e"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#000" flood-opacity="0.72"/>
+    </filter>
+    <filter id="icon-shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#000" flood-opacity="0.82"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)">
+    <circle cx="110.5" cy="124" r="88" fill="#080d10" stroke="#5b300a" stroke-width="8"/>
+    <circle cx="110.5" cy="124" r="84" fill="url(#panel)" stroke="url(#gold)" stroke-width="5"/>
+    <circle cx="110.5" cy="124" r="76.5" fill="none" stroke="#f5ce70" stroke-opacity="0.72" stroke-width="1.8"/>
+    <circle cx="110.5" cy="124" r="72.5" fill="none" stroke="#6d390b" stroke-width="2"/>
+
+    <g fill="url(#gold)" stroke="#6f3707" stroke-width="1.6" stroke-linejoin="round">
+      <path d="M110.5 19 120 31l13-1-4 10 11 7-20 2-9.5 12L101 49l-20-2 11-7-4-10 13 1Z"/>
+      <path d="M110.5 229 101 217l-13 1 4-10-11-7 20-2 9.5-12 9.5 12 20 2-11 7 4 10-13-1Z"/>
+    </g>
+    <path d="M91 38c8-4 13-10 19.5-19 6.5 9 11.5 15 19.5 19" fill="none" stroke="#ffe797" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M91 210c8 4 13 10 19.5 19 6.5-9 11.5-15 19.5-19" fill="none" stroke="#ffe797" stroke-width="2.2" stroke-linecap="round"/>
+  </g>
+
+  <g filter="url(#icon-shadow)" fill="url(#gold-light)" stroke="#6b3507" stroke-width="2" stroke-linejoin="round">
+    <path d="M66 69h64v24h-17V86H84v78h29v-7h17v24H66Z"/>
+    <path d="M108 106h21V94l31 30-31 30v-12h-21Z"/>
+  </g>
+  <path d="M73 77h48v9h-37v86h37v2H73Z" fill="#fff0a3" fill-opacity="0.3"/>
+  <path d="m129 106 18 18-18 18v-8h-18v-20h18Z" fill="#fff4b0" fill-opacity="0.28"/>
+</svg>

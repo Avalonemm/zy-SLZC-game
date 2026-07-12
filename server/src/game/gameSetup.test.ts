@@ -100,7 +100,7 @@ describe("game setup", () => {
       effectType: "skip_role"
     });
 
-    expect(districts.length).toBeGreaterThanOrEqual(24);
+    expect(districts.length).toBeGreaterThanOrEqual(65);
     expect(districts[0]).toEqual(
       expect.objectContaining({
         id: expect.any(String),
@@ -148,6 +148,38 @@ describe("game setup", () => {
     expect(gameRoom.districtDeck).toHaveLength(loadDistrictCards().length - 16);
   });
 
+  it("uses only a face-down discard for six-player rooms", () => {
+    const lobbyRoom = createLobbyRoom();
+    lobbyRoom.maxPlayers = 6;
+    lobbyRoom.players.push(
+      {
+        id: "player-e",
+        uid: 100005,
+        socketId: "socket-e",
+        name: "Eve",
+        connected: true,
+        isHost: false,
+        isReady: true,
+        isBot: false
+      },
+      {
+        id: "player-f",
+        uid: 100006,
+        socketId: "socket-f",
+        name: "Finn",
+        connected: true,
+        isHost: false,
+        isReady: true,
+        isBot: false
+      }
+    );
+
+    const gameRoom = initializeGameRoom(lobbyRoom);
+
+    expect(gameRoom.players).toHaveLength(6);
+    expect(gameRoom.availableRoles).toHaveLength(7);
+    expect(gameRoom.discardedRoles).toEqual([]);
+  });
   it("initializes available roles from enabled roles when discards are disabled", () => {
     const lobbyRoom = createLobbyRoom();
     lobbyRoom.settings = createDefaultSettings({
@@ -170,7 +202,7 @@ describe("game setup", () => {
   it("rejects role settings that leave too few selectable roles", () => {
     const lobbyRoom = createLobbyRoom();
     lobbyRoom.settings = createDefaultSettings({
-      enabledRoleIds: ["assassin", "thief", "magician", "king"],
+      enabledRoleIds: ["assassin", "thief", "magician"],
       enableFaceUpRoleDiscard: true,
       enableFaceDownRoleDiscard: true
     });

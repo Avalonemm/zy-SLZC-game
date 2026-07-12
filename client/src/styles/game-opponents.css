@@ -1,0 +1,599 @@
+/* Final opponent geometry lives after game-table.css to avoid legacy dense-seat overrides. */
+.citadel-opponent-seat {
+  --citadel-opponent-district-width: 56px;
+  --citadel-opponent-district-height: 82px;
+  gap: 7px 10px;
+}
+
+.citadel-opponent-seat.is-dense {
+  --citadel-opponent-district-width: 52px;
+  --citadel-opponent-district-height: 76px;
+}
+
+.citadel-game-center {
+  top: 44%;
+}
+
+.citadel-self-city {
+  top: 55.2%;
+}
+
+.citadel-self-city__cards {
+  min-height: 122px;
+}
+
+.citadel-built-card {
+  height: 122px;
+}
+
+.citadel-action-layer .citadel-action-dock {
+  top: 75.4%;
+}
+
+.citadel-action-layer--table-targeting .citadel-action-dock--table-targeting {
+  width: min(680px, 72vw);
+  padding: 10px 14px;
+  border: 1px solid rgb(239 190 92 / 58%);
+  border-radius: 10px;
+  background: rgb(5 10 14 / 88%);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 34%);
+}
+
+.citadel-game-shell--table-targeting .citadel-opponent-seat {
+  z-index: 30;
+}
+
+.citadel-mini-city-card.is-targetable {
+  z-index: 2;
+  cursor: pointer;
+  outline: 2px solid #ffcc6d;
+  outline-offset: -2px;
+  box-shadow: 0 0 0 2px rgb(126 34 24 / 74%), 0 0 18px rgb(255 174 69 / 52%);
+  filter: brightness(1.08);
+}
+
+.citadel-mini-city-card.is-targetable:hover,
+.citadel-mini-city-card.is-targetable:focus-visible,
+.citadel-mini-city-card.is-target-selected {
+  z-index: 10;
+  outline-color: #fff0ad;
+  box-shadow: 0 0 0 3px #a4261e, 0 0 24px rgb(255 192 78 / 76%);
+  filter: brightness(1.22);
+}
+
+.citadel-mini-city-card.is-untargetable {
+  opacity: 0.42;
+  filter: grayscale(0.65) brightness(0.72);
+}
+
+/* Role selection is a standalone panel, so keep it below the complete center status block. */
+.citadel-action-dock--roles {
+  top: 66%;
+  flex-wrap: nowrap;
+  width: min(92vw, 1100px);
+  min-height: 0;
+  gap: clamp(6px, 0.7vw, 12px);
+  padding: clamp(10px, 1vw, 16px);
+}
+
+.citadel-role-choice.citadel-role-card {
+  width: clamp(58px, 6.1vw, 88px);
+  height: clamp(87px, 9.15vw, 132px);
+  aspect-ratio: 2 / 3;
+  flex: 0 0 auto;
+}
+
+.citadel-opponent-seat > .citadel-player-mini,
+.citadel-opponent-seat.is-dense > .citadel-player-mini {
+  width: min(268px, 100%);
+  min-height: 56px;
+  padding: 6px 12px 6px 6px;
+  justify-self: center;
+}
+
+.citadel-opponent-seat .citadel-player-mini__avatar,
+.citadel-opponent-seat.is-dense .citadel-player-mini__avatar {
+  width: 46px;
+  height: 46px;
+}
+
+.citadel-opponent-seat .citadel-player-mini__copy strong,
+.citadel-opponent-seat.is-dense .citadel-player-mini__copy strong {
+  font-size: 0.98rem;
+}
+
+.citadel-opponent-seat .citadel-player-mini__stat,
+.citadel-opponent-seat.is-dense .citadel-player-mini__stat {
+  font-size: 0.88rem;
+}
+
+.citadel-opponent-card-line,
+.citadel-opponent-seat.is-dense .citadel-opponent-card-line {
+  min-height: 82px;
+  gap: 7px;
+}
+
+.citadel-opponent-card-line .citadel-role-card--compact,
+.citadel-opponent-seat.is-dense .citadel-role-card--compact {
+  width: 54px;
+  height: 81px;
+  flex: 0 0 auto;
+}
+
+.citadel-opponent-card-line .citadel-mini-card-row,
+.citadel-opponent-seat.is-dense .citadel-mini-card-row {
+  min-height: 70px;
+}
+
+.citadel-opponent-card-line .citadel-mini-card,
+.citadel-opponent-seat.is-dense .citadel-mini-card {
+  width: 42px;
+  height: 63px;
+  aspect-ratio: 2 / 3;
+  flex: 0 0 auto;
+}
+
+.citadel-opponent-card-line .citadel-mini-card + .citadel-mini-card,
+.citadel-opponent-seat.is-dense .citadel-mini-card + .citadel-mini-card {
+  margin-left: -16px;
+}
+
+.citadel-mini-city-row,
+.citadel-opponent-seat.is-dense .citadel-mini-city-row {
+  --citadel-opponent-district-overlap: -5px;
+  min-height: 82px;
+  overflow: visible;
+}
+
+/* Keep a complete city inside its own grid cell. Top seats have the narrower city lane. */
+.citadel-opponent-seat:is(.citadel-opponent-seat--top-left, .citadel-opponent-seat--top-center, .citadel-opponent-seat--top-right)
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(4)) { --citadel-opponent-district-overlap: -17px; }
+.citadel-opponent-seat:is(.citadel-opponent-seat--top-left, .citadel-opponent-seat--top-center, .citadel-opponent-seat--top-right)
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(5)) { --citadel-opponent-district-overlap: -27px; }
+.citadel-opponent-seat:is(.citadel-opponent-seat--top-left, .citadel-opponent-seat--top-center, .citadel-opponent-seat--top-right)
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(6)) { --citadel-opponent-district-overlap: -33px; }
+.citadel-opponent-seat:is(.citadel-opponent-seat--top-left, .citadel-opponent-seat--top-center, .citadel-opponent-seat--top-right)
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(7)) { --citadel-opponent-district-overlap: -37px; }
+.citadel-opponent-seat:is(.citadel-opponent-seat--top-left, .citadel-opponent-seat--top-center, .citadel-opponent-seat--top-right)
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(8)) { --citadel-opponent-district-overlap: -39px; }
+
+.citadel-opponent-seat:is(.citadel-opponent-seat--left-upper, .citadel-opponent-seat--left-lower, .citadel-opponent-seat--right-upper, .citadel-opponent-seat--right-lower)
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(4)) { --citadel-opponent-district-overlap: -3px; }
+.citadel-opponent-seat:is(.citadel-opponent-seat--left-upper, .citadel-opponent-seat--left-lower, .citadel-opponent-seat--right-upper, .citadel-opponent-seat--right-lower)
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(5)) { --citadel-opponent-district-overlap: -16px; }
+.citadel-opponent-seat:is(.citadel-opponent-seat--left-upper, .citadel-opponent-seat--left-lower, .citadel-opponent-seat--right-upper, .citadel-opponent-seat--right-lower)
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(6)) { --citadel-opponent-district-overlap: -24px; }
+.citadel-opponent-seat:is(.citadel-opponent-seat--left-upper, .citadel-opponent-seat--left-lower, .citadel-opponent-seat--right-upper, .citadel-opponent-seat--right-lower)
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(7)) { --citadel-opponent-district-overlap: -30px; }
+.citadel-opponent-seat:is(.citadel-opponent-seat--left-upper, .citadel-opponent-seat--left-lower, .citadel-opponent-seat--right-upper, .citadel-opponent-seat--right-lower)
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(8)) { --citadel-opponent-district-overlap: -34px; }
+
+.citadel-opponent-seat:is(
+  .citadel-opponent-seat--top-left,
+  .citadel-opponent-seat--top-center,
+  .citadel-opponent-seat--top-right
+) {
+  top: clamp(120px, 14vh, 128px);
+  width: 340px;
+  grid-template-columns: 155px 175px;
+}
+
+.citadel-opponent-seat--top-left { left: 30.8%; }
+.citadel-opponent-seat--top-center { left: 50%; }
+.citadel-opponent-seat--top-right { left: 69.2%; }
+
+.citadel-game-shell--players-8 .citadel-opponent-seat--top-left { left: 30.8%; }
+.citadel-game-shell--players-8 .citadel-opponent-seat--top-center { left: 50%; }
+.citadel-game-shell--players-8 .citadel-opponent-seat--top-right { left: 69.2%; }
+
+.citadel-opponent-seat:is(
+  .citadel-opponent-seat--left-upper,
+  .citadel-opponent-seat--left-lower
+),
+.citadel-opponent-seat.is-dense:is(
+  .citadel-opponent-seat--left-upper,
+  .citadel-opponent-seat--left-lower
+) {
+  width: 402px;
+  grid-template-columns: 176px 216px;
+  grid-template-areas:
+    "profile profile"
+    "private city";
+}
+
+.citadel-opponent-seat:is(
+  .citadel-opponent-seat--right-upper,
+  .citadel-opponent-seat--right-lower
+),
+.citadel-opponent-seat.is-dense:is(
+  .citadel-opponent-seat--right-upper,
+  .citadel-opponent-seat--right-lower
+) {
+  width: 402px;
+  grid-template-columns: 216px 176px;
+  grid-template-areas:
+    "profile profile"
+    "city private";
+}
+
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-upper,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-upper,
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-upper,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-upper {
+  top: 40.5%;
+}
+
+.citadel-opponent-seat--left-upper,
+.citadel-opponent-seat--right-upper {
+  top: 41.2%;
+}
+
+.citadel-opponent-seat--left-lower,
+.citadel-opponent-seat--right-lower {
+  top: 61.5%;
+}
+
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-lower,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-lower,
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-lower,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-lower {
+  top: 61.5%;
+}
+
+.citadel-opponent-seat:is(
+  .citadel-opponent-seat--left-upper,
+  .citadel-opponent-seat--left-lower
+) > .citadel-player-mini {
+  justify-self: start;
+}
+
+.citadel-opponent-seat:is(
+  .citadel-opponent-seat--right-upper,
+  .citadel-opponent-seat--right-lower
+) > .citadel-player-mini {
+  justify-self: end;
+}
+
+@media (max-width: 1500px) {
+  .citadel-self-area {
+    left: 8%;
+    right: 8%;
+    bottom: calc(clamp(14px, 3.2%, 34px) + 18px);
+    grid-template-columns: minmax(260px, 1fr) minmax(360px, 420px) minmax(260px, 1fr);
+  }
+
+  .citadel-opponent-seat {
+    --citadel-opponent-district-width: 50px;
+    --citadel-opponent-district-height: 74px;
+  }
+
+  .citadel-opponent-seat.is-dense {
+    --citadel-opponent-district-width: 48px;
+    --citadel-opponent-district-height: 72px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) {
+    top: 106px;
+    width: 300px;
+    grid-template-columns: 138px 152px;
+  }
+
+  .citadel-opponent-seat--top-left { left: 25.7%; }
+  .citadel-opponent-seat--top-right { left: 74.3%; }
+
+  .citadel-game-shell--players-8 .citadel-opponent-seat--top-left { left: 25.7%; }
+  .citadel-game-shell--players-8 .citadel-opponent-seat--top-center { left: 50%; }
+  .citadel-game-shell--players-8 .citadel-opponent-seat--top-right { left: 74.3%; }
+
+  .citadel-opponent-seat > .citadel-player-mini,
+  .citadel-opponent-seat.is-dense > .citadel-player-mini {
+    width: min(248px, 100%);
+    min-height: 52px;
+  }
+
+  .citadel-opponent-card-line,
+  .citadel-opponent-seat.is-dense .citadel-opponent-card-line,
+  .citadel-mini-city-row,
+  .citadel-opponent-seat.is-dense .citadel-mini-city-row {
+    min-height: 74px;
+  }
+
+  .citadel-opponent-card-line .citadel-role-card--compact,
+  .citadel-opponent-seat.is-dense .citadel-role-card--compact {
+    width: 48px;
+    height: 72px;
+  }
+
+  .citadel-opponent-card-line .citadel-mini-card,
+  .citadel-opponent-seat.is-dense .citadel-mini-card {
+    width: 36px;
+    height: 54px;
+  }
+
+  .citadel-opponent-card-line .citadel-mini-card + .citadel-mini-card,
+  .citadel-opponent-seat.is-dense .citadel-mini-card + .citadel-mini-card {
+    margin-left: -14px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower
+  ),
+  .citadel-opponent-seat.is-dense:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower
+  ) {
+    width: 350px;
+    grid-template-columns: 156px 184px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ),
+  .citadel-opponent-seat.is-dense:is(
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) {
+    width: 350px;
+    grid-template-columns: 184px 156px;
+  }
+}
+
+@media (max-height: 720px) {
+  .citadel-game-center {
+    top: 36.7%;
+  }
+
+  .citadel-self-city {
+    top: 44%;
+  }
+
+  .citadel-self-city__cards {
+    min-height: 118px;
+  }
+
+  .citadel-built-card {
+    height: 120px;
+  }
+
+  .citadel-action-layer .citadel-action-dock {
+    top: 71.2%;
+  }
+
+  .citadel-action-dock--roles {
+    top: 66%;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) {
+    top: 104px;
+  }
+}
+
+/* Low-height desktop table: preserve all eight seats without sacrificing the hand lane. */
+@media (max-width: 1500px) and (max-height: 720px) {
+  .citadel-game-center {
+    top: 39%;
+  }
+
+  .citadel-self-city {
+    top: 46.1%;
+  }
+
+  .citadel-self-city__cards {
+    min-height: 108px;
+  }
+
+  .citadel-built-card {
+    height: 108px;
+  }
+
+  .citadel-action-layer .citadel-action-dock {
+    top: 68.7%;
+    width: min(72vw, 560px);
+    max-width: 560px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) {
+    --citadel-opponent-district-width: 36px;
+    --citadel-opponent-district-height: 54px;
+    top: 104px;
+    width: 280px;
+    grid-template-columns: 128px 142px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) > .citadel-player-mini {
+    width: min(230px, 100%);
+    min-height: 44px;
+    padding: 4px 10px 4px 4px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) .citadel-player-mini__avatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) :is(.citadel-opponent-card-line, .citadel-mini-city-row) {
+    min-height: 54px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) .citadel-role-card--compact {
+    width: 36px;
+    height: 54px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) .citadel-mini-card {
+    width: 28px;
+    height: 42px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) .citadel-mini-card-row {
+    min-height: 48px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower,
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ),
+  .citadel-opponent-seat.is-dense:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower,
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) {
+    --citadel-opponent-district-width: 42px;
+    --citadel-opponent-district-height: 63px;
+    width: 330px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower
+  ),
+  .citadel-opponent-seat.is-dense:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower
+  ) {
+    grid-template-columns: 146px 174px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ),
+  .citadel-opponent-seat.is-dense:is(
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) {
+    grid-template-columns: 174px 146px;
+  }
+
+  .citadel-game-shell--players-7 .citadel-opponent-seat--left-upper,
+  .citadel-game-shell--players-8 .citadel-opponent-seat--left-upper,
+  .citadel-game-shell--players-7 .citadel-opponent-seat--right-upper,
+  .citadel-game-shell--players-8 .citadel-opponent-seat--right-upper {
+    top: 43%;
+  }
+
+  .citadel-game-shell--players-7 .citadel-opponent-seat--left-lower,
+  .citadel-game-shell--players-8 .citadel-opponent-seat--left-lower,
+  .citadel-game-shell--players-7 .citadel-opponent-seat--right-lower,
+  .citadel-game-shell--players-8 .citadel-opponent-seat--right-lower {
+    top: 64%;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower,
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) > .citadel-player-mini {
+    height: 52px;
+    min-height: 52px;
+    padding: 3px 10px 3px 3px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower,
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) .citadel-player-mini__avatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower,
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) :is(.citadel-opponent-card-line, .citadel-mini-city-row) {
+    min-height: 63px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower,
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) .citadel-role-card--compact {
+    width: 42px;
+    height: 63px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower,
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) .citadel-mini-card {
+    width: 30px;
+    height: 45px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower,
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) .citadel-mini-card-row {
+    min-height: 54px;
+  }
+
+  .citadel-corner-dock {
+    width: 100px;
+    min-width: 100px;
+    font-size: 0.72rem;
+  }
+
+  .citadel-corner-dock > span {
+    display: none;
+  }
+
+  .citadel-corner-dock--log {
+    left: 0;
+  }
+
+  .citadel-corner-dock--chat {
+    right: 0;
+  }
+}

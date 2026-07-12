@@ -1,16 +1,22 @@
 import type { GameRoom, Player, VisibleGameState } from "@zy/shared";
-import { MAX_GAME_LOGS } from "./gameEngineUtils";
+import { findRole, MAX_GAME_LOGS } from "./gameEngineUtils";
 
 export function visibleStateForPlayer(
   gameRoom: GameRoom,
   playerId: string
 ): VisibleGameState {
-  const { districtDeck: _districtDeck, pendingDrawChoice: _pendingDrawChoice, ...roomWithoutDeck } = gameRoom;
+  const {
+    districtDeck: _districtDeck,
+    districtDiscardPile: _districtDiscardPile,
+    pendingDrawChoice: _pendingDrawChoice,
+    ...roomWithoutPrivatePiles
+  } = gameRoom;
   const canSeeAvailableRoles =
     gameRoom.phase === "ROLE_SELECTION" && gameRoom.roleSelectionTurnPlayerId === playerId;
 
   return {
-    ...roomWithoutDeck,
+    ...roomWithoutPrivatePiles,
+    currentRoleOrder: visibleRoleOrder(gameRoom),
     gameLog: gameRoom.gameLog.slice(0, MAX_GAME_LOGS),
     availableRoles: canSeeAvailableRoles ? gameRoom.availableRoles : [],
     pendingDrawChoice:
@@ -32,8 +38,28 @@ export function visibleStateForPlayer(
       const { hand: _hand, ...withoutHand } = visiblePlayer;
       return withoutHand;
     }),
-    districtDeckCount: gameRoom.districtDeck.length
+    districtDeckCount: gameRoom.districtDeck.length,
+    districtDiscardPileCount: gameRoom.districtDiscardPile.length
   };
+}
+
+function visibleRoleOrder(gameRoom: GameRoom) {
+  if (gameRoom.phase === "ROLE_SELECTION" || gameRoom.phase === "CROWN_REVEAL") {
+    return [];
+  }
+
+  const publicRoleIds = new Set(gameRoom.completedRoleIds);
+  const currentPlayer = gameRoom.players.find(
+    (player) => player.id === gameRoom.currentTurnPlayerId
+  );
+  if (currentPlayer?.selectedRoleId) {
+    publicRoleIds.add(currentPlayer.selectedRoleId);
+  }
+
+  return [...publicRoleIds]
+    .map((roleId) => findRole(roleId)?.order)
+    .filter((order): order is number => typeof order === "number")
+    .sort((a, b) => a - b);
 }
 
 function canSeeSelectedRole(gameRoom: GameRoom, player: Player, viewerPlayerId: string) {

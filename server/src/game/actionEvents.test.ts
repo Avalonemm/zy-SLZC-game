@@ -35,9 +35,11 @@ function createGameRoomWithLog(): GameRoom {
     currentTurnPlayerId: "player-1",
     currentRoleOrder: [],
     completedRoleIds: [],
+    firstCompletedCityPlayerId: null,
     turnState: null,
     turnTimer: null,
     pendingDrawChoice: null,
+    pendingGraveyardChoice: null,
     roleEffects: {
       skippedRoleIds: [],
       protectedPlayerIds: [],

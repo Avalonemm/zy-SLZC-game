@@ -1,7 +1,10 @@
+import { useEffect, useState } from "react";
+import type { VisibleGameState } from "@zy/shared";
 import { GameButton } from "../ui/GameButton";
 import type {
   BuildableDistrictCard,
   TestGamePlayer,
+  UseDistrictEffectPayload,
   UseRoleSkillPayload
 } from "./testGameTypes";
 import { roleOptions } from "./testGameUtils";
@@ -11,11 +14,13 @@ type ActionPanelProps = {
   canSkipCurrentOfflinePlayer: boolean;
   canTakeResource: boolean;
   canUseSkill: boolean;
+  city: BuildableDistrictCard[];
   discardCardIds: string[];
   hand: BuildableDistrictCard[];
   isMyTurn: boolean;
   players: TestGamePlayer[];
   selfPlayerId: string | null;
+  selfGold: number;
   skillBlockedReason: string;
   skillHint: string;
   skillTargetSpec: SkillTargetSpec;
@@ -23,6 +28,7 @@ type ActionPanelProps = {
   targetDistricts: BuildableDistrictCard[];
   targetPlayerId: string;
   targetRoleId: string;
+  turnState: VisibleGameState["turnState"];
   onDrawCards: () => void;
   onEndTurn: () => void;
   onSkipCurrentOfflinePlayer: () => void;
@@ -32,10 +38,26 @@ type ActionPanelProps = {
   onTargetRoleChange: (roleId: string) => void;
   onToggleDiscardCard: (cardId: string) => void;
   onUseSkill: (payload: UseRoleSkillPayload) => void;
+  onUseDistrictEffect: (payload: UseDistrictEffectPayload) => void;
 };
 
 export function ActionPanel(props: ActionPanelProps) {
   const opponentPlayers = props.players.filter((player) => player.id !== props.selfPlayerId);
+  const [laboratoryDiscardCardId, setLaboratoryDiscardCardId] = useState("");
+  const laboratory = props.city.find((card) => card.effectType === "discard_hand_for_gold") ?? null;
+  const smithy = props.city.find((card) => card.effectType === "pay_gold_draw_cards") ?? null;
+  const usedDistrictEffectIds = props.turnState?.usedDistrictEffectIds ?? [];
+  const laboratoryDiscardTarget = props.hand.find((card) => card.id === laboratoryDiscardCardId) ?? props.hand[0] ?? null;
+
+  useEffect(() => {
+    if (!laboratoryDiscardTarget) {
+      setLaboratoryDiscardCardId("");
+      return;
+    }
+    if (laboratoryDiscardTarget.id !== laboratoryDiscardCardId) {
+      setLaboratoryDiscardCardId(laboratoryDiscardTarget.id);
+    }
+  }, [laboratoryDiscardCardId, laboratoryDiscardTarget]);
 
   return (
     <section className="test-game-section">
@@ -179,6 +201,55 @@ export function ActionPanel(props: ActionPanelProps) {
           <span className="test-skill-blocked">{props.skillBlockedReason}</span>
         )}
       </div>
-    </section>
+
+      {(laboratory || smithy) && (
+        <div className="test-district-effect-box">
+          <strong>建筑效果</strong>
+          {laboratory && (
+            <div className="test-district-effect-row">
+              <label>
+                实验室弃牌
+                <select
+                  value={laboratoryDiscardCardId}
+                  onChange={(event) => setLaboratoryDiscardCardId(event.target.value)}
+                >
+                  {props.hand.map((card) => (
+                    <option key={card.id} value={card.id}>
+                      {card.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <GameButton
+                variant="secondary"
+                size="sm"
+                disabled={
+                  !props.isMyTurn ||
+                  !laboratoryDiscardTarget ||
+                  usedDistrictEffectIds.includes(laboratory.id)
+                }
+                onClick={() =>
+                  props.onUseDistrictEffect({
+                    districtCardId: laboratory.id,
+                    discardCardId: laboratoryDiscardTarget?.id
+                  })
+                }
+              >
+                发动实验室
+              </GameButton>
+            </div>
+          )}
+          {smithy && (
+            <GameButton
+              variant="secondary"
+              size="sm"
+              disabled={!props.isMyTurn || props.selfGold < 2 || usedDistrictEffectIds.includes(smithy.id)}
+              onClick={() => props.onUseDistrictEffect({ districtCardId: smithy.id })}
+            >
+              铁匠铺：2 金币抽 3 张
+            </GameButton>
+          )}
+        </div>
+      )}    </section>
   );
 }

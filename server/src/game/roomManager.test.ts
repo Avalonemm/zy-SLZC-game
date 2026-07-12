@@ -85,8 +85,8 @@ describe("room manager", () => {
     expect(second.room.players).toHaveLength(3);
     expect(second.room.players.map((player) => player.name)).toEqual([
       "Alice",
-      "测试人机 1",
-      "测试人机 2"
+      "人机 1",
+      "人机 2"
     ]);
     expect(second.room.players.slice(1).every((player) => player.isBot)).toBe(true);
     expect(second.room.players.every((player) => player.isReady)).toBe(true);
@@ -172,7 +172,7 @@ describe("room manager", () => {
       })
     ).toEqual({
       ok: false,
-      error: "只能删除测试人机。"
+      error: "只能删除人机。"
     });
   });
 
@@ -243,7 +243,7 @@ describe("room manager", () => {
     });
   });
 
-  it("lets up to four players join and rejects a fifth", () => {
+  it("keeps new rooms at four seats by default and rejects a fifth player", () => {
     const manager = createRoomManager();
     const host = manager.createRoom({
       uid: 100001,
@@ -285,7 +285,7 @@ describe("room manager", () => {
     expect(dan.ok).toBe(true);
     expect(fifth).toEqual({
       ok: false,
-      error: "房间已满，当前测试版最多 4 人。"
+      error: "\u623f\u95f4\u5df2\u6ee1\uff0c\u5f53\u524d\u623f\u95f4\u6700\u591a 4 \u4eba\u3002"
     });
 
     const room = manager.getRoom(host.room.roomCode);
@@ -295,6 +295,95 @@ describe("room manager", () => {
       "Cici",
       "Dan"
     ]);
+  });
+
+
+  it("lets the host expand room seats to eight and rejects a ninth player", () => {
+    const manager = createRoomManager();
+    const host = manager.createRoom({
+      uid: 100001,
+      socketId: "socket-a",
+      playerName: "Alice"
+    });
+
+    if (!host.ok) {
+      throw new Error(host.error);
+    }
+
+    const update = manager.updateRoomSettings({
+      roomCode: host.room.roomCode,
+      playerId: host.playerId,
+      settings: { maxPlayers: 8 }
+    });
+
+    expect(update.ok).toBe(true);
+    if (!update.ok) {
+      throw new Error(update.error);
+    }
+    expect(update.room.maxPlayers).toBe(8);
+
+    const names = ["Bob", "Cici", "Dan", "Eve", "Finn", "Gina", "Hugo"];
+    const joins = names.map((name, index) =>
+      manager.joinRoom({
+        uid: 100002 + index,
+        roomCode: host.room.roomCode,
+        socketId: "socket-" + index,
+        playerName: name
+      })
+    );
+    const ninth = manager.joinRoom({
+      uid: 100009,
+      roomCode: host.room.roomCode,
+      socketId: "socket-i",
+      playerName: "Iris"
+    });
+
+    expect(joins.every((join) => join.ok)).toBe(true);
+    expect(ninth).toEqual({
+      ok: false,
+      error: "\u623f\u95f4\u5df2\u6ee1\uff0c\u5f53\u524d\u623f\u95f4\u6700\u591a 8 \u4eba\u3002"
+    });
+    expect(manager.getRoom(host.room.roomCode)?.players).toHaveLength(8);
+  });
+
+  it("rejects reducing room seats below the current player count", () => {
+    const manager = createRoomManager();
+    const host = manager.createRoom({
+      uid: 100001,
+      socketId: "socket-a",
+      playerName: "Alice"
+    });
+
+    if (!host.ok) {
+      throw new Error(host.error);
+    }
+
+    const bob = manager.joinRoom({
+      uid: 100002,
+      roomCode: host.room.roomCode,
+      socketId: "socket-b",
+      playerName: "Bob"
+    });
+    const cici = manager.joinRoom({
+      uid: 100003,
+      roomCode: host.room.roomCode,
+      socketId: "socket-c",
+      playerName: "Cici"
+    });
+
+    expect(bob.ok).toBe(true);
+    expect(cici.ok).toBe(true);
+
+    expect(
+      manager.updateRoomSettings({
+        roomCode: host.room.roomCode,
+        playerId: host.playerId,
+        settings: { maxPlayers: 2 }
+      })
+    ).toEqual({
+      ok: false,
+      error: "\u623f\u95f4\u4eba\u6570\u4e0a\u9650\u4e0d\u80fd\u5c11\u4e8e\u5f53\u524d\u73a9\u5bb6\u6570\u3002"
+    });
   });
 
   it("transfers host to the next player when the host leaves", () => {
@@ -770,7 +859,7 @@ describe("room manager", () => {
       manager.startGame({ roomCode: host.room.roomCode, playerId: host.playerId })
     ).toEqual({
       ok: false,
-      error: "当前测试版需要 2-4 名玩家才能开始。"
+      error: "\u5f53\u524d\u623f\u95f4\u9700\u8981 2-4 \u540d\u73a9\u5bb6\u624d\u80fd\u5f00\u59cb\u3002"
     });
 
     const bot = manager.addTestBots({
@@ -791,6 +880,101 @@ describe("room manager", () => {
     expect(started.room.status).toBe("STARTED");
     expect(started.gameRoom.phase).toBe("CROWN_REVEAL");
     expect(started.gameRoom.players).toHaveLength(2);
+  });
+
+
+  it("keeps the room in lobby when role settings cannot support the current players", () => {
+    const manager = createRoomManager();
+    const host = manager.createRoom({
+      uid: 100001,
+      socketId: "socket-a",
+      playerName: "Alice"
+    });
+
+    if (!host.ok) {
+      throw new Error(host.error);
+    }
+
+    const bob = manager.joinRoom({
+      uid: 100002,
+      roomCode: host.room.roomCode,
+      socketId: "socket-b",
+      playerName: "Bob"
+    });
+    const cici = manager.joinRoom({
+      uid: 100003,
+      roomCode: host.room.roomCode,
+      socketId: "socket-c",
+      playerName: "Cici"
+    });
+
+    if (!bob.ok || !cici.ok) {
+      throw new Error("Expected players to join.");
+    }
+
+    const updated = manager.updateRoomSettings({
+      roomCode: host.room.roomCode,
+      playerId: host.playerId,
+      settings: {
+        enabledRoleIds: ["assassin", "thief"]
+      }
+    });
+    expect(updated.ok).toBe(true);
+
+    expect(manager.setReady({ roomCode: host.room.roomCode, playerId: bob.playerId, isReady: true }).ok).toBe(true);
+    expect(manager.setReady({ roomCode: host.room.roomCode, playerId: cici.playerId, isReady: true }).ok).toBe(true);
+
+    const started = manager.startGame({
+      roomCode: host.room.roomCode,
+      playerId: host.playerId
+    });
+
+    expect(started).toEqual({
+      ok: false,
+      error: "\u542f\u7528\u89d2\u8272\u548c\u5f03\u724c\u8bbe\u7f6e\u4e0d\u8db3\u4ee5\u652f\u6301\u5f53\u524d\u73a9\u5bb6\u4eba\u6570\u3002"
+    });
+    expect(manager.getRoom(host.room.roomCode)?.status).toBe("LOBBY");
+    expect(manager.getGameRoom(host.room.roomCode)).toBeUndefined();
+  });
+  it("starts an eight-player room after the host expands seats", () => {
+    const manager = createRoomManager();
+    const host = manager.createRoom({
+      uid: 100001,
+      socketId: "socket-a",
+      playerName: "Alice"
+    });
+
+    if (!host.ok) {
+      throw new Error(host.error);
+    }
+
+    const update = manager.updateRoomSettings({
+      roomCode: host.room.roomCode,
+      playerId: host.playerId,
+      settings: { maxPlayers: 8 }
+    });
+    expect(update.ok).toBe(true);
+
+    for (let index = 0; index < 7; index += 1) {
+      const bot = manager.addTestBots({
+        roomCode: host.room.roomCode,
+        playerId: host.playerId
+      });
+      expect(bot.ok).toBe(true);
+    }
+
+    const started = manager.startGame({
+      roomCode: host.room.roomCode,
+      playerId: host.playerId
+    });
+
+    expect(started.ok).toBe(true);
+    if (!started.ok) {
+      throw new Error(started.error);
+    }
+    expect(started.gameRoom.players).toHaveLength(8);
+    expect(started.gameRoom.availableRoles).toHaveLength(8);
+    expect(started.gameRoom.discardedRoles).toEqual([]);
   });
 
   it("rejects repeated start after the game has already started", () => {
@@ -863,7 +1047,7 @@ describe("room manager", () => {
       manager.startGame({ roomCode: host.room.roomCode, playerId: host.playerId })
     ).toEqual({
       ok: false,
-      error: "还有玩家未准备。"
+      error: "\u8fd8\u6709\u73a9\u5bb6\u672a\u51c6\u5907\u3002"
     });
 
     const ready = manager.setReady({

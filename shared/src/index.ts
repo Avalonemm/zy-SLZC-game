@@ -31,6 +31,35 @@ export type RoomSettings = {
   roleRulePreset: "standard4Player";
 };
 
+export type RoomSettingsUpdate = Partial<RoomSettings> & {
+  maxPlayers?: number;
+};
+export type RoleDiscardPolicy = {
+  faceUpDiscardCount: number;
+  faceDownDiscardCount: number;
+  canUseFaceUpDiscard: boolean;
+  canUseFaceDownDiscard: boolean;
+};
+
+export function getRoleDiscardPolicy(playerCount: number, roleCount = 8): RoleDiscardPolicy {
+  const normalizedPlayerCount = Math.max(0, Math.floor(playerCount));
+  const normalizedRoleCount = Math.max(0, Math.floor(roleCount));
+  const faceDownDiscardCount = normalizedPlayerCount < normalizedRoleCount ? 1 : 0;
+  const faceUpRuleLimit =
+    normalizedPlayerCount <= 4 ? 2 : normalizedPlayerCount === 5 ? 1 : 0;
+  const faceUpDiscardCount = Math.min(
+    faceUpRuleLimit,
+    Math.max(0, normalizedRoleCount - normalizedPlayerCount - faceDownDiscardCount)
+  );
+
+  return {
+    faceUpDiscardCount,
+    faceDownDiscardCount,
+    canUseFaceUpDiscard: faceUpDiscardCount > 0,
+    canUseFaceDownDiscard: faceDownDiscardCount > 0
+  };
+}
+
 export type RoomStartCountdown = {
   startedAt: string;
   deadlineAt: string;
@@ -109,11 +138,13 @@ export type GameLog = {
 export type TurnState = {
   playerId: string;
   resourceActionTaken: boolean;
+  actionStep: "RESOURCE" | "ACTION";
   buildsUsed: number;
   maxBuilds: number;
   startedAt?: string;
   deadlineAt?: string;
   timeoutMs?: number;
+  usedDistrictEffectIds?: string[];
 };
 
 export type TurnTimer = {
@@ -127,6 +158,12 @@ export type TurnTimer = {
 export type PendingDrawChoice = {
   playerId: string;
   drawnCards: DistrictCard[];
+};
+
+export type PendingGraveyardChoice = {
+  playerId: string;
+  destroyedByPlayerId: string;
+  districtCard: DistrictCard;
 };
 
 export type RoleEffectState = {
@@ -145,6 +182,18 @@ export type UseRoleSkillPayload = {
   discardCardIds?: string[];
 };
 
+export type UseDistrictEffectPayload = {
+  roomCode: string;
+  playerId: string;
+  districtCardId: string;
+  discardCardId?: string;
+};
+
+export type ResolveGraveyardChoicePayload = {
+  roomCode: string;
+  playerId: string;
+  buyBack: boolean;
+};
 export type ScoreResult = {
   playerId: string;
   playerName: string;
@@ -175,9 +224,11 @@ export type GameRoom = {
   currentTurnPlayerId: string | null;
   currentRoleOrder: number[];
   completedRoleIds: string[];
+  firstCompletedCityPlayerId: string | null;
   turnState: TurnState | null;
   turnTimer: TurnTimer | null;
   pendingDrawChoice: PendingDrawChoice | null;
+  pendingGraveyardChoice: PendingGraveyardChoice | null;
   roleEffects: RoleEffectState;
   availableRoles: RoleCard[];
   discardedRoles: RoleCard[];
@@ -192,10 +243,14 @@ export type VisiblePlayer = Omit<Player, "hand"> & {
   handCount: number;
 };
 
-export type VisibleGameState = Omit<GameRoom, "players" | "districtDeck" | "pendingDrawChoice"> & {
+export type VisibleGameState = Omit<
+  GameRoom,
+  "players" | "districtDeck" | "districtDiscardPile" | "pendingDrawChoice"
+> & {
   players: VisiblePlayer[];
   pendingDrawChoice: PendingDrawChoice | null;
   districtDeckCount: number;
+  districtDiscardPileCount: number;
 };
 
 export type ErrorPayload = {
@@ -252,7 +307,7 @@ export type ClientToServerEvents = {
   update_room_settings: (payload: {
     roomCode: string;
     playerId: string;
-    settings: Partial<RoomSettings>;
+    settings: RoomSettingsUpdate;
   }) => void;
   resolve_start_countdown: (payload: { roomCode: string; playerId: string }) => void;
   select_role: (payload: { roomCode: string; playerId: string; roleId: string }) => void;
@@ -265,6 +320,8 @@ export type ClientToServerEvents = {
   }) => void;
   build_district: (payload: { roomCode: string; playerId: string; districtCardId: string }) => void;
   use_role_skill: (payload: UseRoleSkillPayload) => void;
+  use_district_effect: (payload: UseDistrictEffectPayload) => void;
+  resolve_graveyard_choice: (payload: ResolveGraveyardChoicePayload) => void;
   end_turn: (payload: { roomCode: string; playerId: string }) => void;
   skip_current_offline_player: (payload: { roomCode: string; playerId: string }) => void;
   resolve_turn_timeout: (payload: { roomCode: string; playerId: string }) => void;

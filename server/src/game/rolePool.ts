@@ -1,4 +1,4 @@
-import type { RoleCard, RoomSettings } from "@zy/shared";
+import { getRoleDiscardPolicy, type RoleCard, type RoomSettings } from "@zy/shared";
 import { loadRoleCards } from "./cardData";
 
 export function createRoleSelectionPool(settings: RoomSettings, playerCount: number) {
@@ -7,12 +7,14 @@ export function createRoleSelectionPool(settings: RoomSettings, playerCount: num
   const availableRoles = [...roles];
   const discardedRoles: RoleCard[] = [];
 
-  if (settings.enableFaceDownRoleDiscard) {
+  const discardPolicy = getRoleDiscardPolicy(playerCount, availableRoles.length);
+
+  if (settings.enableFaceDownRoleDiscard && discardPolicy.canUseFaceDownDiscard) {
     availableRoles.shift();
   }
 
-  if (settings.enableFaceUpRoleDiscard) {
-    discardedRoles.push(...availableRoles.splice(0, Math.min(2, availableRoles.length)));
+  if (settings.enableFaceUpRoleDiscard && discardPolicy.canUseFaceUpDiscard) {
+    discardedRoles.push(...availableRoles.splice(0, discardPolicy.faceUpDiscardCount));
   }
 
   if (availableRoles.length < playerCount) {

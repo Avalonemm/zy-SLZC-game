@@ -1,7 +1,7 @@
 import type { DistrictCard, GameRoom, Player } from "@zy/shared";
 import type { Result } from "./gameEngineTypes";
 import { addLog, findPlayer } from "./gameEngineUtils";
-import { scoreGame } from "./scoring";
+import { drawAvailableDistrictCards, returnDistrictCardsToDeckBottom } from "./districtDeck";
 import { advanceToNextTurn } from "./turnFlow";
 
 export function takeGold(
@@ -13,12 +13,18 @@ export function takeGold(
     return result;
   }
 
+  const pendingChoiceResult = validateNoPendingDrawChoice(gameRoom, input.playerId);
+  if (!pendingChoiceResult.ok) {
+    return pendingChoiceResult;
+  }
+
   if (result.turnState.resourceActionTaken) {
     return { ok: false, error: "本回合已经选择过资源行动。" };
   }
 
   result.player.gold += 2;
   result.turnState.resourceActionTaken = true;
+  result.turnState.actionStep = "ACTION";
   addLog(gameRoom, "take_gold", `${result.player.name} 拿了 2 枚金币。`);
 
   return { ok: true, player: result.player };
@@ -41,7 +47,34 @@ export function drawDistrictCards(
     return { ok: false, error: "当前还有未完成的抽牌选择。" };
   }
 
-  const drawnCards = gameRoom.districtDeck.splice(0, Math.min(2, gameRoom.districtDeck.length));
+  const drawCount = result.player.city.some((district) => district.effectType === "draw_three_choose_one")
+    ? 3
+    : 2;
+  const drawnCards = drawAvailableDistrictCards(gameRoom, drawCount);
+
+  if (drawnCards.length === 0) {
+    result.player.gold += 2;
+    result.turnState.resourceActionTaken = true;
+    result.turnState.actionStep = "ACTION";
+    addLog(
+      gameRoom,
+      "draw_empty_take_gold",
+      `${result.player.name} 抽牌时牌堆已空，系统改为领取 2 枚金币。`
+    );
+    return { ok: true, drawnCards };
+  }
+
+  if (
+    drawnCards.length === 1 ||
+    result.player.city.some((district) => district.effectType === "keep_all_drawn")
+  ) {
+    result.player.hand.push(...drawnCards);
+    result.turnState.resourceActionTaken = true;
+    result.turnState.actionStep = "ACTION";
+    addLog(gameRoom, "draw_cards_kept", `${result.player.name} 保留了 ${drawnCards.length} 张建筑牌。`);
+    return { ok: true, drawnCards };
+  }
+
   gameRoom.pendingDrawChoice = {
     playerId: result.player.id,
     drawnCards
@@ -76,8 +109,9 @@ export function chooseDrawnDistrictCard(
 
   const returnedCards = pendingChoice.drawnCards.filter((card) => card.id !== chosenCard.id);
   result.player.hand.push(chosenCard);
-  gameRoom.districtDeck.push(...returnedCards);
+  returnDistrictCardsToDeckBottom(gameRoom, returnedCards);
   result.turnState.resourceActionTaken = true;
+  result.turnState.actionStep = "ACTION";
   gameRoom.pendingDrawChoice = null;
   addLog(
     gameRoom,
@@ -95,6 +129,11 @@ export function buildDistrict(
   const result = validateCurrentTurn(gameRoom, input.playerId);
   if (!result.ok) {
     return result;
+  }
+
+  const pendingChoiceResult = validateNoPendingDrawChoice(gameRoom, input.playerId);
+  if (!pendingChoiceResult.ok) {
+    return pendingChoiceResult;
   }
 
   if (result.turnState.buildsUsed >= result.turnState.maxBuilds) {
@@ -119,6 +158,13 @@ export function buildDistrict(
   result.player.gold -= district.cost;
   result.player.city.push(district);
   result.turnState.buildsUsed += 1;
+  if (
+    !gameRoom.firstCompletedCityPlayerId &&
+    result.player.city.length >= gameRoom.settings.endCitySize
+  ) {
+    gameRoom.firstCompletedCityPlayerId = result.player.id;
+    addLog(gameRoom, "final_round_triggered", `${result.player.name} 完成城市，本轮结束后进入结算。`);
+  }
   addLog(gameRoom, "build_district", `${result.player.name} 建造了 ${district.name}。`);
 
   return { ok: true, district };
@@ -131,15 +177,35 @@ export function endTurn(gameRoom: GameRoom, input: { playerId: string }): Result
   }
 
   returnPendingDrawChoiceToDeck(gameRoom, input.playerId);
+  if (!result.turnState.resourceActionTaken) {
+    result.player.gold += 2;
+    result.turnState.resourceActionTaken = true;
+    result.turnState.actionStep = "ACTION";
+    addLog(
+      gameRoom,
+      "auto_take_gold",
+      `${result.player.name} 未选择资源行动，系统自动为其领取 2 枚金币。`
+    );
+  }
   addLog(gameRoom, "end_turn", `${result.player.name} 结束了回合。`);
 
-  if (gameRoom.players.some((player) => player.city.length >= gameRoom.settings.endCitySize)) {
-    scoreGame(gameRoom);
-    return { ok: true };
+  if (
+    !gameRoom.firstCompletedCityPlayerId &&
+    result.player.city.length >= gameRoom.settings.endCitySize
+  ) {
+    gameRoom.firstCompletedCityPlayerId = result.player.id;
+    addLog(gameRoom, "final_round_triggered", `${result.player.name} 完成城市，本轮结束后进入结算。`);
   }
 
   gameRoom.completedRoleIds.push(result.player.selectedRoleId ?? "");
   advanceToNextTurn(gameRoom);
+  return { ok: true };
+}
+
+export function validateNoPendingDrawChoice(gameRoom: GameRoom, playerId: string): Result {
+  if (gameRoom.pendingDrawChoice?.playerId === playerId) {
+    return { ok: false, error: "请先完成本次抽牌选择，或结束回合放弃候选牌。" };
+  }
   return { ok: true };
 }
 
@@ -148,7 +214,7 @@ function returnPendingDrawChoiceToDeck(gameRoom: GameRoom, playerId: string) {
     return;
   }
 
-  gameRoom.districtDeck.push(...gameRoom.pendingDrawChoice.drawnCards);
+  returnDistrictCardsToDeckBottom(gameRoom, gameRoom.pendingDrawChoice.drawnCards);
   gameRoom.pendingDrawChoice = null;
 }
 
@@ -156,6 +222,9 @@ export function validateCurrentTurn(
   gameRoom: GameRoom,
   playerId: string
 ): Result<{ player: Player; turnState: NonNullable<GameRoom["turnState"]> }> {
+  if (gameRoom.pendingGraveyardChoice) {
+    return { ok: false, error: "请等待墓地持有者完成是否收回建筑的选择。" };
+  }
   if (gameRoom.phase !== "ROLE_ACTION") {
     return { ok: false, error: "当前不是角色行动阶段。" };
   }

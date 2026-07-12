@@ -1,7 +1,8 @@
 import type { GameRoom, Player } from "@zy/shared";
 import { buildDistrict, chooseDrawnDistrictCard, drawDistrictCards, endTurn, takeGold } from "./actions";
 import type { Result } from "./gameEngineTypes";
-import { addLog } from "./gameEngineUtils";
+import { addLog, roleForPlayer } from "./gameEngineUtils";
+import { applyRoleSkill } from "./roleSkills";
 import { selectRole } from "./turnFlow";
 
 export function runBotTurns(gameRoom: GameRoom): Result {
@@ -19,7 +20,7 @@ export function runBotTurns(gameRoom: GameRoom): Result {
     }
   }
 
-  return { ok: false, error: "测试人机自动行动超出安全步数。" };
+  return { ok: false, error: "人机自动行动超出安全步数。" };
 }
 
 export function runNextBotTurn(gameRoom: GameRoom): Result<{ advanced: boolean }> {
@@ -59,7 +60,11 @@ export function runNextBotTurn(gameRoom: GameRoom): Result<{ advanced: boolean }
       return { ok: true, advanced: false };
     }
 
-    playBotAction(gameRoom, player);
+    const actionResult = playBotAction(gameRoom, player);
+    if (!actionResult.ok) {
+      return actionResult;
+    }
+
     const endResult = endTurn(gameRoom, { playerId: player.id });
     if (!endResult.ok) {
       return endResult;
@@ -71,26 +76,110 @@ export function runNextBotTurn(gameRoom: GameRoom): Result<{ advanced: boolean }
   return { ok: true, advanced: false };
 }
 
-function playBotAction(gameRoom: GameRoom, player: Player) {
+function playBotAction(gameRoom: GameRoom, player: Player): Result {
+  const skillResult = activateExtraBuildSkill(gameRoom, player);
+  if (!skillResult.ok) {
+    return skillResult;
+  }
+
   const affordableAfterGold = cheapestAffordableCard(player, player.gold + 2);
   if (affordableAfterGold) {
-    takeGold(gameRoom, { playerId: player.id });
+    const goldResult = takeGold(gameRoom, { playerId: player.id });
+    if (!goldResult.ok) {
+      return goldResult;
+    }
   } else {
     const drawResult = drawDistrictCards(gameRoom, { playerId: player.id });
-    if (drawResult.ok && drawResult.drawnCards[0]) {
-      chooseDrawnDistrictCard(gameRoom, {
+    if (!drawResult.ok) {
+      return drawResult;
+    }
+
+    const preferredCard = preferredDrawnCard(player, drawResult.drawnCards);
+    if (gameRoom.pendingDrawChoice?.playerId === player.id && preferredCard) {
+      const chooseResult = chooseDrawnDistrictCard(gameRoom, {
         playerId: player.id,
-        districtCardId: drawResult.drawnCards[0].id
+        districtCardId: preferredCard.id
       });
+      if (!chooseResult.ok) {
+        return chooseResult;
+      }
     }
   }
 
-  const card = cheapestAffordableCard(player, player.gold);
-  if (card) {
-    buildDistrict(gameRoom, { playerId: player.id, districtCardId: card.id });
+  while (canBuildAgain(gameRoom, player)) {
+    const card = cheapestAffordableCard(player, player.gold);
+    if (!card) {
+      break;
+    }
+
+    const buildResult = buildDistrict(gameRoom, {
+      playerId: player.id,
+      districtCardId: card.id
+    });
+    if (!buildResult.ok) {
+      return buildResult;
+    }
   }
+
+  return { ok: true };
 }
 
 function cheapestAffordableCard(player: Player, gold: number) {
-  return [...player.hand].filter((card) => card.cost <= gold).sort((a, b) => a.cost - b.cost)[0];
+  const builtNames = new Set(player.city.map((district) => district.name));
+  return [...player.hand]
+    .filter((card) => card.cost <= gold && !builtNames.has(card.name))
+    .sort((a, b) => a.cost - b.cost || b.score - a.score)[0];
+}
+
+function preferredDrawnCard(player: Player, drawnCards: Player["hand"]) {
+  const builtNames = new Set(player.city.map((district) => district.name));
+  const handNames = new Set(player.hand.map((district) => district.name));
+
+  return [...drawnCards].sort((a, b) => {
+    const priorityDifference =
+      drawnCardPriority(a.name, a.cost) - drawnCardPriority(b.name, b.cost);
+    return priorityDifference || a.cost - b.cost || b.score - a.score;
+  })[0];
+
+  function drawnCardPriority(name: string, cost: number) {
+    if (builtNames.has(name)) {
+      return 4;
+    }
+
+    const duplicateInHand = handNames.has(name);
+    const affordableNow = cost <= player.gold;
+    if (!duplicateInHand && affordableNow) {
+      return 0;
+    }
+    if (!duplicateInHand) {
+      return 1;
+    }
+    return affordableNow ? 2 : 3;
+  }
+}
+
+function canBuildAgain(gameRoom: GameRoom, player: Player) {
+  return Boolean(
+    gameRoom.turnState &&
+      gameRoom.turnState.playerId === player.id &&
+      gameRoom.turnState.buildsUsed < gameRoom.turnState.maxBuilds
+  );
+}
+
+function activateExtraBuildSkill(gameRoom: GameRoom, player: Player): Result {
+  const role = roleForPlayer(gameRoom, player);
+  if (
+    role?.effectType !== "extra_build" ||
+    gameRoom.roleEffects.usedSkillPlayerIds.includes(player.id)
+  ) {
+    return { ok: true };
+  }
+
+  const skillResult = applyRoleSkill(gameRoom, player, role, { playerId: player.id });
+  if (!skillResult.ok) {
+    return skillResult;
+  }
+
+  gameRoom.roleEffects.usedSkillPlayerIds.push(player.id);
+  return { ok: true };
 }

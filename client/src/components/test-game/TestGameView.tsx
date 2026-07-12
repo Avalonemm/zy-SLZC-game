@@ -8,7 +8,7 @@ import { ActionPanel } from "./ActionPanel";
 import { GameLogPanel } from "./GameLogPanel";
 import { ScoringPanel } from "./ScoringPanel";
 import type { SkillTargetSpec } from "./skillTargeting";
-import type { BuildableDistrictCard, TestGamePlayer, UseRoleSkillPayload } from "./testGameTypes";
+import type { BuildableDistrictCard, TestGamePlayer, UseDistrictEffectPayload, UseRoleSkillPayload } from "./testGameTypes";
 import { phaseText, roleName, roleOptions, skillHint } from "./testGameUtils";
 import { useTestGameViewModel } from "./useTestGameViewModel";
 
@@ -29,6 +29,7 @@ export type TestGameViewProps = {
   onSkipCurrentOfflinePlayer: () => void;
   onTakeGold: () => void;
   onUseSkill: (payload: UseRoleSkillPayload) => void;
+  onUseDistrictEffect: (payload: UseDistrictEffectPayload) => void;
 };
 
 type PendingConfirm =
@@ -201,6 +202,7 @@ export function TestGameView(props: TestGameViewProps) {
                   onTargetRoleChange={viewModel.setTargetRoleId}
                   onToggleDiscardCard={viewModel.toggleDiscardCard}
                   onUseSkill={requestUseSkill}
+                  onUseDistrictEffect={props.onUseDistrictEffect}
                 />
               </div>
 
@@ -216,7 +218,7 @@ export function TestGameView(props: TestGameViewProps) {
 
 
             <section className="tabletop-self-zone" aria-label="你的卡牌区">
-              <CardLane title="你的手牌" count={selfHand.length}>
+              <CardLane title="手牌" count={selfHand.length}>
                 {selfHand.map((card) => (
                   <TableDistrictCard
                     key={card.id}
@@ -229,7 +231,7 @@ export function TestGameView(props: TestGameViewProps) {
                 ))}
                 {selfHand.length === 0 && <p className="tabletop-empty">暂无手牌。</p>}
               </CardLane>
-              <CardLane title="你的城市" count={selfCity.length}>
+              <CardLane title="城市" count={selfCity.length}>
                 {selfCity.map((card) => (
                   <TableDistrictCard key={card.id} card={card} size="city" />
                 ))}
@@ -343,6 +345,7 @@ function PublicFlowPanel(props: {
   onTargetRoleChange: (roleId: string) => void;
   onToggleDiscardCard: (cardId: string) => void;
   onUseSkill: (payload: UseRoleSkillPayload) => void;
+  onUseDistrictEffect: (payload: UseDistrictEffectPayload) => void;
 }) {
   if (props.gameState.phase === "CROWN_REVEAL") {
     return <CrownRevealFlowPanel gameState={props.gameState} />;
@@ -372,26 +375,20 @@ function TabletopCountdownBar(props: {
     Math.min(totalSeconds, props.remainingSeconds ?? totalSeconds)
   );
   const progress = Math.max(0, Math.min(100, (remaining / totalSeconds) * 100));
-  const phaseLabel =
-    timer.phase === "CROWN_REVEAL"
-      ? "皇冠倒计时"
-      : timer.phase === "ROLE_SELECTION"
-        ? "选角倒计时"
-        : "行动倒计时";
   const playerLabel = player
     ? timer.phase === "CROWN_REVEAL"
       ? `${player.name} 获得皇冠`
       : player.isBot
         ? `${player.name} 思考中`
         : player.name
-    : "当前玩家";
+    : "等待玩家";
 
   return (
     <section className="tabletop-countdown" aria-label="阶段倒计时">
       <div className="tabletop-countdown__meta">
-        <span>{phaseLabel}</span>
+        <span>{phaseText(props.gameState.phase)}</span>
         <strong>{playerLabel}</strong>
-        <b>{remaining} 秒</b>
+        <b>{remaining}</b>
       </div>
       <div className="tabletop-countdown__track">
         <span style={{ width: `${progress}%` }} />
@@ -399,46 +396,28 @@ function TabletopCountdownBar(props: {
     </section>
   );
 }
-
 function SideInfoPanel(props: { gameState: VisibleGameState }) {
   const faceDownCount = props.gameState.settings.enableFaceDownRoleDiscard ? 1 : 0;
   const faceUpRoles = props.gameState.discardedRoles.map((role) => role.name);
-  const selectedCount = props.gameState.players.filter((player) => player.selectedRoleId).length;
-  const rolePoolCount =
-    props.gameState.phase !== "ROLE_ACTION"
-      ? Math.max(
-          0,
-          props.gameState.settings.enabledRoleIds.length -
-            faceDownCount -
-            faceUpRoles.length -
-            selectedCount
-        )
-      : props.gameState.availableRoles.length;
+  const roleDiscardText = [
+    ...faceUpRoles,
+    ...(faceDownCount > 0 ? [`暗置 ${faceDownCount}`] : [])
+  ].join(" · ");
 
   return (
-    <section className="tabletop-side-info" aria-label="局面信息">
-      <strong>局面信息</strong>
+    <section className="tabletop-side-info" aria-label="牌堆与弃牌">
+      <strong>牌堆</strong>
       <div className="tabletop-side-info__grid">
-        <span>阶段</span>
-        <b>{phaseText(props.gameState.phase)}</b>
-        <span>轮次</span>
-        <b>{props.gameState.currentRound}</b>
-        <span>角色池</span>
-        <b>{rolePoolCount}</b>
-        <span>建筑牌堆</span>
+        <span>建筑牌</span>
         <b>{props.gameState.districtDeckCount}</b>
-        <span>明弃</span>
-        <b>{faceUpRoles.length}</b>
-        <span>暗弃</span>
-        <b>{faceDownCount}</b>
-        <span>弃牌</span>
-        <b>{props.gameState.districtDiscardPile.length}</b>
+        <span>建筑弃牌</span>
+        <b>{props.gameState.districtDiscardPileCount}</b>
+        <span>角色弃牌</span>
+        <b>{roleDiscardText || "无"}</b>
       </div>
-      {faceUpRoles.length > 0 && <p>明弃：{faceUpRoles.join("、")}</p>}
     </section>
   );
 }
-
 function CrownRevealFlowPanel(props: { gameState: VisibleGameState }) {
   const crownPlayer =
     props.gameState.players.find((player) => player.id === props.gameState.crownPlayerId) ?? null;
@@ -563,11 +542,13 @@ function RoleActionFlowPanel(props: {
   onTargetRoleChange: (roleId: string) => void;
   onToggleDiscardCard: (cardId: string) => void;
   onUseSkill: (payload: UseRoleSkillPayload) => void;
+  onUseDistrictEffect: (payload: UseDistrictEffectPayload) => void;
 }) {
   const currentTurnPlayer =
     props.gameState.players.find((player) => player.id === props.gameState.currentTurnPlayerId) ??
     null;
   const selectedRoleOrders = new Set(props.gameState.currentRoleOrder);
+  const selfPlayer = props.gameState.players.find((player) => player.id === props.playerId) ?? null;
 
   return (
     <section className="tabletop-public-flow tabletop-public-flow--action">
@@ -610,11 +591,13 @@ function RoleActionFlowPanel(props: {
           canSkipCurrentOfflinePlayer={props.canSkipCurrentOfflinePlayer}
           canTakeResource={props.canTakeResource}
           canUseSkill={props.canUseSkill}
+          city={selfPlayer?.city ?? []}
           discardCardIds={props.discardCardIds}
           hand={props.hand}
           isMyTurn={props.isMyTurn}
           players={props.gameState.players}
           selfPlayerId={props.playerId}
+          selfGold={selfPlayer?.gold ?? 0}
           skillBlockedReason={props.skillBlockedReason}
           skillHint={props.skillHint}
           skillTargetSpec={props.skillTargetSpec}
@@ -622,6 +605,7 @@ function RoleActionFlowPanel(props: {
           targetDistricts={props.targetDistricts}
           targetPlayerId={props.targetPlayerId}
           targetRoleId={props.targetRoleId}
+          turnState={props.turnState}
           onDrawCards={props.onDrawCards}
           onEndTurn={props.onEndTurn}
           onSkipCurrentOfflinePlayer={props.onSkipCurrentOfflinePlayer}
@@ -631,6 +615,7 @@ function RoleActionFlowPanel(props: {
           onTargetRoleChange={props.onTargetRoleChange}
           onToggleDiscardCard={props.onToggleDiscardCard}
           onUseSkill={props.onUseSkill}
+          onUseDistrictEffect={props.onUseDistrictEffect}
         />
       )}
     </section>

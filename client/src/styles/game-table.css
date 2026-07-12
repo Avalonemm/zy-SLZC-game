@@ -1,0 +1,3926 @@
+/* Match / gameplay table. Kept separate from lobby styles so the battle UI can be reskinned later. */
+.fantasy-screen--game.lightweight-ui {
+  position: relative;
+  display: grid;
+  place-items: stretch;
+  width: 100%;
+  height: 100svh;
+  min-height: 100svh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 42%, rgb(63 44 29 / 24%), transparent 42%),
+    linear-gradient(180deg, #20150f 0%, #130d0a 52%, #090807 100%);
+  color: #f6dfab;
+  font-family: var(--font-ui);
+  padding: 0;
+}
+
+.citadel-game-shell {
+  --game-gold: #e8bd67;
+  --game-gold-muted: rgb(232 189 103 / 36%);
+  --game-panel: rgb(5 13 20 / 86%);
+  position: relative;
+  width: 100vw;
+  height: 100svh;
+  min-width: 0;
+  color: #f8e8c0;
+  isolation: isolate;
+}
+
+.citadel-game-topbar {
+  position: absolute;
+  z-index: 30;
+  top: clamp(12px, 2.2%, 26px);
+  left: clamp(12px, 1.6%, 24px);
+  right: clamp(42px, 4.4vw, 74px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  pointer-events: none;
+}
+
+.citadel-game-room-card {
+  pointer-events: auto;
+  position: relative;
+  display: grid;
+  gap: 7px;
+  width: clamp(270px, 24vw, 420px);
+  border: 1px solid rgb(221 177 91 / 34%);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgb(6 15 24 / 90%), rgb(4 10 17 / 82%));
+  padding: clamp(10px, 1.1vw, 16px) clamp(42px, 3.8vw, 60px) clamp(10px, 1vw, 14px) clamp(12px, 1.3vw, 18px);
+  box-shadow: 0 14px 30px rgb(0 0 0 / 34%), inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+.citadel-game-room-card strong {
+  color: var(--game-gold);
+  font-size: clamp(0.78rem, 1.05vw, 1.08rem);
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.citadel-game-room-card span {
+  color: rgb(245 226 187 / 82%);
+  font-size: clamp(0.72rem, 0.9vw, 0.98rem);
+  line-height: 1.2;
+}
+
+.citadel-game-room-card small {
+  overflow: hidden;
+  color: rgb(240 196 111 / 82%);
+  font-size: clamp(0.62rem, 0.72vw, 0.78rem);
+  line-height: 1.3;
+  opacity: 1;
+  transition: opacity 220ms ease;
+}
+
+.citadel-game-room-card small.is-hidden {
+  opacity: 0;
+}
+
+.citadel-game-room-card button {
+  position: absolute;
+  top: 50%;
+  right: clamp(10px, 1vw, 14px);
+  display: grid;
+  place-items: center;
+  width: clamp(26px, 2.2vw, 36px);
+  height: clamp(26px, 2.2vw, 36px);
+  border: 1px solid var(--game-gold-muted);
+  border-radius: 999px;
+  background: rgb(10 20 31 / 78%);
+  color: var(--game-gold);
+  font-weight: 900;
+  transform: translateY(-50%);
+}
+
+.citadel-game-top-actions {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(26px, 3vw, 46px);
+}
+
+.citadel-game-room-card button:hover {
+  border-color: rgb(246 208 128 / 78%);
+  filter: brightness(1.12);
+}
+
+.citadel-game-table {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgb(33 18 10 / 5%), rgb(16 9 6 / 12%)),
+    url("/assets/generated-ui/citadels-game-table-background-v2.png") center / cover no-repeat,
+    linear-gradient(180deg, #2b1a10, #120b08);
+  box-shadow: inset 0 0 42px rgb(0 0 0 / 24%);
+}
+
+.citadel-game-table::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 64%, rgb(0 0 0 / 8%) 84%, rgb(0 0 0 / 18%) 100%),
+    linear-gradient(180deg, rgb(255 218 145 / 5%), transparent 34%, rgb(0 0 0 / 8%));
+}
+
+.citadel-game-board {
+  position: absolute;
+  z-index: 1;
+  left: 18%;
+  right: 18%;
+  top: 24%;
+  bottom: 27%;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.citadel-game-board::before,
+.citadel-game-board::after {
+  display: none;
+}
+
+.citadel-game-center {
+  position: absolute;
+  z-index: 5;
+  top: 39%;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  width: min(380px, 30%);
+  color: #f7daa0;
+  text-align: center;
+  text-shadow: 0 3px 10px rgb(0 0 0 / 78%);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition: opacity 180ms ease;
+}
+
+.citadel-game-shell--objective-intro .citadel-game-center,
+.citadel-game-shell--draw-choice .citadel-game-center,
+.citadel-game-shell--draw-choice .citadel-self-city {
+  opacity: 0.14;
+}
+
+.citadel-game-objective-intro {
+  position: absolute;
+  z-index: 28;
+  top: 42%;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: clamp(6px, 0.7vw, 10px);
+  width: min(520px, 56%);
+  border: 1px solid rgb(232 189 103 / 48%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgb(255 226 160 / 8%), transparent 40%),
+    rgb(4 12 19 / 94%);
+  color: #f7e2b1;
+  padding: clamp(18px, 2vw, 28px);
+  box-shadow: 0 20px 48px rgb(0 0 0 / 48%), inset 0 1px 0 rgb(255 255 255 / 7%);
+  text-align: center;
+  pointer-events: none;
+  animation: citadel-objective-intro 4.2s ease both;
+  transform: translate(-50%, -50%);
+}
+
+.citadel-game-objective-intro span {
+  color: rgb(232 189 103 / 82%);
+  font-size: clamp(0.68rem, 0.78vw, 0.88rem);
+  font-weight: 800;
+}
+
+.citadel-game-objective-intro strong {
+  color: #ffd98c;
+  font-family: var(--font-fantasy);
+  font-size: clamp(1.35rem, 2vw, 2.15rem);
+}
+
+.citadel-game-objective-intro p {
+  max-width: 430px;
+  margin: 0;
+  color: rgb(247 226 181 / 82%);
+  font-size: clamp(0.72rem, 0.86vw, 0.94rem);
+  line-height: 1.5;
+}
+
+@keyframes citadel-objective-intro {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -44%) scale(0.96);
+  }
+  12%, 72% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% - 34vw), calc(-50% - 30vh)) scale(0.52);
+  }
+}
+
+.citadel-game-center__mark {
+  display: none;
+}
+
+.citadel-game-center strong {
+  color: rgb(234 180 89 / 52%);
+  font-family: var(--font-fantasy);
+  font-size: clamp(1.15rem, 2.8vw, 3.2rem);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.citadel-game-center span {
+  color: rgb(232 189 103 / 52%);
+  font-family: var(--font-fantasy);
+  font-size: clamp(0.72rem, 1.15vw, 1.35rem);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.citadel-game-center p {
+  max-width: 100%;
+  margin: clamp(4px, 0.5vw, 8px) 0 0;
+  color: rgb(255 231 186 / 86%);
+  font-size: clamp(0.68rem, 0.88vw, 0.98rem);
+  line-height: 1.35;
+}
+
+.citadel-game-center__timer {
+  margin-top: 6px;
+  color: #ffd586;
+  font-size: clamp(1rem, 1.5vw, 1.6rem);
+}
+
+.citadel-game-center__callout {
+  color: #ffe3a4;
+  font-size: clamp(0.74rem, 0.95vw, 1.02rem);
+  font-weight: 800;
+  text-shadow: 0 2px 8px rgb(0 0 0 / 72%);
+}
+
+.citadel-opponent-seat {
+  position: absolute;
+  z-index: 12;
+  display: grid;
+  gap: clamp(4px, 0.45vw, 7px);
+  width: clamp(180px, 16.5vw, 250px);
+  min-height: 90px;
+  color: #f8e7bd;
+  transform: translate(-50%, -50%);
+}
+
+/* side player compact seats for 7-8 player tables */
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-upper,
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-lower,
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-upper,
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-lower,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-upper,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-lower,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-upper,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-lower {
+  width: clamp(150px, 13vw, 198px);
+  min-height: 0;
+}
+
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-upper .citadel-player-mini,
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-lower .citadel-player-mini,
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-upper .citadel-player-mini,
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-lower .citadel-player-mini,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-upper .citadel-player-mini,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-lower .citadel-player-mini,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-upper .citadel-player-mini,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-lower .citadel-player-mini {
+  min-width: clamp(132px, 11.5vw, 172px);
+  gap: clamp(4px, 0.42vw, 7px);
+  padding: 4px 8px 4px 4px;
+}
+
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-upper .citadel-player-mini__avatar,
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-lower .citadel-player-mini__avatar,
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-upper .citadel-player-mini__avatar,
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-lower .citadel-player-mini__avatar,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-upper .citadel-player-mini__avatar,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-lower .citadel-player-mini__avatar,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-upper .citadel-player-mini__avatar,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-lower .citadel-player-mini__avatar {
+  width: clamp(28px, 2.6vw, 38px);
+  height: clamp(28px, 2.6vw, 38px);
+}
+
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-upper .citadel-mini-card-row,
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-lower .citadel-mini-card-row,
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-upper .citadel-mini-card-row,
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-lower .citadel-mini-card-row,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-upper .citadel-mini-card-row,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-lower .citadel-mini-card-row,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-upper .citadel-mini-card-row,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-lower .citadel-mini-card-row {
+  min-height: clamp(30px, 3.25vw, 44px);
+  padding-left: clamp(20px, 2vw, 28px);
+}
+
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-upper .citadel-mini-card,
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-lower .citadel-mini-card,
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-upper .citadel-mini-card,
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-lower .citadel-mini-card,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-upper .citadel-mini-card,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-lower .citadel-mini-card,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-upper .citadel-mini-card,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-lower .citadel-mini-card {
+  width: clamp(20px, 2.05vw, 32px);
+  height: clamp(30px, 3.05vw, 46px);
+}
+
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-upper .citadel-opponent-seat__role,
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-lower .citadel-opponent-seat__role,
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-upper .citadel-opponent-seat__role,
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-lower .citadel-opponent-seat__role,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-upper .citadel-opponent-seat__role,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-lower .citadel-opponent-seat__role,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-upper .citadel-opponent-seat__role,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-lower .citadel-opponent-seat__role {
+  display: none;
+}
+.citadel-opponent-seat.is-current .citadel-player-mini {
+  border-color: rgb(255 213 122 / 82%);
+  box-shadow: 0 0 22px rgb(232 189 103 / 28%), inset 0 0 0 1px rgb(255 255 255 / 6%);
+}
+
+.citadel-opponent-seat--top-left { top: 22.2%; left: 29%; }
+.citadel-opponent-seat--top-center { top: 18.8%; left: 50%; }
+.citadel-opponent-seat--top-right { top: 22.2%; left: 71%; }
+.citadel-opponent-seat--right-upper { top: 41%; left: 88%; }
+.citadel-opponent-seat--right-lower { top: 58%; left: 88%; }
+.citadel-opponent-seat--left-upper { top: 41%; left: 12%; }
+.citadel-opponent-seat--left-lower { top: 58%; left: 12%; }
+
+.citadel-player-mini {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  gap: clamp(6px, 0.62vw, 10px);
+  align-items: center;
+  width: max-content;
+  max-width: 100%;
+  min-width: clamp(150px, 13vw, 200px);
+  border: 1px solid rgb(221 177 91 / 24%);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgb(5 12 18 / 88%), rgb(3 8 14 / 80%));
+  padding: clamp(5px, 0.52vw, 8px) clamp(8px, 0.8vw, 12px) clamp(5px, 0.52vw, 8px) clamp(5px, 0.52vw, 8px);
+  box-shadow: 0 8px 22px rgb(0 0 0 / 38%);
+}
+
+button.citadel-player-mini {
+  border: 0;
+  font: inherit;
+  text-align: left;
+}
+
+.citadel-player-mini.is-player-targetable {
+  cursor: pointer;
+  outline: 2px solid rgb(104 226 196 / 86%);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 5px rgb(24 156 132 / 16%), 0 0 24px rgb(78 225 190 / 34%);
+  animation: citadel-target-pulse 1.35s ease-in-out infinite;
+}
+
+.citadel-player-mini.is-player-targetable:hover,
+.citadel-player-mini.is-player-target-selected {
+  outline-color: #ffe09a;
+  filter: brightness(1.14);
+  transform: translateY(-2px);
+}
+
+.citadel-player-mini--self {
+  min-width: clamp(185px, 14vw, 230px);
+}
+
+.citadel-player-mini__avatar {
+  display: grid;
+  place-items: center;
+  width: clamp(34px, 3.3vw, 48px);
+  height: clamp(34px, 3.3vw, 48px);
+  overflow: hidden;
+  border: 1px solid rgb(221 177 91 / 38%);
+  border-radius: 999px;
+  background: radial-gradient(circle at 50% 34%, #42484e, #05080c 72%);
+  color: #eac16c;
+  font-size: clamp(0.62rem, 0.8vw, 0.9rem);
+  font-weight: 900;
+}
+
+.citadel-player-mini__copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.citadel-player-mini__name-line {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 5px;
+}
+
+.citadel-player-mini__crown {
+  flex: 0 0 auto;
+  color: #ffd87c;
+  font-size: clamp(0.84rem, 1vw, 1.12rem);
+  line-height: 1;
+  text-shadow: 0 1px 5px rgb(255 189 67 / 50%), 0 2px 5px rgb(0 0 0 / 72%);
+}
+
+.citadel-player-mini__copy strong {
+  overflow: hidden;
+  color: #f8ead0;
+  font-size: clamp(0.72rem, 0.9vw, 1rem);
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citadel-player-mini__copy small {
+  color: #2ed388;
+  font-size: clamp(0.7rem, 0.78vw, 0.9rem);
+  line-height: 1;
+}
+
+.citadel-player-mini__stat {
+  position: relative;
+  min-width: 20px;
+  color: #ffe7ad;
+  font-size: clamp(0.7rem, 0.88vw, 1rem);
+  font-weight: 800;
+  line-height: 1;
+  text-align: right;
+}
+
+.citadel-player-mini__stat::before {
+  content: "";
+  display: inline-block;
+  width: clamp(8px, 0.85vw, 12px);
+  height: clamp(8px, 0.85vw, 12px);
+  margin-right: 4px;
+  border-radius: 999px;
+  vertical-align: -1px;
+  background: radial-gradient(circle at 34% 30%, #fff1be, #d39b43 62%, #77511f);
+}
+
+.citadel-player-mini__stat--hand::before,
+.citadel-player-mini__stat--city::before {
+  border-radius: 2px;
+  background: linear-gradient(180deg, #d4b27a, #72583a);
+}
+
+.citadel-player-mini__stat--city::before {
+  clip-path: polygon(50% 0, 100% 35%, 84% 100%, 16% 100%, 0 35%);
+}
+
+.citadel-opponent-seat__role {
+  justify-self: start;
+  margin-left: clamp(38px, 3.4vw, 52px);
+  color: rgb(255 224 161 / 60%);
+  font-size: clamp(0.62rem, 0.7vw, 0.78rem);
+  line-height: 1;
+}
+
+.citadel-mini-card-row {
+  display: flex;
+  align-items: flex-end;
+  min-height: clamp(36px, 4.7vw, 64px);
+  padding-left: clamp(28px, 2.6vw, 40px);
+}
+
+.citadel-mini-card-row--empty {
+  min-height: clamp(28px, 3.5vw, 44px);
+}
+
+.citadel-mini-card {
+  display: block;
+  width: clamp(28px, 3vw, 45px);
+  height: clamp(40px, 4.45vw, 66px);
+  border: 1px solid rgb(230 184 101 / 52%);
+  border-radius: 4px;
+  background:
+    linear-gradient(180deg, rgb(255 238 196 / 30%), transparent 28%),
+    linear-gradient(160deg, #9a8462, #283329 54%, #112319);
+  box-shadow: 0 5px 10px rgb(0 0 0 / 45%);
+}
+
+.citadel-mini-card + .citadel-mini-card {
+  margin-left: clamp(-16px, -1.25vw, -9px);
+}
+
+.citadel-mini-card--blue { background: linear-gradient(160deg, #97c8e8, #365775 52%, #14293f); }
+.citadel-mini-card--green { background: linear-gradient(160deg, #b5d2a3, #496633 52%, #1a2e1b); }
+.citadel-mini-card--red { background: linear-gradient(160deg, #dda69a, #8d3e34 52%, #3a1818); }
+.citadel-mini-card--yellow { background: linear-gradient(160deg, #f0d58b, #9b672d 54%, #3b2410); }
+.citadel-mini-card--purple { background: linear-gradient(160deg, #d4b0e8, #61427c 55%, #261934); }
+.citadel-mini-card--back { background: linear-gradient(160deg, #16385e, #081a30 58%, #04101e); }
+
+.citadel-self-area {
+  position: absolute;
+  z-index: 18;
+  left: 12.8%;
+  right: 12.8%;
+  bottom: 3.7%;
+  display: grid;
+  grid-template-columns: clamp(62px, 5.5vw, 86px) clamp(166px, 14vw, 218px) minmax(260px, 1fr) clamp(62px, 5.5vw, 86px);
+  grid-template-areas:
+    "deck profile hand discard"
+    "deck profile caption discard";
+  gap: clamp(6px, 0.8vw, 12px) clamp(10px, 1.1vw, 18px);
+  align-items: end;
+}
+
+.citadel-self-profile {
+  grid-area: profile;
+  display: grid;
+  gap: 5px;
+  align-self: center;
+  justify-self: stretch;
+  min-width: 0;
+}
+
+.citadel-self-profile .citadel-player-mini {
+  width: 100%;
+  min-width: 0;
+}
+
+.citadel-self-profile__role {
+  color: rgb(255 225 162 / 76%);
+  font-size: clamp(0.68rem, 0.82vw, 0.92rem);
+  font-weight: 800;
+  padding-left: clamp(10px, 1.4vw, 20px);
+}
+
+.citadel-self-city {
+  position: absolute;
+  z-index: 19;
+  left: 50%;
+  top: 50.2%;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  width: min(58%, 1040px);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.citadel-self-city .citadel-mini-card-row {
+  padding-left: 0;
+}
+
+.citadel-self-city span {
+  color: rgb(255 230 180 / 80%);
+  font-size: clamp(0.62rem, 0.78vw, 0.9rem);
+}
+
+.citadel-hand-zone {
+  grid-area: hand;
+  display: flex;
+  justify-content: center;
+  align-items: end;
+  min-width: 0;
+  min-height: clamp(76px, 8vw, 118px);
+  padding: 0 clamp(4px, 0.6vw, 8px);
+}
+
+.citadel-hand-card {
+  position: relative;
+  display: grid;
+  align-content: end;
+  justify-items: start;
+  width: clamp(48px, 5.2vw, 78px);
+  height: clamp(72px, 7.6vw, 112px);
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid rgb(231 185 94 / 66%);
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, rgb(255 242 207 / 20%), transparent 24%),
+    linear-gradient(160deg, #90a49b, #3b4e44 52%, #15221d);
+  color: #fff2d1;
+  padding: clamp(5px, 0.55vw, 8px);
+  box-shadow: 0 10px 18px rgb(0 0 0 / 40%);
+  transition: transform 130ms ease, filter 130ms ease;
+}
+
+.citadel-hand-card + .citadel-hand-card {
+  margin-left: clamp(-14px, -0.82vw, -7px);
+}
+
+.citadel-hand-card:hover:not(:disabled) {
+  z-index: 2;
+  transform: translateY(-10px);
+  filter: brightness(1.08);
+}
+
+.citadel-hand-card:disabled,
+.citadel-hand-card[aria-disabled="true"] {
+  filter: grayscale(0.35) brightness(0.76);
+}
+
+.citadel-hand-card span {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  display: grid;
+  place-items: center;
+  width: clamp(18px, 1.6vw, 24px);
+  height: clamp(18px, 1.6vw, 24px);
+  border-radius: 999px;
+  background: rgb(3 8 13 / 70%);
+  color: #ffd987;
+  font-size: clamp(0.62rem, 0.75vw, 0.84rem);
+  font-weight: 900;
+}
+
+.citadel-hand-card strong {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  width: 100%;
+  font-size: clamp(0.58rem, 0.72vw, 0.84rem);
+  line-height: 1.1;
+  text-align: left;
+}
+
+.citadel-hand-card--blue { background: linear-gradient(160deg, #bfdff0, #477096 52%, #16314c); }
+.citadel-hand-card--green { background: linear-gradient(160deg, #bedfa8, #507331 52%, #172d17); }
+.citadel-hand-card--red { background: linear-gradient(160deg, #e6aaa0, #914035 52%, #391716); }
+.citadel-hand-card--yellow { background: linear-gradient(160deg, #f2d886, #a16a2c 54%, #3c240f); }
+.citadel-hand-card--purple { background: linear-gradient(160deg, #d6b1eb, #684386 55%, #281938); }
+
+.citadel-hand-empty {
+  align-self: center;
+  margin: 0;
+  color: rgb(255 230 180 / 68%);
+  font-size: clamp(0.8rem, 0.9vw, 1rem);
+}
+
+.citadel-hand-caption {
+  grid-area: caption;
+  justify-self: center;
+  color: rgb(255 230 180 / 82%);
+  font-size: clamp(0.7rem, 0.86vw, 1rem);
+  line-height: 1;
+}
+
+.citadel-deck-stack {
+  grid-area: deck;
+  display: grid;
+  justify-items: center;
+  align-self: end;
+  gap: 4px;
+  color: #f7d896;
+}
+
+.citadel-deck-stack--muted {
+  grid-area: discard;
+  color: rgb(219 207 185 / 70%);
+}
+
+.citadel-card-back {
+  display: block;
+  width: clamp(48px, 5vw, 78px);
+  height: clamp(68px, 7vw, 106px);
+  border: 1px solid rgb(232 189 103 / 62%);
+  border-radius: 6px;
+  background:
+    radial-gradient(circle at 50% 42%, rgb(232 189 103 / 22%), transparent 36%),
+    linear-gradient(145deg, #11335a, #06182c 66%, #020914);
+  box-shadow: 0 10px 20px rgb(0 0 0 / 44%);
+}
+
+.citadel-deck-stack--muted .citadel-card-back {
+  filter: grayscale(0.75) brightness(0.75);
+}
+
+.citadel-deck-stack b {
+  margin-top: calc(clamp(68px, 7vw, 106px) * -0.52);
+  color: #fff0c8;
+  font-size: clamp(0.84rem, 1vw, 1.15rem);
+  text-shadow: 0 2px 8px rgb(0 0 0 / 80%);
+}
+
+.citadel-deck-stack small {
+  color: inherit;
+  font-size: clamp(0.62rem, 0.72vw, 0.86rem);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.citadel-action-dock {
+  position: absolute;
+  z-index: 24;
+  left: 50%;
+  top: 57%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 0.85vw, 14px);
+  width: min(78vw, 680px);
+  max-width: min(82%, 920px);
+  padding: clamp(6px, 0.65vw, 10px);
+  border: 1px solid rgb(221 177 91 / 22%);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgb(5 12 19 / 80%), rgb(3 8 14 / 72%));
+  box-shadow: 0 12px 24px rgb(0 0 0 / 34%);
+  transform: translate(-50%, -50%);
+}
+
+.citadel-action-guidance {
+  flex: 0 0 100%;
+  min-width: 0;
+  margin: 0;
+  color: rgb(250 231 190 / 88%);
+  font-size: clamp(0.66rem, 0.76vw, 0.84rem);
+  line-height: 1.25;
+  text-align: center;
+}
+
+.citadel-action-guidance span {
+  display: inline-block;
+  margin-right: 8px;
+  color: #efc978;
+  font-size: 0.92em;
+  font-weight: 900;
+}
+
+.citadel-action-dock:has(> .citadel-action-button:nth-of-type(5)) {
+  width: min(82vw, 920px);
+}
+
+.citadel-action-dock:empty {
+  display: none;
+}
+
+.citadel-action-layer {
+  position: absolute;
+  z-index: 24;
+  inset: 0;
+  pointer-events: none;
+}
+
+.citadel-action-layer > * {
+  pointer-events: auto;
+}
+
+.citadel-action-popover {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  display: grid;
+  gap: clamp(8px, 0.8vw, 12px);
+  width: min(540px, 46%);
+  min-height: clamp(120px, 14vw, 176px);
+  max-height: min(300px, 42%);
+  overflow: auto;
+  border: 1px solid rgb(231 185 94 / 40%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgb(255 229 167 / 7%), transparent 32%),
+    linear-gradient(180deg, rgb(6 16 24 / 96%), rgb(3 8 14 / 95%));
+  color: #f8e7bd;
+  padding: clamp(10px, 1vw, 16px);
+  box-shadow: 0 18px 36px rgb(0 0 0 / 42%), inset 0 1px 0 rgb(255 255 255 / 6%);
+  transform: translate(-50%, -50%);
+}
+
+.citadel-action-popover header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.citadel-action-popover header span {
+  color: #f0c978;
+  font-size: clamp(0.84rem, 1vw, 1.15rem);
+  font-weight: 900;
+}
+
+.citadel-action-popover header button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgb(231 185 94 / 34%);
+  border-radius: 999px;
+  background: rgb(2 8 13 / 64%);
+  color: #ffe3a6;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.citadel-action-popover p {
+  margin: 0;
+  color: rgb(255 232 190 / 82%);
+  font-size: clamp(0.68rem, 0.78vw, 0.9rem);
+  line-height: 1.4;
+}
+
+.citadel-action-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.citadel-action-field {
+  display: grid;
+  gap: 5px;
+  color: #f6dfab;
+  font-size: clamp(0.66rem, 0.78vw, 0.88rem);
+}
+
+.citadel-action-field select,
+.citadel-action-popover select {
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid rgb(221 177 91 / 38%);
+  border-radius: 5px;
+  background: rgb(3 9 15 / 94%);
+  color: #f8e7bd;
+  padding: 0 8px;
+}
+
+.citadel-action-popover footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.citadel-action-popover footer small {
+  min-width: 0;
+  color: rgb(255 211 150 / 72%);
+  font-size: 0.7rem;
+  line-height: 1.25;
+}
+
+.citadel-action-popover .citadel-discard-picks {
+  position: static;
+  display: grid;
+  max-height: 86px;
+  overflow: auto;
+  gap: 5px;
+  color: rgb(255 232 190 / 82%);
+}
+
+.citadel-action-popover .citadel-discard-picks label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.citadel-action-popover .citadel-discard-picks span {
+  color: rgb(255 232 190 / 58%);
+  font-size: 0.78rem;
+}
+
+.citadel-district-effects {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.citadel-district-effects article {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid rgb(221 177 91 / 24%);
+  border-radius: 7px;
+  background: rgb(1 8 14 / 38%);
+  padding: 10px;
+}
+
+.citadel-district-effects article strong {
+  color: #f0c978;
+  font-size: 0.9rem;
+}
+
+.citadel-district-effects article > span {
+  color: rgb(255 232 190 / 76%);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.citadel-action-dock--roles,
+.citadel-action-dock--draw-choice {
+  flex-wrap: wrap;
+  width: min(860px, 64%);
+}
+
+.citadel-action-dock--draw-choice {
+  top: 52%;
+  display: grid;
+  gap: clamp(10px, 1vw, 16px);
+  width: min(760px, 72%);
+  padding: clamp(12px, 1.25vw, 20px);
+}
+
+.citadel-action-dock--draw-choice > header {
+  display: grid;
+  gap: 5px;
+  justify-items: center;
+}
+
+.citadel-action-dock--draw-choice > header strong {
+  color: #ffe5a8;
+  font-size: clamp(0.86rem, 1vw, 1.08rem);
+}
+
+.citadel-action-dock--draw-choice > header span {
+  color: rgb(247 224 178 / 72%);
+  font-size: clamp(0.64rem, 0.74vw, 0.82rem);
+  line-height: 1.35;
+  text-align: center;
+}
+
+.citadel-draw-choice-cards {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: clamp(12px, 1.3vw, 20px);
+}
+
+.citadel-action-button,
+.citadel-role-choice,
+.citadel-action-menu > summary {
+  border: 1px solid rgb(231 185 94 / 54%);
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgb(21 21 20 / 94%), rgb(8 9 10 / 92%));
+  color: #ffe1a0;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
+}
+
+.citadel-action-button,
+.citadel-action-menu > summary {
+  min-width: clamp(86px, 8vw, 132px);
+  min-height: clamp(32px, 2.65vw, 44px);
+  padding: 0 clamp(10px, 0.95vw, 16px);
+  font-size: clamp(0.72rem, 0.86vw, 0.98rem);
+}
+
+.citadel-action-button--gold {
+  background: linear-gradient(180deg, #e5bd74, #9c692f);
+  color: #211207;
+}
+
+.citadel-action-button--draw {
+  background: linear-gradient(180deg, #167264, #0b463e);
+  color: #f5edcf;
+}
+
+.citadel-action-button:hover:not(:disabled),
+.citadel-role-choice:hover,
+.citadel-action-menu > summary:hover {
+  filter: brightness(1.1);
+}
+
+.citadel-action-button:disabled {
+  color: rgb(35 26 18 / 70%);
+  filter: grayscale(0.5) brightness(0.68);
+}
+
+.citadel-action-button--panel.is-active {
+  border-color: rgb(255 221 143 / 78%);
+  background: linear-gradient(180deg, rgb(55 43 27 / 96%), rgb(17 15 12 / 94%));
+  box-shadow: 0 0 18px rgb(232 189 103 / 18%), inset 0 1px 0 rgb(255 255 255 / 10%);
+}
+
+.citadel-role-choice {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  min-width: clamp(76px, 7vw, 110px);
+  min-height: clamp(52px, 4.5vw, 70px);
+  padding: 8px 12px;
+}
+
+.citadel-role-choice span {
+  color: rgb(255 234 188 / 70%);
+  font-size: clamp(0.62rem, 0.75vw, 0.86rem);
+}
+
+.citadel-role-choice strong {
+  font-size: clamp(0.76rem, 0.95vw, 1.05rem);
+}
+
+.citadel-district-choice-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(72px, 1fr) auto auto minmax(30px, auto) auto;
+  gap: 4px;
+  width: clamp(120px, 10vw, 152px);
+  height: clamp(180px, 15vw, 220px);
+  overflow: hidden;
+  border: 1px solid rgb(233 188 98 / 68%);
+  border-radius: 7px;
+  background: linear-gradient(160deg, #90a49b, #3b4e44 52%, #15221d);
+  color: #fff2d1;
+  padding: clamp(7px, 0.72vw, 10px);
+  box-shadow: 0 14px 26px rgb(0 0 0 / 42%), inset 0 1px 0 rgb(255 255 255 / 10%);
+  text-align: left;
+  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
+}
+
+.citadel-district-choice-card:hover,
+.citadel-district-choice-card:focus-visible {
+  z-index: 2;
+  filter: brightness(1.1);
+  transform: translateY(-7px);
+  box-shadow: 0 20px 32px rgb(0 0 0 / 48%), 0 0 18px rgb(232 189 103 / 18%);
+}
+
+.citadel-district-choice-card__cost,
+.citadel-district-choice-card__score {
+  position: absolute;
+  z-index: 2;
+  top: 7px;
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgb(3 8 13 / 82%);
+  color: #ffda8b;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.citadel-district-choice-card__cost { left: 7px; }
+.citadel-district-choice-card__score { right: 7px; padding: 0 6px; }
+
+.citadel-district-choice-card__art {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgb(255 232 182 / 18%);
+  border-radius: 5px;
+  background:
+    radial-gradient(circle at 50% 26%, rgb(255 235 189 / 24%), transparent 28%),
+    linear-gradient(180deg, rgb(255 255 255 / 8%), rgb(2 8 13 / 34%));
+  color: rgb(255 238 202 / 44%);
+  font-family: var(--font-fantasy);
+  font-size: clamp(1.65rem, 2.2vw, 2.6rem);
+  font-weight: 900;
+}
+
+.citadel-district-choice-card > strong {
+  overflow: hidden;
+  color: #fff4d2;
+  font-size: clamp(0.72rem, 0.86vw, 0.94rem);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citadel-district-choice-card > small {
+  color: rgb(255 222 154 / 76%);
+  font-size: clamp(0.56rem, 0.64vw, 0.7rem);
+}
+
+.citadel-district-choice-card > p {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  margin: 0;
+  color: rgb(255 240 207 / 72%);
+  font-size: clamp(0.54rem, 0.62vw, 0.68rem);
+  line-height: 1.3;
+}
+
+.citadel-district-choice-card > b {
+  border-top: 1px solid rgb(255 228 170 / 18%);
+  color: #ffd98c;
+  padding-top: 5px;
+  font-size: clamp(0.6rem, 0.7vw, 0.76rem);
+  text-align: center;
+}
+
+.citadel-district-choice-card--blue { background: linear-gradient(160deg, #9ec6df, #3f688a 52%, #142b43); }
+.citadel-district-choice-card--green { background: linear-gradient(160deg, #aecd98, #486834 52%, #172b18); }
+.citadel-district-choice-card--red { background: linear-gradient(160deg, #d99b91, #843a31 52%, #351616); }
+.citadel-district-choice-card--yellow { background: linear-gradient(160deg, #e7ca79, #946028 54%, #38210e); }
+.citadel-district-choice-card--purple { background: linear-gradient(160deg, #c6a2da, #5f3f78 55%, #251733); }
+
+.citadel-action-menu {
+  position: relative;
+}
+
+.citadel-action-menu > summary {
+  display: grid;
+  place-items: center;
+  list-style: none;
+  cursor: pointer;
+}
+
+.citadel-action-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.citadel-action-menu[open] {
+  z-index: 50;
+}
+
+.citadel-action-menu[open]::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 12px);
+  width: min(330px, 31vw);
+  min-height: 116px;
+  border: 1px solid rgb(221 177 91 / 34%);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgb(6 14 22 / 98%), rgb(3 8 13 / 96%));
+  box-shadow: 0 18px 34px rgb(0 0 0 / 42%);
+  transform: translateX(-50%);
+}
+
+.citadel-action-menu[open]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 7px);
+  width: 12px;
+  height: 12px;
+  border-right: 1px solid rgb(221 177 91 / 34%);
+  border-bottom: 1px solid rgb(221 177 91 / 34%);
+  background: rgb(5 12 19 / 96%);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.citadel-action-menu[open] > p,
+.citadel-action-menu[open] > label,
+.citadel-action-menu[open] > button,
+.citadel-action-menu[open] > small,
+.citadel-action-menu[open] > .citadel-discard-picks {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  width: min(300px, 28vw);
+  transform: translateX(-50%);
+}
+
+.citadel-action-menu[open] > p {
+  bottom: calc(100% + 92px);
+  margin: 0;
+  color: rgb(255 232 190 / 82%);
+  font-size: clamp(0.68rem, 0.76vw, 0.86rem);
+  line-height: 1.35;
+}
+
+.citadel-action-menu[open] > label {
+  display: grid;
+  gap: 6px;
+  bottom: calc(100% + 42px);
+  color: #f6dfab;
+  font-size: clamp(0.66rem, 0.76vw, 0.86rem);
+}
+
+.citadel-action-menu[open] > label + label {
+  bottom: calc(100% + 12px);
+}
+
+.citadel-action-menu select {
+  width: 100%;
+  min-height: 28px;
+  border: 1px solid rgb(221 177 91 / 36%);
+  border-radius: 5px;
+  background: rgb(3 9 15 / 94%);
+  color: #f8e7bd;
+  padding: 0 8px;
+}
+
+.citadel-action-menu[open] > button {
+  bottom: calc(100% + 18px);
+}
+
+.citadel-action-menu[open] > small {
+  bottom: calc(100% + 4px);
+  color: rgb(255 211 150 / 72%);
+  font-size: 0.7rem;
+}
+
+.citadel-discard-picks {
+  bottom: calc(100% + 48px);
+  display: grid;
+  max-height: 58px;
+  overflow: auto;
+  gap: 4px;
+}
+
+.citadel-discard-picks label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.citadel-corner-dock {
+  position: absolute;
+  z-index: 28;
+  bottom: clamp(10px, 1.4%, 18px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: clamp(128px, 12vw, 176px);
+  height: clamp(36px, 3.5vw, 48px);
+  border: 1px solid rgb(221 177 91 / 30%);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgb(6 16 24 / 90%), rgb(4 10 16 / 84%));
+  color: #eec66f;
+  padding: 0 clamp(10px, 0.95vw, 16px);
+  font-weight: 800;
+}
+
+.citadel-corner-dock--log { left: clamp(12px, 1.6%, 24px); }
+.citadel-corner-dock--chat { right: clamp(12px, 1.6%, 24px); }
+
+.citadel-corner-dock b {
+  margin-left: auto;
+}
+
+.citadel-pop-dock {
+  position: absolute;
+  z-index: 45;
+  bottom: clamp(58px, 5.6vw, 78px);
+  width: min(360px, 28vw);
+  max-height: min(360px, 44%);
+  overflow: hidden;
+  border: 1px solid rgb(221 177 91 / 34%);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgb(5 13 21 / 96%), rgb(3 8 14 / 96%));
+  box-shadow: 0 18px 34px rgb(0 0 0 / 42%);
+}
+
+.citadel-pop-dock--log { left: clamp(12px, 1.6%, 24px); }
+.citadel-pop-dock--chat { right: clamp(12px, 1.6%, 24px); }
+
+.citadel-result-overlay {
+  position: absolute;
+  z-index: 70;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 42%, rgb(12 30 48 / 30%), transparent 42%),
+    rgb(0 0 0 / 46%);
+  backdrop-filter: blur(2px);
+}
+
+.citadel-result-panel {
+  display: grid;
+  gap: clamp(12px, 1.25vw, 20px);
+  width: min(680px, 58%);
+  max-height: min(620px, 78%);
+  overflow: auto;
+  border: 1px solid rgb(232 189 103 / 48%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgb(255 229 167 / 9%), transparent 28%),
+    linear-gradient(180deg, rgb(8 20 30 / 96%), rgb(3 9 15 / 97%));
+  box-shadow: 0 28px 70px rgb(0 0 0 / 58%), inset 0 1px 0 rgb(255 255 255 / 7%);
+  color: #f8e7bd;
+  padding: clamp(18px, 2vw, 30px);
+}
+
+.citadel-result-panel header {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.citadel-result-panel header span {
+  color: #eec66f;
+  font-size: clamp(0.78rem, 0.95vw, 1rem);
+  font-weight: 900;
+}
+
+.citadel-result-panel header strong {
+  color: #ffe7ad;
+  font-family: var(--font-fantasy);
+  font-size: clamp(2rem, 4vw, 4.4rem);
+  line-height: 1;
+}
+
+.citadel-result-panel header small {
+  color: rgb(255 232 190 / 72%);
+  font-size: clamp(0.76rem, 0.9vw, 1rem);
+}
+
+.citadel-result-list {
+  display: grid;
+  gap: 8px;
+}
+
+.citadel-result-list article {
+  display: grid;
+  grid-template-columns: clamp(30px, 3vw, 42px) minmax(0, 1fr) auto auto clamp(48px, 4.4vw, 64px);
+  align-items: center;
+  gap: clamp(8px, 1vw, 14px);
+  min-height: clamp(42px, 4.5vw, 58px);
+  border: 1px solid rgb(221 177 91 / 22%);
+  border-radius: 7px;
+  background: rgb(1 8 14 / 42%);
+  padding: 0 clamp(10px, 1vw, 14px);
+}
+
+.citadel-result-list article.is-winner {
+  border-color: rgb(255 218 132 / 58%);
+  background: linear-gradient(90deg, rgb(126 88 38 / 45%), rgb(1 8 14 / 48%));
+}
+
+.citadel-result-list b {
+  display: grid;
+  place-items: center;
+  width: clamp(24px, 2.4vw, 34px);
+  height: clamp(24px, 2.4vw, 34px);
+  border-radius: 999px;
+  background: rgb(232 189 103 / 16%);
+  color: #f0c978;
+}
+
+.citadel-result-list strong {
+  overflow: hidden;
+  color: #f8ead0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citadel-result-list span {
+  color: rgb(255 232 190 / 74%);
+  font-size: clamp(0.68rem, 0.78vw, 0.88rem);
+  white-space: nowrap;
+}
+
+.citadel-result-list em {
+  color: #ffe7ad;
+  font-style: normal;
+  font-size: clamp(1rem, 1.2vw, 1.35rem);
+  font-weight: 900;
+  text-align: right;
+}
+
+.citadel-result-panel footer {
+  display: flex;
+  justify-content: center;
+}
+
+.citadel-pop-dock .chat-panel,
+.citadel-pop-dock .test-game-section {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  max-height: inherit;
+  border: 0;
+  background: transparent;
+  padding: 14px;
+  box-shadow: none;
+}
+
+.citadel-pop-dock .chat-panel h3,
+.citadel-pop-dock .test-game-section h3 {
+  margin: 0;
+  color: #f3c978;
+  font-size: 1rem;
+}
+
+.citadel-pop-dock .chat-panel__messages,
+.citadel-pop-dock .test-log-list,
+.citadel-pop-dock .test-action-event-list {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid rgb(221 177 91 / 18%);
+  border-radius: 6px;
+  background: rgb(0 4 8 / 32%);
+  padding: 10px;
+}
+
+.citadel-pop-dock .chat-panel__messages p,
+.citadel-pop-dock .test-log-list p,
+.citadel-pop-dock .test-action-event-list p {
+  margin: 0 0 6px;
+  color: rgb(255 236 198 / 82%);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.citadel-pop-dock .chat-panel__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.citadel-pop-dock .chat-panel__form input {
+  min-width: 0;
+  border: 1px solid rgb(221 177 91 / 25%);
+  border-radius: 5px;
+  background: rgb(0 5 9 / 54%);
+  color: #f8e7bd;
+  padding: 0 10px;
+}
+
+.citadel-game-message {
+  position: absolute;
+  z-index: 46;
+  left: 50%;
+  bottom: 13.5%;
+  max-width: min(760px, 64%);
+  margin: 0;
+  border: 1px solid rgb(232 189 103 / 34%);
+  border-radius: 8px;
+  background: rgb(4 10 16 / 84%);
+  color: #ffe3a6;
+  padding: 8px 16px;
+  font-size: clamp(0.72rem, 0.82vw, 0.94rem);
+  text-align: center;
+  transform: translateX(-50%);
+}
+
+@media (max-aspect-ratio: 4 / 3) {
+  .fantasy-screen--game.lightweight-ui {
+    overflow: auto;
+    place-items: start stretch;
+  }
+
+  .citadel-game-shell {
+    width: 100vw;
+    min-width: 920px;
+    height: max(100svh, 640px);
+  }
+}
+
+@media (max-width: 980px) {
+  .citadel-game-top-actions {
+    --utility-menu-button-size: 46px;
+    --utility-menu-button-label-size: 0.72rem;
+    gap: 14px;
+  }
+  .citadel-opponent-seat { width: 170px; }
+  .citadel-self-area { left: 10%; right: 10%; }
+  .citadel-action-dock { max-width: 82%; }
+}
+
+
+
+
+
+
+/* Role identity cards and hover tooltips */
+.citadel-self-area {
+  grid-template-columns: clamp(62px, 5.5vw, 86px) clamp(154px, 13vw, 204px) clamp(48px, 5.2vw, 78px) minmax(260px, 1fr) clamp(62px, 5.5vw, 86px);
+  grid-template-areas:
+    "deck profile role hand discard"
+    "deck profile role caption discard";
+}
+
+@media (max-height: 720px) {
+  .citadel-game-topbar {
+    right: clamp(24px, 3vw, 42px);
+  }
+
+  .citadel-game-top-actions {
+    --utility-menu-button-size: clamp(46px, 4.1vw, 56px);
+    --utility-menu-button-label-size: clamp(0.72rem, 0.78vw, 0.82rem);
+    gap: clamp(14px, 1.5vw, 22px);
+  }
+}
+
+.citadel-opponent-card-line {
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+  gap: clamp(5px, 0.55vw, 9px);
+}
+
+.citadel-opponent-card-line .citadel-mini-card-row {
+  min-width: 0;
+  padding-left: 0;
+}
+
+.citadel-self-role-card {
+  grid-area: role;
+  display: grid;
+  align-self: end;
+  justify-self: end;
+  min-width: 0;
+}
+
+.citadel-role-card {
+  position: relative;
+  display: grid;
+  align-content: end;
+  justify-items: start;
+  width: clamp(48px, 5.2vw, 78px);
+  height: clamp(72px, 7.6vw, 112px);
+  flex: 0 0 auto;
+  overflow: visible;
+  border: 1px solid rgb(231 185 94 / 68%);
+  border-radius: 6px;
+  background: radial-gradient(circle at 50% 18%, rgb(255 228 163 / 24%), transparent 34%), linear-gradient(160deg, #26364f, #101a2d 54%, #050913);
+  color: #fff1c9;
+  padding: clamp(5px, 0.55vw, 8px);
+  box-shadow: 0 10px 18px rgb(0 0 0 / 40%), inset 0 1px 0 rgb(255 255 255 / 8%);
+}
+
+.citadel-role-card--compact {
+  width: clamp(30px, 3.3vw, 50px);
+  height: clamp(44px, 4.85vw, 72px);
+  padding: clamp(4px, 0.42vw, 6px);
+  border-radius: 5px;
+}
+
+.citadel-role-card__order {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  display: grid;
+  place-items: center;
+  width: clamp(17px, 1.45vw, 22px);
+  height: clamp(17px, 1.45vw, 22px);
+  border-radius: 999px;
+  background: rgb(3 8 13 / 72%);
+  color: #ffd987;
+  font-size: clamp(0.58rem, 0.68vw, 0.78rem);
+  font-weight: 900;
+}
+
+.citadel-role-card strong {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  max-width: 100%;
+  color: #fff4d2;
+  font-size: clamp(0.58rem, 0.72vw, 0.84rem);
+  line-height: 1.08;
+}
+
+.citadel-role-card small {
+  overflow: hidden;
+  max-width: 100%;
+  color: rgb(255 222 154 / 72%);
+  font-size: clamp(0.5rem, 0.58vw, 0.68rem);
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citadel-role-card--compact strong { font-size: clamp(0.5rem, 0.62vw, 0.72rem); }
+.citadel-role-card--compact small { display: none; }
+
+.citadel-role-card--hidden {
+  background: radial-gradient(circle at 50% 42%, rgb(232 189 103 / 18%), transparent 36%), linear-gradient(145deg, #12335a, #06182c 66%, #020914);
+}
+
+.citadel-role-card--assassin,
+.citadel-role-card--warlord {
+  background: linear-gradient(160deg, #ba8070, #5a2222 52%, #180a0a);
+}
+
+.citadel-role-card--thief,
+.citadel-role-card--merchant {
+  background: linear-gradient(160deg, #9acb93, #315b36 52%, #101e12);
+}
+
+.citadel-role-card--magician {
+  background: linear-gradient(160deg, #c8a3dc, #573676 54%, #20102f);
+}
+
+.citadel-role-card--king {
+  background: linear-gradient(160deg, #f2d98a, #9b672d 54%, #3b2410);
+}
+
+.citadel-role-card--bishop,
+.citadel-role-card--architect {
+  background: linear-gradient(160deg, #b9d7ee, #3f6b91 52%, #142840);
+}
+
+.citadel-game-shell--players-7 .citadel-role-card--compact,
+.citadel-game-shell--players-8 .citadel-role-card--compact {
+  width: clamp(27px, 2.75vw, 42px);
+  height: clamp(39px, 4.05vw, 60px);
+}
+
+.citadel-action-button--skill {
+  background: linear-gradient(180deg, #334f8e, #17284f);
+  color: #f9e7b4;
+}
+
+.citadel-has-tooltip,
+.citadel-role-card[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::before,
+[data-tooltip]::after {
+  position: absolute;
+  left: 50%;
+  z-index: 90;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 6px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+[data-tooltip]::before {
+  content: "";
+  bottom: calc(100% + 4px);
+  border: 6px solid transparent;
+  border-top-color: rgb(5 12 18 / 96%);
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  bottom: calc(100% + 15px);
+  width: max-content;
+  max-width: min(300px, 34vw);
+  border: 1px solid rgb(231 185 94 / 42%);
+  border-radius: 7px;
+  background: linear-gradient(180deg, rgb(8 18 27 / 98%), rgb(3 8 14 / 96%));
+  color: #ffe6b0;
+  padding: 8px 10px;
+  box-shadow: 0 14px 28px rgb(0 0 0 / 38%);
+  font-size: clamp(0.68rem, 0.76vw, 0.86rem);
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+  white-space: pre-line;
+}
+
+[data-tooltip]:hover::before,
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::before,
+[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* Battle action spacing and selectable role cards */
+.citadel-action-layer .citadel-action-dock {
+  top: 60%;
+}
+
+.citadel-game-shell .modal-backdrop {
+  z-index: 80;
+}
+
+.citadel-game-shell--confirming .citadel-action-layer {
+  z-index: 16;
+}
+
+.citadel-game-shell--confirming .citadel-action-layer .citadel-action-dock {
+  top: 67%;
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+.citadel-action-dock--roles {
+  top: 62%;
+  align-items: center;
+  min-height: clamp(116px, 11vw, 156px);
+  overflow: visible;
+  padding: clamp(10px, 1vw, 16px) clamp(14px, 1.3vw, 22px);
+}
+
+.citadel-role-choice.citadel-role-card {
+  width: clamp(64px, 6.1vw, 92px);
+  height: clamp(96px, 8.6vw, 132px);
+  min-width: 0;
+  min-height: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
+}
+
+.citadel-role-choice.citadel-role-card:hover,
+.citadel-role-choice.citadel-role-card:focus-visible {
+  z-index: 2;
+  filter: brightness(1.12);
+  transform: translateY(-8px);
+  box-shadow: 0 16px 28px rgb(0 0 0 / 46%), 0 0 18px rgb(232 189 103 / 22%), inset 0 1px 0 rgb(255 255 255 / 10%);
+}
+
+.citadel-action-dock--skill-targeting {
+  top: 58%;
+  max-width: min(760px, 76vw);
+}
+
+.citadel-action-dock--skill-roles {
+  top: 56%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "header controls"
+    "roles roles";
+  gap: 12px 18px;
+  width: min(900px, 78vw);
+}
+
+.citadel-skill-target-header {
+  grid-area: header;
+  display: grid;
+  gap: 4px;
+  color: #f7ddb0;
+}
+
+.citadel-skill-target-header span {
+  color: rgb(247 224 178 / 76%);
+  font-size: clamp(0.64rem, 0.75vw, 0.84rem);
+}
+
+.citadel-skill-role-options {
+  grid-area: roles;
+  display: flex;
+  justify-content: center;
+  gap: clamp(8px, 0.8vw, 14px);
+}
+
+.citadel-skill-target-controls {
+  grid-area: controls;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.citadel-role-choice.citadel-role-card.is-selected {
+  border-color: #fff0ad;
+  filter: brightness(1.18);
+  transform: translateY(-7px);
+  box-shadow: 0 0 0 3px rgb(255 224 139 / 20%), 0 16px 28px rgb(0 0 0 / 46%);
+}
+
+.citadel-role-choice.citadel-role-card .citadel-role-card__order {
+  color: #ffd987;
+  font-size: clamp(0.62rem, 0.78vw, 0.9rem);
+}
+
+.citadel-role-choice.citadel-role-card strong {
+  color: #fff4d2;
+  font-size: clamp(0.68rem, 0.9vw, 1.05rem);
+  line-height: 1.1;
+}
+
+.citadel-role-choice.citadel-role-card small {
+  display: block;
+  color: rgb(255 222 154 / 76%);
+  font-size: clamp(0.52rem, 0.64vw, 0.76rem);
+}
+
+@media (max-width: 980px) {
+  .citadel-action-layer .citadel-action-dock {
+    top: 59.5%;
+  }
+
+  .citadel-game-shell--confirming .citadel-action-layer .citadel-action-dock {
+    top: 65%;
+  }
+
+  .citadel-action-dock--roles {
+    top: 62%;
+  }
+}
+/* Self area balance: action controls, built districts, and hand cards */
+.citadel-self-area {
+  bottom: clamp(14px, 3.2%, 34px);
+  grid-template-columns: clamp(62px, 5.5vw, 86px) clamp(154px, 13vw, 204px) clamp(48px, 5.2vw, 78px) minmax(320px, 1fr) clamp(62px, 5.5vw, 86px);
+  grid-template-areas:
+    "deck profile role hand discard"
+    "deck profile role caption discard";
+  grid-template-rows: auto auto;
+  row-gap: clamp(4px, 0.5vw, 8px);
+}
+
+.citadel-self-city {
+  top: 50.2%;
+  width: min(58%, 1040px);
+  gap: clamp(3px, 0.42vw, 6px);
+}
+
+.citadel-self-city__cards {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 0;
+  min-height: clamp(92px, 9.5vw, 140px);
+  padding: 0 clamp(16px, 2vw, 34px);
+}
+
+.citadel-built-card {
+  position: relative;
+  display: grid;
+  align-content: end;
+  justify-items: start;
+  width: clamp(58px, 5.8vw, 92px);
+  height: clamp(88px, 8.6vw, 132px);
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid rgb(234 187 96 / 72%);
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgb(255 242 207 / 24%), transparent 25%),
+    linear-gradient(160deg, #90a49b, #3b4e44 52%, #15221d);
+  color: #fff2d1;
+  padding: clamp(6px, 0.62vw, 9px);
+  box-shadow: 0 14px 24px rgb(0 0 0 / 42%), inset 0 1px 0 rgb(255 255 255 / 10%);
+}
+
+.citadel-built-card + .citadel-built-card {
+  margin-left: clamp(-20px, -1.05vw, -10px);
+}
+
+.citadel-built-card span {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: grid;
+  place-items: center;
+  width: clamp(19px, 1.55vw, 25px);
+  height: clamp(19px, 1.55vw, 25px);
+  border-radius: 999px;
+  background: rgb(3 8 13 / 72%);
+  color: #ffd987;
+  font-size: clamp(0.62rem, 0.74vw, 0.84rem);
+  font-weight: 900;
+}
+
+.citadel-built-card strong {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  width: 100%;
+  color: #fff1c7;
+  font-size: clamp(0.62rem, 0.78vw, 0.9rem);
+  line-height: 1.1;
+  text-align: left;
+}
+
+.citadel-built-card--blue { background: linear-gradient(160deg, #bfdff0, #477096 52%, #16314c); }
+.citadel-built-card--green { background: linear-gradient(160deg, #bedfa8, #50733a 52%, #182b18); }
+.citadel-built-card--red { background: linear-gradient(160deg, #e0a29a, #85352f 52%, #351313); }
+.citadel-built-card--yellow { background: linear-gradient(160deg, #f0d58b, #9b672d 54%, #3b2410); }
+.citadel-built-card--purple { background: linear-gradient(160deg, #d3ace2, #62407b 55%, #261735); }
+
+.citadel-action-layer .citadel-action-dock {
+  top: 74.2%;
+}
+
+.citadel-game-shell--confirming .citadel-action-layer .citadel-action-dock {
+  top: 76%;
+}
+
+.citadel-action-dock--draw-choice {
+  top: 52%;
+}
+
+@media (max-height: 720px) {
+  .citadel-game-center {
+    top: 36.7%;
+  }
+
+  .citadel-game-center strong,
+  .citadel-game-center > span {
+    display: none;
+  }
+
+  .citadel-self-city {
+    top: 44%;
+  }
+
+  .citadel-action-layer .citadel-action-dock {
+    top: 71.2%;
+  }
+
+  .citadel-game-shell--confirming .citadel-action-layer .citadel-action-dock {
+    top: 76%;
+  }
+
+  .citadel-action-dock--draw-choice {
+    top: 49%;
+    width: min(700px, 78%);
+  }
+
+  .citadel-district-choice-card {
+    width: clamp(104px, 9vw, 124px);
+    height: clamp(158px, 14vw, 184px);
+  }
+
+  .citadel-game-objective-intro {
+    top: 42%;
+    width: min(500px, 64%);
+    padding: 16px 20px;
+  }
+
+  .citadel-self-area {
+    bottom: clamp(10px, 2.2%, 20px);
+    row-gap: clamp(5px, 0.6vw, 9px);
+  }
+
+  .citadel-self-city__cards {
+    min-height: clamp(110px, 8.4vw, 118px);
+  }
+
+  .citadel-built-card {
+    width: clamp(76px, 5.7vw, 84px);
+    height: clamp(110px, 8.3vw, 120px);
+  }
+
+  .citadel-built-card + .citadel-built-card {
+    margin-left: clamp(-16px, -0.9vw, -8px);
+  }
+}
+
+/* Readable opponent districts: full cards first, progressive overlap only when the city grows. */
+.citadel-opponent-seat {
+  --citadel-opponent-district-width: 46px;
+  --citadel-opponent-district-height: 68px;
+}
+
+.citadel-mini-city-row {
+  --citadel-opponent-district-overlap: -6px;
+}
+
+.citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(5)) {
+  --citadel-opponent-district-overlap: -17px;
+}
+
+.citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(7)) {
+  --citadel-opponent-district-overlap: -27px;
+}
+
+.citadel-mini-city-card__cost {
+  width: 17px;
+  height: 17px;
+  font-size: 10px;
+}
+
+.citadel-mini-city-card__name {
+  font-size: 10px;
+}
+
+.citadel-opponent-seat:is(
+  .citadel-opponent-seat--top-left,
+  .citadel-opponent-seat--top-center,
+  .citadel-opponent-seat--top-right
+) {
+  width: 340px;
+  grid-template-columns: 150px 181px;
+}
+
+.citadel-opponent-seat:is(
+  .citadel-opponent-seat--left-upper,
+  .citadel-opponent-seat--left-lower
+) {
+  width: 430px;
+  grid-template-columns: 238px 183px;
+}
+
+.citadel-opponent-seat:is(
+  .citadel-opponent-seat--right-upper,
+  .citadel-opponent-seat--right-lower
+) {
+  width: 430px;
+  grid-template-columns: 183px 238px;
+}
+
+.citadel-opponent-seat.is-dense {
+  --citadel-opponent-district-width: 42px;
+  --citadel-opponent-district-height: 62px;
+  width: 390px;
+  grid-template-columns: 202px 179px;
+}
+
+.citadel-opponent-seat.is-dense.citadel-opponent-seat--right-upper,
+.citadel-opponent-seat.is-dense.citadel-opponent-seat--right-lower {
+  grid-template-columns: 179px 202px;
+}
+
+.citadel-opponent-seat.is-dense .citadel-mini-city-row {
+  --citadel-opponent-district-overlap: -4px;
+}
+
+.citadel-opponent-seat.is-dense .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(5)) {
+  --citadel-opponent-district-overlap: -14px;
+}
+
+.citadel-opponent-seat.is-dense .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(7)) {
+  --citadel-opponent-district-overlap: -23px;
+}
+
+.citadel-opponent-seat.is-dense .citadel-mini-city-card__name {
+  font-size: 9px;
+}
+
+@media (max-width: 1500px) {
+  .citadel-opponent-seat {
+    --citadel-opponent-district-width: 42px;
+    --citadel-opponent-district-height: 62px;
+  }
+
+  .citadel-mini-city-row {
+    --citadel-opponent-district-overlap: -8px;
+  }
+
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(5)) {
+    --citadel-opponent-district-overlap: -17px;
+  }
+
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(7)) {
+    --citadel-opponent-district-overlap: -28px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) {
+    width: 300px;
+    grid-template-columns: 140px 151px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower
+  ) {
+    width: 400px;
+    grid-template-columns: 240px 151px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) {
+    width: 400px;
+    grid-template-columns: 151px 240px;
+  }
+
+  .citadel-opponent-seat.is-dense {
+    width: 370px;
+    grid-template-columns: 210px 151px;
+  }
+
+  .citadel-opponent-seat.is-dense.citadel-opponent-seat--right-upper,
+  .citadel-opponent-seat.is-dense.citadel-opponent-seat--right-lower {
+    grid-template-columns: 151px 210px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .citadel-opponent-seat,
+  .citadel-opponent-seat.is-dense {
+    --citadel-opponent-district-width: 36px;
+    --citadel-opponent-district-height: 54px;
+  }
+
+  .citadel-mini-city-row,
+  .citadel-opponent-seat.is-dense .citadel-mini-city-row {
+    --citadel-opponent-district-overlap: -5px;
+  }
+
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(5)),
+  .citadel-opponent-seat.is-dense .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(5)) {
+    --citadel-opponent-district-overlap: -13px;
+  }
+
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(7)),
+  .citadel-opponent-seat.is-dense .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(7)) {
+    --citadel-opponent-district-overlap: -20px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) {
+    width: 260px;
+    grid-template-columns: 100px 153px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower
+  ),
+  .citadel-opponent-seat.is-dense:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower
+  ) {
+    width: 330px;
+    grid-template-columns: 170px 153px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ),
+  .citadel-opponent-seat.is-dense:is(
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) {
+    width: 330px;
+    grid-template-columns: 153px 170px;
+  }
+}
+
+/* Shared in-game card inspector. It replaces the small text-only card tooltips. */
+.citadel-card-inspector {
+  position: fixed;
+  z-index: 74;
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+  filter: drop-shadow(0 18px 30px rgb(0 0 0 / 54%));
+  animation: citadel-card-inspector-enter 120ms ease-out both;
+}
+
+.citadel-card-inspector--role { width: 128px; }
+.citadel-card-inspector--district { width: 132px; }
+.citadel-card-inspector--table-small.citadel-card-inspector--role { width: 98px; }
+.citadel-card-inspector--table-small.citadel-card-inspector--district { width: 100px; }
+.citadel-card-inspector--hand {
+  width: auto;
+  gap: 0;
+  filter: drop-shadow(0 8px 14px rgb(0 0 0 / 38%));
+  animation: citadel-hand-inspector-enter 120ms ease-out both;
+}
+
+.citadel-card-inspector__card {
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  align-items: end;
+  overflow: hidden;
+  border: 2px solid #d9ae59;
+  border-radius: 11px;
+  color: #fff0c8;
+  box-shadow: inset 0 0 0 2px rgb(255 245 199 / 10%), 0 0 0 1px rgb(34 20 8 / 74%);
+}
+
+.citadel-card-inspector__role {
+  width: 128px;
+  height: 182px;
+  padding: 9px;
+  background: linear-gradient(155deg, #6f7890, #29384f 58%, #111927);
+}
+
+.citadel-card-inspector__district {
+  width: 132px;
+  height: 188px;
+  padding: 9px;
+  background: linear-gradient(155deg, #85968f, #344c42 58%, #122019);
+}
+
+.citadel-card-inspector--table-small .citadel-card-inspector__role {
+  width: 98px;
+  height: 140px;
+  padding: 7px;
+}
+
+.citadel-card-inspector--table-small .citadel-card-inspector__district {
+  width: 100px;
+  height: 143px;
+  padding: 7px;
+}
+
+.citadel-card-inspector--table-small .citadel-card-inspector__art {
+  min-height: 60px;
+  font-size: 2.15rem;
+}
+
+.citadel-card-inspector--table-small .citadel-card-inspector__card > strong {
+  margin-top: 5px;
+  font-size: 0.86rem;
+}
+
+.citadel-card-inspector--table-small .citadel-card-inspector__card > small {
+  margin-top: 3px;
+  font-size: 0.55rem;
+}
+
+.citadel-card-inspector--table-small .citadel-card-inspector__role-order,
+.citadel-card-inspector--table-small .citadel-card-inspector__cost,
+.citadel-card-inspector--table-small .citadel-card-inspector__score {
+  top: 6px;
+  width: 24px;
+  height: 24px;
+  font-size: 0.7rem;
+}
+
+.citadel-card-inspector__card::before {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 10%), transparent 27%),
+    radial-gradient(circle at 50% 30%, rgb(255 224 155 / 11%), transparent 42%);
+  content: "";
+  pointer-events: none;
+}
+
+.citadel-card-inspector__art {
+  position: relative;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  min-height: 88px;
+  border-bottom: 1px solid rgb(232 189 103 / 58%);
+  color: rgb(255 234 188 / 20%);
+  font-family: "STKaiti", "KaiTi", serif;
+  font-size: 3rem;
+  text-shadow: 0 8px 24px rgb(0 0 0 / 40%);
+}
+
+.citadel-card-inspector__card > strong {
+  position: relative;
+  margin-top: 7px;
+  color: #ffe8af;
+  font-family: "STKaiti", "KaiTi", serif;
+  font-size: 1.08rem;
+  line-height: 1.05;
+  text-align: center;
+  text-shadow: 0 2px 7px rgb(0 0 0 / 72%);
+}
+
+.citadel-card-inspector__card > small {
+  position: relative;
+  margin-top: 4px;
+  color: rgb(255 226 165 / 76%);
+  font-size: 0.62rem;
+  text-align: center;
+}
+
+.citadel-card-inspector__role-order,
+.citadel-card-inspector__cost,
+.citadel-card-inspector__score {
+  position: absolute;
+  z-index: 2;
+  top: 7px;
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  border: 1px solid #d9ae59;
+  border-radius: 50%;
+  background: rgb(8 16 22 / 92%);
+  color: #ffe09a;
+  font-size: 0.82rem;
+  font-weight: 900;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 44%);
+}
+
+.citadel-card-inspector__role-order,
+.citadel-card-inspector__cost { left: 7px; }
+.citadel-card-inspector__score { right: 7px; }
+
+.citadel-card-inspector__description {
+  min-height: 66px;
+  border: 1px solid rgb(222 177 87 / 76%);
+  border-radius: 8px;
+  background: linear-gradient(155deg, rgb(8 14 18 / 97%), rgb(18 20 20 / 96%));
+  padding: 7px 8px 8px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+.citadel-card-inspector__description > strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #eec56f;
+  font-size: 0.72rem;
+}
+
+.citadel-card-inspector__description > p {
+  margin: 0;
+  color: #fff1d0;
+  font-size: 0.64rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.citadel-card-inspector__hand-description {
+  position: relative;
+  display: grid;
+  align-content: center;
+  min-height: 0;
+  padding: 7px 9px 8px;
+  border-color: rgb(228 184 94 / 54%);
+  background:
+    linear-gradient(105deg, rgb(255 219 142 / 4%), transparent 42%),
+    linear-gradient(155deg, rgb(6 13 18 / 95%), rgb(17 20 20 / 93%));
+}
+
+.citadel-card-inspector__hand-description::after {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-top: 1px solid rgb(228 184 94 / 54%);
+  border-right: 1px solid rgb(228 184 94 / 54%);
+  background: #111414;
+  content: "";
+}
+
+.citadel-card-inspector--hand.is-left .citadel-card-inspector__hand-description::after {
+  right: -6px;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.citadel-card-inspector--hand.is-right .citadel-card-inspector__hand-description::after {
+  left: -6px;
+  transform: translateY(-50%) rotate(225deg);
+}
+
+.citadel-card-inspector__hand-description > header {
+  margin-bottom: 4px;
+}
+
+.citadel-card-inspector__hand-description > header strong {
+  overflow: hidden;
+  display: block;
+  color: rgb(244 202 119 / 84%);
+  font-size: 0.67rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citadel-card-inspector__hand-description > p {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: rgb(255 241 208 / 84%);
+  font-size: 0.57rem;
+  font-weight: 650;
+  line-height: 1.34;
+}
+
+.citadel-hand-card[data-inspector-placement="hand"] {
+  z-index: 1;
+  transform-origin: 50% 100%;
+  transition: transform 150ms cubic-bezier(0.2, 0.78, 0.25, 1), filter 130ms ease, box-shadow 150ms ease;
+}
+
+.citadel-hand-card[data-inspector-placement="hand"]:is(:hover, :focus-visible) {
+  z-index: 73;
+  outline: 0;
+  box-shadow: 0 15px 28px rgb(0 0 0 / 52%), 0 0 0 2px rgb(244 198 105 / 46%);
+  filter: brightness(1.1);
+  transform: translateY(1px) scale(1.24);
+}
+
+.citadel-hand-card:has(+ .citadel-hand-card[data-inspector-placement="hand"]:hover) {
+  transform: translateX(-7px);
+}
+
+.citadel-hand-card[data-inspector-placement="hand"]:hover + .citadel-hand-card {
+  transform: translateX(7px);
+}
+
+.citadel-card-inspector__role.is-assassin,
+.citadel-card-inspector__role.is-warlord { background: linear-gradient(155deg, #9a554b, #5c2826 58%, #271213); }
+.citadel-card-inspector__role.is-thief,
+.citadel-card-inspector__role.is-merchant { background: linear-gradient(155deg, #79a270, #315d3c 58%, #14271a); }
+.citadel-card-inspector__role.is-magician { background: linear-gradient(155deg, #a77abb, #5d3974 58%, #271633); }
+.citadel-card-inspector__role.is-king { background: linear-gradient(155deg, #d5ad5f, #8a5c28 58%, #38230f); }
+.citadel-card-inspector__role.is-bishop,
+.citadel-card-inspector__role.is-architect { background: linear-gradient(155deg, #7fa9c5, #3f6e94 58%, #172f48); }
+.citadel-card-inspector__role.is-hidden { background: linear-gradient(155deg, #24486b, #0c2743 58%, #071522); }
+
+.citadel-card-inspector__district.is-blue { background: linear-gradient(155deg, #8bb8d5, #406f94 58%, #17314c); }
+.citadel-card-inspector__district.is-green { background: linear-gradient(155deg, #8fbd7d, #476d38 58%, #172a17); }
+.citadel-card-inspector__district.is-red { background: linear-gradient(155deg, #c87d73, #7b332e 58%, #341313); }
+.citadel-card-inspector__district.is-yellow { background: linear-gradient(155deg, #d9bb6a, #93612c 58%, #38230f); }
+.citadel-card-inspector__district.is-purple { background: linear-gradient(155deg, #af85c2, #65427b 58%, #271735); }
+
+[data-card-inspector] {
+  outline-offset: 3px;
+}
+
+[data-card-inspector]:hover,
+[data-card-inspector]:focus-visible {
+  outline: 1px solid rgb(255 220 139 / 76%);
+}
+
+[data-card-inspector][data-tooltip]::before,
+[data-card-inspector][data-tooltip]::after {
+  display: none !important;
+}
+
+.citadel-game-shell--confirming .citadel-card-inspector,
+.citadel-game-shell--objective-intro .citadel-card-inspector {
+  display: none;
+}
+
+@keyframes citadel-card-inspector-enter {
+  from { opacity: 0; transform: translateY(5px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes citadel-hand-inspector-enter {
+  from { opacity: 0; transform: translateY(calc(-50% + 4px)) scale(0.985); }
+  to { opacity: 1; transform: translateY(-50%) scale(1); }
+}
+
+@media (max-height: 720px), (max-width: 1100px) {
+  .citadel-card-inspector--role { width: 116px; }
+  .citadel-card-inspector--district { width: 120px; }
+  .citadel-card-inspector__role { width: 116px; height: 164px; }
+  .citadel-card-inspector__district { width: 120px; height: 170px; }
+  .citadel-card-inspector__art { min-height: 76px; font-size: 2.55rem; }
+  .citadel-card-inspector__card > strong { font-size: 0.96rem; }
+  .citadel-card-inspector__description { min-height: 60px; padding: 6px 7px; }
+  .citadel-card-inspector__description > p { font-size: 0.58rem; line-height: 1.35; }
+  .citadel-card-inspector--table-small.citadel-card-inspector--role { width: 91px; }
+  .citadel-card-inspector--table-small.citadel-card-inspector--district { width: 94px; }
+  .citadel-card-inspector--table-small .citadel-card-inspector__role { width: 91px; height: 130px; }
+  .citadel-card-inspector--table-small .citadel-card-inspector__district { width: 94px; height: 134px; }
+  .citadel-card-inspector--table-small .citadel-card-inspector__art { min-height: 54px; font-size: 1.95rem; }
+  .citadel-card-inspector--hand { width: auto; }
+  .citadel-card-inspector__hand-description { min-height: 0; padding: 6px 8px 7px; }
+  .citadel-card-inspector__hand-description > header { margin-bottom: 3px; }
+  .citadel-card-inspector__hand-description > p { font-size: 0.53rem; }
+}
+
+/* Final spacing after the enlarged public districts. */
+.citadel-opponent-seat:is(
+  .citadel-opponent-seat--top-left,
+  .citadel-opponent-seat--top-center,
+  .citadel-opponent-seat--top-right
+) {
+  top: clamp(88px, 10.5vh, 98px);
+}
+
+@media (max-height: 720px) {
+  .citadel-game-center {
+    top: 36.7%;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) {
+    top: 66px;
+  }
+}
+
+/* Opponent tableaus: readable public districts arranged toward the table center. */
+.citadel-game-center {
+  top: 45%;
+}
+
+.citadel-opponent-seat {
+  --citadel-opponent-district-width: 36px;
+  --citadel-opponent-district-height: 52px;
+  --citadel-opponent-district-overlap: -18px;
+  display: grid;
+  align-items: end;
+  width: auto;
+  min-height: 0;
+  gap: 7px 9px;
+  transform: none;
+}
+
+.citadel-opponent-seat > .citadel-player-mini {
+  grid-area: profile;
+  width: 100%;
+  min-width: 0;
+}
+
+.citadel-opponent-card-line {
+  grid-area: private;
+  display: flex;
+  align-items: end;
+  align-self: end;
+  min-width: 0;
+  gap: 8px;
+}
+
+.citadel-opponent-card-line .citadel-role-card--compact {
+  display: grid;
+  width: 48px;
+  height: 70px;
+  flex: 0 0 auto;
+}
+
+.citadel-opponent-card-line .citadel-mini-card-row {
+  min-width: 0;
+  min-height: 56px;
+  padding: 0;
+}
+
+.citadel-opponent-card-line .citadel-mini-card {
+  width: 38px;
+  height: 56px;
+}
+
+.citadel-opponent-card-line .citadel-mini-card + .citadel-mini-card {
+  margin-left: -16px;
+}
+
+.citadel-mini-city-row {
+  grid-area: city;
+  display: flex;
+  align-items: end;
+  align-self: end;
+  min-width: 0;
+  min-height: var(--citadel-opponent-district-height);
+  gap: 0;
+}
+
+.citadel-mini-city-card {
+  position: relative;
+  display: grid;
+  align-content: end;
+  width: var(--citadel-opponent-district-width);
+  height: var(--citadel-opponent-district-height);
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid rgb(241 202 125 / 62%);
+  border-radius: 4px;
+  background:
+    linear-gradient(180deg, rgb(255 244 215 / 26%), transparent 28%),
+    linear-gradient(160deg, #87988f, #35473e 54%, #13211b);
+  color: #fff0ce;
+  padding: 5px 4px;
+  box-shadow: 0 7px 14px rgb(0 0 0 / 42%);
+}
+
+.citadel-mini-city-card + .citadel-mini-city-card {
+  margin-left: var(--citadel-opponent-district-overlap);
+}
+
+.citadel-mini-city-card:focus-visible {
+  z-index: 8;
+  outline: 2px solid #ffe2a0;
+  outline-offset: 2px;
+}
+
+.citadel-mini-city-card__cost {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: rgb(3 8 12 / 78%);
+  color: #ffdc8b;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.citadel-mini-city-card__name {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: #fff0ce;
+  font-size: 9px;
+  line-height: 1.05;
+  text-align: left;
+  word-break: break-all;
+}
+
+.citadel-mini-city-card--blue { background: linear-gradient(160deg, #b7d8eb, #416d91 54%, #142d46); }
+.citadel-mini-city-card--green { background: linear-gradient(160deg, #c0dda9, #50733a 54%, #182b18); }
+.citadel-mini-city-card--red { background: linear-gradient(160deg, #dea49b, #823a32 54%, #351313); }
+.citadel-mini-city-card--yellow { background: linear-gradient(160deg, #efd58b, #98652b 54%, #3b2410); }
+.citadel-mini-city-card--purple { background: linear-gradient(160deg, #d2afe3, #62417b 54%, #261735); }
+
+.citadel-opponent-seat:is(
+  .citadel-opponent-seat--top-left,
+  .citadel-opponent-seat--top-center,
+  .citadel-opponent-seat--top-right
+) {
+  top: clamp(98px, 11.5vh, 118px);
+  width: 300px;
+  grid-template-columns: 158px 133px;
+  grid-template-areas:
+    "profile profile"
+    "private city";
+  transform: translateX(-50%);
+}
+
+.citadel-opponent-seat--top-left { left: 29%; }
+.citadel-opponent-seat--top-center { left: 50%; }
+.citadel-opponent-seat--top-right { left: 71%; }
+
+.citadel-opponent-seat:is(
+  .citadel-opponent-seat--left-upper,
+  .citadel-opponent-seat--left-lower
+) {
+  left: clamp(16px, 2.8vw, 54px);
+  width: 390px;
+  grid-template-columns: 238px 143px;
+  grid-template-areas:
+    "profile city"
+    "private city";
+  transform: translateY(-50%);
+}
+
+.citadel-opponent-seat:is(
+  .citadel-opponent-seat--right-upper,
+  .citadel-opponent-seat--right-lower
+) {
+  right: clamp(16px, 2.8vw, 54px);
+  left: auto;
+  width: 390px;
+  grid-template-columns: 143px 238px;
+  grid-template-areas:
+    "city profile"
+    "city private";
+  transform: translateY(-50%);
+}
+
+.citadel-opponent-seat:is(
+  .citadel-opponent-seat--right-upper,
+  .citadel-opponent-seat--right-lower
+) .citadel-mini-city-row {
+  justify-content: flex-end;
+}
+
+.citadel-opponent-seat--left-upper,
+.citadel-opponent-seat--right-upper {
+  top: 42%;
+}
+
+.citadel-opponent-seat--left-lower,
+.citadel-opponent-seat--right-lower {
+  top: 58%;
+}
+
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-upper,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-upper,
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-upper,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-upper {
+  top: 37%;
+}
+
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-lower,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-lower,
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-lower,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-lower {
+  top: 58%;
+}
+
+.citadel-opponent-seat:not(.is-dense) .citadel-player-mini__avatar {
+  width: 50px;
+  height: 50px;
+}
+
+.citadel-opponent-seat:not(.is-dense) .citadel-player-mini__copy strong {
+  font-size: 1rem;
+}
+
+.citadel-opponent-seat.is-dense {
+  --citadel-opponent-district-width: 32px;
+  --citadel-opponent-district-height: 47px;
+  --citadel-opponent-district-overlap: -16px;
+  width: 340px;
+  grid-template-columns: 202px 129px;
+}
+
+.citadel-opponent-seat.is-dense.citadel-opponent-seat--right-upper,
+.citadel-opponent-seat.is-dense.citadel-opponent-seat--right-lower {
+  grid-template-columns: 129px 202px;
+}
+
+.citadel-opponent-seat.is-dense .citadel-player-mini {
+  min-width: 0;
+}
+
+.citadel-opponent-seat.is-dense .citadel-player-mini__avatar {
+  width: 42px;
+  height: 42px;
+}
+
+.citadel-opponent-seat.is-dense .citadel-role-card--compact {
+  width: 42px;
+  height: 62px;
+}
+
+.citadel-opponent-seat.is-dense .citadel-mini-card-row {
+  min-height: 50px;
+}
+
+.citadel-opponent-seat.is-dense .citadel-mini-card {
+  width: 34px;
+  height: 50px;
+}
+
+.citadel-opponent-seat.is-dense .citadel-mini-city-card__name {
+  font-size: 8px;
+}
+
+@media (max-width: 1500px) {
+  .citadel-opponent-seat {
+    --citadel-opponent-district-width: 32px;
+    --citadel-opponent-district-height: 47px;
+    --citadel-opponent-district-overlap: -16px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) {
+    width: 268px;
+    grid-template-columns: 142px 117px;
+  }
+
+  .citadel-opponent-seat--top-left { left: 27%; }
+  .citadel-opponent-seat--top-right { left: 73%; }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower,
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) {
+    width: 350px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower
+  ) {
+    grid-template-columns: 212px 129px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) {
+    grid-template-columns: 129px 212px;
+  }
+
+  .citadel-opponent-seat:not(.is-dense) .citadel-player-mini__avatar {
+    width: 46px;
+    height: 46px;
+  }
+
+  .citadel-opponent-card-line .citadel-role-card--compact {
+    width: 42px;
+    height: 62px;
+  }
+
+  .citadel-opponent-card-line .citadel-mini-card-row {
+    min-height: 50px;
+  }
+
+  .citadel-opponent-card-line .citadel-mini-card {
+    width: 34px;
+    height: 50px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .citadel-game-center {
+    top: 46%;
+  }
+
+  .citadel-opponent-seat {
+    --citadel-opponent-district-width: 28px;
+    --citadel-opponent-district-height: 42px;
+    --citadel-opponent-district-overlap: -14px;
+    gap: 5px 7px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) {
+    top: clamp(84px, 10vh, 100px);
+    width: 206px;
+    grid-template-columns: 111px 88px;
+  }
+
+  .citadel-opponent-seat--top-left { left: 25%; }
+  .citadel-opponent-seat--top-right { left: 75%; }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower,
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) {
+    width: 300px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower
+  ) {
+    left: 12px;
+    grid-template-columns: 181px 112px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) {
+    right: 12px;
+    grid-template-columns: 112px 181px;
+  }
+
+  .citadel-opponent-seat:not(.is-dense) .citadel-player-mini__avatar,
+  .citadel-opponent-seat.is-dense .citadel-player-mini__avatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .citadel-opponent-card-line .citadel-role-card--compact,
+  .citadel-opponent-seat.is-dense .citadel-role-card--compact {
+    width: 36px;
+    height: 54px;
+  }
+
+  .citadel-opponent-card-line .citadel-mini-card-row,
+  .citadel-opponent-seat.is-dense .citadel-mini-card-row {
+    min-height: 44px;
+  }
+
+  .citadel-opponent-card-line .citadel-mini-card,
+  .citadel-opponent-seat.is-dense .citadel-mini-card {
+    width: 30px;
+    height: 44px;
+  }
+
+  .citadel-mini-city-card__name {
+    font-size: 8px;
+  }
+}
+
+@media (max-height: 720px) {
+  .citadel-game-center {
+    top: 46%;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) {
+    top: 72px;
+  }
+
+  .citadel-game-shell--players-7 .citadel-opponent-seat--left-upper,
+  .citadel-game-shell--players-8 .citadel-opponent-seat--left-upper,
+  .citadel-game-shell--players-7 .citadel-opponent-seat--right-upper,
+  .citadel-game-shell--players-8 .citadel-opponent-seat--right-upper {
+    top: 35%;
+  }
+
+  .citadel-game-shell--players-7 .citadel-opponent-seat--left-lower,
+  .citadel-game-shell--players-8 .citadel-opponent-seat--left-lower,
+  .citadel-game-shell--players-7 .citadel-opponent-seat--right-lower,
+  .citadel-game-shell--players-8 .citadel-opponent-seat--right-lower {
+    top: 58%;
+  }
+}
+
+/* Final table alignment: centered hand, readable dense seats, and unframed turn controls. */
+.citadel-self-area {
+  left: 8.5%;
+  right: 8.5%;
+  grid-template-columns: minmax(350px, 1fr) minmax(380px, 1.7fr) minmax(350px, 1fr);
+  grid-template-areas: "identity hand discard";
+  column-gap: clamp(10px, 1vw, 18px);
+  row-gap: 0;
+  align-items: end;
+}
+
+.citadel-self-identity-cluster {
+  grid-area: identity;
+  display: grid;
+  grid-template-columns: clamp(62px, 5.5vw, 86px) clamp(154px, 13vw, 204px) clamp(48px, 5.2vw, 78px);
+  grid-template-rows: clamp(76px, 8vw, 118px) auto;
+  align-items: end;
+  align-self: stretch;
+  justify-self: stretch;
+  min-width: 0;
+  column-gap: clamp(10px, 1vw, 18px);
+}
+
+.citadel-self-identity-cluster > .citadel-deck-stack {
+  grid-area: auto;
+  grid-column: 1;
+  grid-row: 1 / 3;
+}
+
+.citadel-self-identity-cluster > .citadel-self-profile {
+  grid-area: auto;
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+}
+
+.citadel-self-identity-cluster > .citadel-self-role-card {
+  grid-area: auto;
+  grid-column: 3;
+  grid-row: 1;
+  align-self: end;
+  justify-self: end;
+}
+
+.citadel-self-hand-column {
+  grid-area: hand;
+  display: grid;
+  grid-template-rows: clamp(76px, 8vw, 118px) auto;
+  align-items: end;
+  min-width: 0;
+}
+
+.citadel-self-hand-column > .citadel-hand-zone,
+.citadel-self-hand-column > .citadel-hand-caption {
+  grid-area: auto;
+}
+
+.citadel-self-hand-column > .citadel-hand-zone {
+  grid-row: 1;
+  width: 100%;
+}
+
+.citadel-self-hand-column > .citadel-hand-caption {
+  grid-row: 2;
+  margin-top: clamp(5px, 0.55vw, 8px);
+}
+
+.citadel-self-area > .citadel-deck-stack--muted {
+  grid-area: discard;
+  justify-self: end;
+}
+
+.citadel-self-area .citadel-deck-stack {
+  grid-template-columns: 1fr;
+  grid-template-rows: clamp(76px, 8vw, 118px) auto;
+  align-items: end;
+  gap: clamp(5px, 0.55vw, 8px);
+}
+
+.citadel-self-area .citadel-card-back,
+.citadel-self-area .citadel-deck-stack b {
+  grid-area: 1 / 1;
+}
+
+.citadel-self-area .citadel-card-back {
+  align-self: end;
+  width: clamp(48px, 5.2vw, 78px);
+  height: clamp(72px, 7.6vw, 112px);
+}
+
+.citadel-self-area .citadel-deck-stack b {
+  z-index: 1;
+  align-self: center;
+  margin: 0;
+}
+
+.citadel-self-area .citadel-deck-stack small {
+  grid-row: 2;
+}
+
+.citadel-action-layer .citadel-action-dock {
+  width: min(78vw, 680px);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.citadel-action-layer .citadel-action-dock:has(> .citadel-action-button:nth-of-type(5)) {
+  width: min(82vw, 920px);
+}
+
+.citadel-action-layer .citadel-action-guidance {
+  margin-bottom: 2px;
+  text-shadow: 0 2px 8px rgb(0 0 0 / 82%);
+}
+
+.citadel-self-area:has([data-tooltip]:hover),
+.citadel-self-area:has([data-tooltip]:focus-visible),
+.citadel-opponent-seat:has([data-tooltip]:hover),
+.citadel-opponent-seat:has([data-tooltip]:focus-visible) {
+  z-index: 60;
+}
+
+.citadel-opponent-seat--left-upper [data-tooltip]::after,
+.citadel-opponent-seat--left-lower [data-tooltip]::after {
+  left: 0;
+  transform: translate(0, 6px);
+}
+
+.citadel-opponent-seat--left-upper [data-tooltip]:hover::after,
+.citadel-opponent-seat--left-upper [data-tooltip]:focus-visible::after,
+.citadel-opponent-seat--left-lower [data-tooltip]:hover::after,
+.citadel-opponent-seat--left-lower [data-tooltip]:focus-visible::after {
+  transform: translate(0, 0);
+}
+
+.citadel-opponent-seat--right-upper [data-tooltip]::after,
+.citadel-opponent-seat--right-lower [data-tooltip]::after {
+  right: 0;
+  left: auto;
+  transform: translate(0, 6px);
+}
+
+.citadel-opponent-seat--right-upper [data-tooltip]:hover::after,
+.citadel-opponent-seat--right-upper [data-tooltip]:focus-visible::after,
+.citadel-opponent-seat--right-lower [data-tooltip]:hover::after,
+.citadel-opponent-seat--right-lower [data-tooltip]:focus-visible::after {
+  transform: translate(0, 0);
+}
+
+.citadel-opponent-seat.is-dense {
+  width: clamp(184px, 12vw, 220px);
+  min-height: 0;
+  gap: clamp(4px, 0.4vw, 6px);
+}
+
+.citadel-opponent-seat.is-dense .citadel-player-mini {
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  width: 100%;
+  min-width: 0;
+  gap: clamp(4px, 0.38vw, 7px);
+  padding: 4px 8px 4px 4px;
+}
+
+.citadel-opponent-seat.is-dense .citadel-player-mini__avatar {
+  width: clamp(30px, 2.4vw, 38px);
+  height: clamp(30px, 2.4vw, 38px);
+}
+
+.citadel-opponent-seat.is-dense .citadel-player-mini__copy {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.citadel-opponent-seat.is-dense .citadel-player-mini__copy strong {
+  font-size: clamp(0.68rem, 0.78vw, 0.88rem);
+}
+
+.citadel-opponent-seat.is-dense .citadel-player-mini__copy small {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #2ed388;
+  font-size: 0;
+}
+
+.citadel-opponent-seat.is-dense .citadel-player-mini__stat {
+  min-width: 16px;
+  font-size: clamp(0.66rem, 0.74vw, 0.84rem);
+}
+
+.citadel-opponent-seat.is-dense .citadel-player-mini__stat::before {
+  width: clamp(7px, 0.62vw, 9px);
+  height: clamp(7px, 0.62vw, 9px);
+  margin-right: 2px;
+}
+
+.citadel-opponent-seat.is-dense .citadel-opponent-card-line {
+  justify-content: center;
+  min-height: clamp(48px, 4.2vw, 60px);
+}
+
+.citadel-opponent-card-summary {
+  display: grid;
+  grid-template-rows: 1fr 9px;
+  align-self: stretch;
+  align-items: end;
+  min-width: 0;
+  gap: 4px;
+}
+
+.citadel-opponent-card-summary .citadel-mini-card-row {
+  min-height: 0;
+  padding-left: 0;
+}
+
+.citadel-mini-city-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 9px;
+  gap: 3px;
+}
+
+.citadel-mini-city-chip {
+  display: block;
+  width: clamp(14px, 1.15vw, 20px);
+  height: 6px;
+  flex: 0 1 auto;
+  border: 1px solid rgb(255 238 196 / 32%);
+  border-radius: 2px;
+  background: #405164;
+  box-shadow: 0 2px 5px rgb(0 0 0 / 36%);
+}
+
+.citadel-mini-city-chip--blue { background: #5b8db2; }
+.citadel-mini-city-chip--green { background: #6f954e; }
+.citadel-mini-city-chip--red { background: #a65349; }
+.citadel-mini-city-chip--yellow { background: #b9853e; }
+.citadel-mini-city-chip--purple { background: #80589a; }
+
+.citadel-mini-city-row b {
+  color: #f2cf83;
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+.citadel-opponent-seat.is-dense .citadel-role-card--compact {
+  display: grid;
+  width: clamp(31px, 2.55vw, 42px);
+  height: clamp(46px, 3.7vw, 60px);
+}
+
+.citadel-opponent-seat.is-dense .citadel-mini-card-row {
+  min-height: 0;
+  padding-left: 0;
+}
+
+.citadel-opponent-seat.is-dense .citadel-mini-card {
+  width: clamp(24px, 2vw, 32px);
+  height: clamp(36px, 3.05vw, 48px);
+}
+
+.citadel-mini-card-count {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  margin-left: -7px;
+  border: 1px solid rgb(232 189 103 / 52%);
+  border-radius: 999px;
+  background: rgb(5 12 18 / 94%);
+  color: #ffe1a0;
+  font-size: 0.68rem;
+  line-height: 1;
+}
+
+.citadel-corner-dock {
+  width: 132px;
+  min-width: 132px;
+  gap: 6px;
+  padding-right: 8px;
+  padding-left: 8px;
+}
+
+.citadel-game-shell--players-7 .citadel-opponent-seat--top-left,
+.citadel-game-shell--players-8 .citadel-opponent-seat--top-left {
+  top: 20.5%;
+  left: 31%;
+}
+
+.citadel-game-shell--players-7 .citadel-opponent-seat--top-center,
+.citadel-game-shell--players-8 .citadel-opponent-seat--top-center {
+  top: 17.5%;
+  left: 50%;
+}
+
+.citadel-game-shell--players-7 .citadel-opponent-seat--top-right,
+.citadel-game-shell--players-8 .citadel-opponent-seat--top-right {
+  top: 20.5%;
+  left: 69%;
+}
+
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-upper,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-upper {
+  top: 37%;
+  left: 11.5%;
+}
+
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-lower,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-lower {
+  top: 57.5%;
+  left: 11.5%;
+}
+
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-upper,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-upper {
+  top: 37%;
+  left: 88.5%;
+}
+
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-lower,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-lower {
+  top: 57.5%;
+  left: 88.5%;
+}
+
+@media (max-width: 1200px) {
+  .citadel-self-area {
+    left: 3%;
+    right: 3%;
+  }
+}
+
+@media (max-width: 1500px) and (min-width: 1201px) {
+  .citadel-self-area {
+    left: 11.7%;
+    right: 11.7%;
+    grid-template-columns: minmax(330px, 1fr) minmax(350px, 1.7fr) minmax(330px, 1fr);
+  }
+
+  .citadel-opponent-seat.is-dense {
+    width: clamp(184px, 14vw, 196px);
+  }
+
+  .citadel-game-shell--players-8 .citadel-opponent-seat--top-left {
+    left: 33%;
+  }
+
+  .citadel-game-shell--players-8 .citadel-opponent-seat--top-right {
+    left: 67%;
+  }
+
+  .citadel-hand-zone:has(.citadel-hand-card:nth-child(7)) .citadel-hand-card + .citadel-hand-card {
+    margin-left: -22px;
+  }
+
+  .citadel-hand-zone:has(.citadel-hand-card:nth-child(9)) .citadel-hand-card + .citadel-hand-card {
+    margin-left: -34px;
+  }
+}
+
+/* Focused skill targeting must stay above the hand-selection prompt. */
+.citadel-action-layer .citadel-action-dock--skill-targeting {
+  top: 56%;
+  width: min(760px, 74vw);
+  padding: 10px 14px;
+  border: 1px solid rgb(232 189 103 / 38%);
+  border-radius: 8px;
+  background: rgb(4 12 17 / 92%);
+  box-shadow: 0 14px 30px rgb(0 0 0 / 34%);
+}
+
+.citadel-action-layer .citadel-action-dock--skill-roles {
+  top: 47%;
+  width: min(900px, 82vw);
+  padding: clamp(10px, 1vw, 16px) clamp(14px, 1.3vw, 22px);
+  border: 1px solid rgb(232 189 103 / 38%);
+  border-radius: 8px;
+  background: rgb(4 12 17 / 94%);
+  box-shadow: 0 16px 34px rgb(0 0 0 / 40%);
+}
+
+@media (max-height: 720px) {
+  .citadel-action-layer .citadel-action-dock--skill-targeting {
+    top: 54%;
+  }
+
+  .citadel-action-layer .citadel-action-dock--skill-roles {
+    top: 45%;
+  }
+}
+
+/* Crown art, clickable district effects, and inline hand confirmation. */
+.citadel-game-shell {
+  --citadel-crown-image: url("/assets/generated-ui/citadels-crown-icon-v1.png");
+}
+
+.citadel-player-mini__avatar-wrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: visible;
+}
+
+.citadel-player-mini__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.citadel-player-mini__crown {
+  position: absolute;
+  z-index: 3;
+  top: clamp(-22px, -1.55vw, -16px);
+  left: 50%;
+  width: clamp(28px, 2.45vw, 38px);
+  aspect-ratio: 1;
+  border: 0;
+  background: var(--citadel-crown-image) center / contain no-repeat;
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 54%));
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.citadel-opponent-seat.is-dense .citadel-player-mini__crown {
+  top: -16px;
+  width: clamp(24px, 2vw, 31px);
+}
+
+.citadel-self-city {
+  pointer-events: auto;
+}
+
+.citadel-built-card {
+  appearance: none;
+  text-align: left;
+}
+
+.citadel-built-card:disabled,
+.citadel-built-card[aria-disabled="true"] {
+  cursor: default;
+  opacity: 1;
+}
+
+.citadel-built-card.is-activatable {
+  cursor: pointer;
+  box-shadow:
+    0 14px 24px rgb(0 0 0 / 42%),
+    0 0 0 1px rgb(255 220 142 / 32%),
+    inset 0 1px 0 rgb(255 255 255 / 10%);
+  transition: filter 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+}
+
+.citadel-built-card.is-activatable:hover,
+.citadel-built-card.is-activatable:focus-visible {
+  z-index: 3;
+  filter: brightness(1.12);
+  transform: translateY(-8px);
+}
+
+.citadel-built-card.is-selected {
+  z-index: 4;
+  border-color: #ffe3a0;
+  box-shadow: 0 0 0 3px rgb(255 211 112 / 34%), 0 16px 30px rgb(0 0 0 / 48%);
+  transform: translateY(-10px);
+}
+
+.citadel-built-card.is-used {
+  filter: grayscale(0.42) brightness(0.7);
+}
+
+.citadel-self-area {
+  grid-template-columns: minmax(300px, 1fr) minmax(420px, 1.7fr) minmax(300px, 1fr);
+  grid-template-areas: "identity hand discard";
+}
+
+.citadel-self-hand-column {
+  position: relative;
+}
+
+.citadel-hand-choice-prompt {
+  position: absolute;
+  z-index: 3;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: max-content;
+  max-width: min(540px, 52vw);
+  min-height: 34px;
+  margin: 0;
+  border: 1px solid rgb(232 189 103 / 46%);
+  border-radius: 6px;
+  background: rgb(4 12 17 / 94%);
+  color: rgb(255 237 198 / 78%);
+  padding: 7px 12px;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 42%);
+  font-size: clamp(0.68rem, 0.78vw, 0.84rem);
+  transform: translateX(-50%);
+}
+
+.citadel-hand-choice-prompt strong {
+  flex: 0 0 auto;
+  color: #ffd982;
+}
+
+.citadel-hand-choice-prompt span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citadel-hand-card.is-selected {
+  z-index: 5;
+  border-color: #ffe4a5;
+  box-shadow: 0 0 0 3px rgb(255 211 112 / 40%), 0 16px 28px rgb(0 0 0 / 48%);
+  filter: brightness(1.12);
+  transform: translateY(-14px);
+}
+
+.citadel-hand-card.is-targetable:not(.is-selected) {
+  cursor: pointer;
+  border-color: #e9bb62;
+  box-shadow: 0 0 0 2px rgb(239 184 78 / 30%), 0 10px 20px rgb(0 0 0 / 42%);
+  filter: brightness(1.04);
+}
+
+.citadel-self-hand-side {
+  grid-area: discard;
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+  min-width: 0;
+  gap: clamp(8px, 0.8vw, 12px);
+}
+
+.citadel-self-hand-side .citadel-deck-stack {
+  flex: 0 0 auto;
+}
+
+.citadel-hand-choice-controls {
+  display: grid;
+  gap: 7px;
+  align-self: end;
+  padding-bottom: 19px;
+}
+
+.citadel-hand-choice-controls .citadel-action-button {
+  min-width: clamp(68px, 5.6vw, 92px);
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+.citadel-game-shell--hand-choice .citadel-self-area {
+  z-index: 25;
+}
+
+.citadel-game-shell--hand-choice .citadel-self-city {
+  z-index: 26;
+}
+
+.citadel-game-shell--hand-choice .citadel-action-layer {
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+@media (max-width: 1200px) {
+  .citadel-self-area {
+    left: 3%;
+    right: 3%;
+    grid-template-columns: minmax(230px, 1fr) minmax(300px, 1.45fr) minmax(170px, 0.72fr);
+  }
+
+  .citadel-hand-choice-prompt {
+    max-width: 62vw;
+  }
+
+  .citadel-hand-choice-controls {
+    gap: 5px;
+    padding-bottom: 16px;
+  }
+
+  .citadel-hand-choice-controls .citadel-action-button {
+    min-width: 62px;
+  }
+}
+
+@media (max-width: 1500px) and (min-width: 1201px) {
+  .citadel-self-identity-cluster > .citadel-self-role-card {
+    transform: translateX(-20px);
+  }
+}
+
+@media (max-height: 720px) {
+  .citadel-hand-choice-prompt {
+    bottom: calc(100% + 3px);
+    min-height: 30px;
+    padding: 5px 9px;
+  }
+
+  .citadel-player-mini__crown {
+    top: -16px;
+    width: 28px;
+  }
+}
+
+/* Final opponent-seat geometry. Keep this last so legacy dense rules cannot shrink the tableau. */
+.citadel-game-center {
+  top: 39%;
+}
+
+.citadel-opponent-seat {
+  width: auto;
+  min-height: 0;
+  transform: none;
+}
+
+.citadel-opponent-seat > .citadel-player-mini {
+  grid-area: profile;
+  width: 100%;
+  min-width: 0;
+}
+
+.citadel-opponent-card-line {
+  grid-area: private;
+  min-height: 70px;
+}
+
+.citadel-opponent-card-line .citadel-role-card--compact {
+  display: grid;
+  width: 48px;
+  height: 70px;
+}
+
+.citadel-opponent-card-line .citadel-mini-card-row {
+  min-height: 56px;
+  padding: 0;
+}
+
+.citadel-opponent-card-line .citadel-mini-card {
+  width: 38px;
+  height: 56px;
+}
+
+.citadel-mini-city-row {
+  grid-area: city;
+  display: flex;
+  align-items: end;
+  align-self: end;
+  min-width: 0;
+  min-height: var(--citadel-opponent-district-height);
+  gap: 0;
+}
+
+.citadel-opponent-seat:is(
+  .citadel-opponent-seat--top-left,
+  .citadel-opponent-seat--top-center,
+  .citadel-opponent-seat--top-right
+) {
+  top: clamp(98px, 11.5vh, 118px);
+  width: 300px;
+  grid-template-columns: 158px 133px;
+  grid-template-areas:
+    "profile profile"
+    "private city";
+  transform: translateX(-50%);
+}
+
+.citadel-opponent-seat--top-left { left: 29.5%; }
+.citadel-opponent-seat--top-center { left: 50%; }
+.citadel-opponent-seat--top-right { left: 70.5%; }
+
+.citadel-opponent-seat:is(
+  .citadel-opponent-seat--left-upper,
+  .citadel-opponent-seat--left-lower
+) {
+  left: clamp(16px, 2.8vw, 54px);
+  width: 390px;
+  grid-template-columns: 238px 143px;
+  grid-template-areas:
+    "profile city"
+    "private city";
+  transform: translateY(-50%);
+}
+
+.citadel-opponent-seat:is(
+  .citadel-opponent-seat--right-upper,
+  .citadel-opponent-seat--right-lower
+) {
+  right: clamp(16px, 2.8vw, 54px);
+  left: auto;
+  width: 390px;
+  grid-template-columns: 143px 238px;
+  grid-template-areas:
+    "city profile"
+    "city private";
+  transform: translateY(-50%);
+}
+
+.citadel-opponent-seat--left-upper,
+.citadel-opponent-seat--right-upper {
+  top: 42%;
+}
+
+.citadel-opponent-seat--left-lower,
+.citadel-opponent-seat--right-lower {
+  top: 58%;
+}
+
+.citadel-game-shell--players-7 .citadel-opponent-seat--left-upper,
+.citadel-game-shell--players-8 .citadel-opponent-seat--left-upper,
+.citadel-game-shell--players-7 .citadel-opponent-seat--right-upper,
+.citadel-game-shell--players-8 .citadel-opponent-seat--right-upper {
+  top: 37%;
+}
+
+.citadel-opponent-seat.is-dense {
+  width: 340px;
+  min-height: 0;
+  grid-template-columns: 202px 129px;
+}
+
+.citadel-opponent-seat.is-dense.citadel-opponent-seat--right-upper,
+.citadel-opponent-seat.is-dense.citadel-opponent-seat--right-lower {
+  grid-template-columns: 129px 202px;
+}
+
+.citadel-opponent-seat.is-dense .citadel-player-mini {
+  width: 100%;
+  min-width: 0;
+}
+
+.citadel-opponent-seat.is-dense .citadel-role-card--compact {
+  width: 42px;
+  height: 62px;
+}
+
+.citadel-opponent-seat.is-dense .citadel-mini-card-row {
+  min-height: 50px;
+}
+
+.citadel-opponent-seat.is-dense .citadel-mini-card {
+  width: 34px;
+  height: 50px;
+}
+
+@media (max-width: 1500px) {
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) {
+    width: 268px;
+    grid-template-columns: 142px 117px;
+  }
+
+  .citadel-opponent-seat--top-left { left: 27%; }
+  .citadel-opponent-seat--top-right { left: 73%; }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower,
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) {
+    width: 350px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower
+  ) {
+    grid-template-columns: 212px 129px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) {
+    grid-template-columns: 129px 212px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) {
+    top: clamp(84px, 10vh, 100px);
+    width: 206px;
+    grid-template-columns: 111px 88px;
+  }
+
+  .citadel-opponent-seat--top-left { left: 25%; }
+  .citadel-opponent-seat--top-right { left: 75%; }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower,
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) {
+    width: 300px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--left-upper,
+    .citadel-opponent-seat--left-lower
+  ) {
+    left: 12px;
+    grid-template-columns: 181px 112px;
+  }
+
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--right-upper,
+    .citadel-opponent-seat--right-lower
+  ) {
+    right: 12px;
+    grid-template-columns: 112px 181px;
+  }
+
+  .citadel-opponent-card-line,
+  .citadel-opponent-seat.is-dense .citadel-opponent-card-line {
+    min-height: 54px;
+  }
+
+  .citadel-opponent-card-line .citadel-role-card--compact,
+  .citadel-opponent-seat.is-dense .citadel-role-card--compact {
+    width: 36px;
+    height: 54px;
+  }
+
+  .citadel-opponent-card-line .citadel-mini-card-row,
+  .citadel-opponent-seat.is-dense .citadel-mini-card-row {
+    min-height: 44px;
+  }
+
+  .citadel-opponent-card-line .citadel-mini-card,
+  .citadel-opponent-seat.is-dense .citadel-mini-card {
+    width: 30px;
+    height: 44px;
+  }
+}
+
+@media (max-height: 720px) {
+  .citadel-opponent-seat:is(
+    .citadel-opponent-seat--top-left,
+    .citadel-opponent-seat--top-center,
+    .citadel-opponent-seat--top-right
+  ) {
+    top: 72px;
+  }
+}
+
+/* Final opponent district scale. */
+.citadel-opponent-seat {
+  --citadel-opponent-district-width: 46px;
+  --citadel-opponent-district-height: 68px;
+}
+
+.citadel-mini-city-row { --citadel-opponent-district-overlap: -6px; }
+.citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(5)) { --citadel-opponent-district-overlap: -17px; }
+.citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(7)) { --citadel-opponent-district-overlap: -27px; }
+
+.citadel-opponent-seat:is(.citadel-opponent-seat--top-left, .citadel-opponent-seat--top-center, .citadel-opponent-seat--top-right) {
+  width: 340px;
+  grid-template-columns: 150px 181px;
+}
+
+.citadel-opponent-seat:is(.citadel-opponent-seat--left-upper, .citadel-opponent-seat--left-lower) {
+  width: 430px;
+  grid-template-columns: 238px 183px;
+}
+
+.citadel-opponent-seat:is(.citadel-opponent-seat--right-upper, .citadel-opponent-seat--right-lower) {
+  width: 430px;
+  grid-template-columns: 183px 238px;
+}
+
+.citadel-opponent-seat.is-dense {
+  --citadel-opponent-district-width: 42px;
+  --citadel-opponent-district-height: 62px;
+  width: 390px;
+  grid-template-columns: 202px 179px;
+}
+
+.citadel-opponent-seat.is-dense.citadel-opponent-seat--right-upper,
+.citadel-opponent-seat.is-dense.citadel-opponent-seat--right-lower {
+  grid-template-columns: 179px 202px;
+}
+
+.citadel-opponent-seat.is-dense .citadel-mini-city-row { --citadel-opponent-district-overlap: -4px; }
+.citadel-opponent-seat.is-dense .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(5)) { --citadel-opponent-district-overlap: -14px; }
+.citadel-opponent-seat.is-dense .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(7)) { --citadel-opponent-district-overlap: -23px; }
+
+@media (max-width: 1500px) {
+  .citadel-opponent-seat,
+  .citadel-opponent-seat.is-dense {
+    --citadel-opponent-district-width: 42px;
+    --citadel-opponent-district-height: 62px;
+  }
+
+  .citadel-mini-city-row,
+  .citadel-opponent-seat.is-dense .citadel-mini-city-row { --citadel-opponent-district-overlap: -8px; }
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(5)),
+  .citadel-opponent-seat.is-dense .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(5)) { --citadel-opponent-district-overlap: -17px; }
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(7)),
+  .citadel-opponent-seat.is-dense .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(7)) { --citadel-opponent-district-overlap: -28px; }
+
+  .citadel-opponent-seat:is(.citadel-opponent-seat--top-left, .citadel-opponent-seat--top-center, .citadel-opponent-seat--top-right) {
+    width: 300px;
+    grid-template-columns: 140px 151px;
+  }
+
+  .citadel-opponent-seat:is(.citadel-opponent-seat--left-upper, .citadel-opponent-seat--left-lower),
+  .citadel-opponent-seat.is-dense:is(.citadel-opponent-seat--left-upper, .citadel-opponent-seat--left-lower) {
+    width: 400px;
+    grid-template-columns: 240px 151px;
+  }
+
+  .citadel-opponent-seat:is(.citadel-opponent-seat--right-upper, .citadel-opponent-seat--right-lower),
+  .citadel-opponent-seat.is-dense:is(.citadel-opponent-seat--right-upper, .citadel-opponent-seat--right-lower) {
+    width: 400px;
+    grid-template-columns: 151px 240px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .citadel-opponent-seat,
+  .citadel-opponent-seat.is-dense {
+    --citadel-opponent-district-width: 36px;
+    --citadel-opponent-district-height: 54px;
+  }
+
+  .citadel-mini-city-row,
+  .citadel-opponent-seat.is-dense .citadel-mini-city-row { --citadel-opponent-district-overlap: -5px; }
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(5)),
+  .citadel-opponent-seat.is-dense .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(5)) { --citadel-opponent-district-overlap: -13px; }
+  .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(7)),
+  .citadel-opponent-seat.is-dense .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(7)) { --citadel-opponent-district-overlap: -20px; }
+
+  .citadel-opponent-seat:is(.citadel-opponent-seat--top-left, .citadel-opponent-seat--top-center, .citadel-opponent-seat--top-right) {
+    width: 260px;
+    grid-template-columns: 100px 153px;
+  }
+
+  .citadel-opponent-seat:is(.citadel-opponent-seat--left-upper, .citadel-opponent-seat--left-lower),
+  .citadel-opponent-seat.is-dense:is(.citadel-opponent-seat--left-upper, .citadel-opponent-seat--left-lower) {
+    width: 330px;
+    grid-template-columns: 170px 153px;
+  }
+
+  .citadel-opponent-seat:is(.citadel-opponent-seat--right-upper, .citadel-opponent-seat--right-lower),
+  .citadel-opponent-seat.is-dense:is(.citadel-opponent-seat--right-upper, .citadel-opponent-seat--right-lower) {
+    width: 330px;
+    grid-template-columns: 153px 170px;
+  }
+}
+
+/* On wide tables, keep the normal turn controls in the open lower-right lane.
+   Large choice and targeting panels still use the centered table layout. */
+@media (min-width: 1501px) and (min-height: 700px) {
+  .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]),
+  .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]):has(> .citadel-action-button:nth-of-type(5)) {
+    right: auto;
+    bottom: 5%;
+    left: 60.5%;
+    top: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: clamp(232px, 13vw, 250px);
+    max-width: none;
+    border: 1px solid rgb(225 180 89 / 28%);
+    border-radius: 10px;
+    background:
+      linear-gradient(145deg, rgb(255 221 147 / 4%), transparent 44%),
+      linear-gradient(180deg, rgb(5 12 17 / 84%), rgb(3 8 12 / 76%));
+    padding: 12px 11px;
+    box-shadow: 0 12px 24px rgb(0 0 0 / 22%), inset 0 1px 0 rgb(255 255 255 / 4%);
+    transform: none;
+  }
+
+  .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]):has(> .citadel-action-button:nth-of-type(5)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: clamp(232px, 13vw, 250px);
+  }
+
+  .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]) .citadel-action-guidance {
+    grid-column: 1 / -1;
+    min-height: 34px;
+    margin-bottom: 2px;
+    font-size: 0.62rem;
+    line-height: 1.3;
+    text-align: left;
+  }
+
+  .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]) .citadel-action-guidance span {
+    display: block;
+    margin: 0 0 3px;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+  }
+
+  .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]) .citadel-action-button {
+    width: 100%;
+    min-width: 0;
+    min-height: 35px;
+    padding-right: 5px;
+    padding-left: 5px;
+    font-size: clamp(0.66rem, 0.7vw, 0.8rem);
+  }
+
+  .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]) .citadel-action-button:nth-of-type(n + 3) {
+    grid-column: 1 / -1;
+  }
+}

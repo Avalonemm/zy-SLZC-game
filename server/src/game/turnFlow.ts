@@ -10,6 +10,7 @@ import {
 } from "./gameEngineUtils";
 import { applyStealEffectBeforeTurn } from "./roleSkills";
 import { createRoleSelectionPool } from "./rolePool";
+import { scoreGame } from "./scoring";
 import { startRoleActionTimer, startRoleSelectionTimer } from "./timerState";
 
 export function selectRole(
@@ -103,6 +104,11 @@ export function advanceToNextTurn(gameRoom: GameRoom) {
     return;
   }
 
+  if (gameRoom.firstCompletedCityPlayerId) {
+    scoreGame(gameRoom);
+    return;
+  }
+
   startNextRound(gameRoom);
 }
 
@@ -137,6 +143,7 @@ function enterRoleActionPhase(gameRoom: GameRoom) {
 }
 
 function startNextRound(gameRoom: GameRoom) {
+  transferCrownToSelectedKing(gameRoom);
   const rolePool = createRoleSelectionPool(gameRoom.settings, gameRoom.players.length);
   gameRoom.currentRound += 1;
   gameRoom.phase = "ROLE_SELECTION";
@@ -159,14 +166,19 @@ function prepareTurn(gameRoom: GameRoom, player: Player | null) {
     ? {
         playerId: player.id,
         resourceActionTaken: false,
+        actionStep: "RESOURCE",
         buildsUsed: 0,
-        maxBuilds: 1
+        maxBuilds: 1,
+        usedDistrictEffectIds: []
       }
     : null;
   startRoleActionTimer(gameRoom, player?.id ?? null);
 
   if (player) {
     const role = roleForPlayer(gameRoom, player);
+    if (role?.id === "king") {
+      transferCrownToPlayer(gameRoom, player);
+    }
     applyStealEffectBeforeTurn(gameRoom, player, role);
     addLog(
       gameRoom,
@@ -174,6 +186,21 @@ function prepareTurn(gameRoom: GameRoom, player: Player | null) {
       `轮到 ${player.name} 行动${role ? `（${role.name}）` : ""}。`
     );
   }
+}
+
+function transferCrownToSelectedKing(gameRoom: GameRoom) {
+  const kingPlayer = gameRoom.players.find((player) => player.selectedRoleId === "king");
+  if (kingPlayer) {
+    transferCrownToPlayer(gameRoom, kingPlayer);
+  }
+}
+
+function transferCrownToPlayer(gameRoom: GameRoom, player: Player) {
+  if (gameRoom.crownPlayerId === player.id) {
+    return;
+  }
+  gameRoom.crownPlayerId = player.id;
+  addLog(gameRoom, "crown_transferred", `${player.name} \u83b7\u5f97\u4e86\u738b\u51a0\u3002`);
 }
 
 function nextPendingRoleEntry(gameRoom: GameRoom) {

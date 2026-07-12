@@ -1,0 +1,607 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ActionEventPayload, ChatMessage, VisibleGameState } from "@zy/shared";
+import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
+import { useGameViewModel } from "./useGameViewModel";
+import { skillHint } from "./gameText";
+import type { BuildableDistrictCard, UseDistrictEffectPayload, UseRoleSkillPayload } from "./gameTypes";
+import type { InfoModalId } from "../../components/ui/infoModalTypes";
+import { arrangeGameTableSeats } from "./gameTableLayout";
+import { GameActionDock } from "./GameActionDock";
+import { GameCenterStatus } from "./GameCenterStatus";
+import { GameCornerDocks } from "./GameCornerDocks";
+import { GameOpponentSeat } from "./GameOpponentSeat";
+import { GameObjectiveNotice } from "./GameObjectiveNotice";
+import { GameSelfArea } from "./GameSelfArea";
+import { GameSelfCity } from "./GameSelfCity";
+import { GameResultOverlay } from "../result/GameResultOverlay";
+import { GameTopBar } from "./GameTopBar";
+import {
+  getDistrictTargetStatus,
+  getTableTargetingGold,
+  type TableDistrictTargetSource
+} from "./tableDistrictTargeting";
+import { useTableDistrictTargeting } from "./useTableDistrictTargeting";
+import { legalRoleTargets, type RoleSkillTargeting } from "./roleSkillTargeting";
+import { GameCardInspector } from "./GameCardInspector";
+
+export type GameTableViewProps = {
+  actionEvents: ActionEventPayload[];
+  chatMessages: ChatMessage[];
+  gameState: VisibleGameState;
+  playerId: string | null;
+  selfAvatarImage: string | null;
+  selfAvatarLabel: string;
+  onBuildDistrict: (districtCardId: string) => void;
+  onChooseDrawnCard: (districtCardId: string) => void;
+  onDrawCards: () => void;
+  onEndTurn: () => void;
+  onLeaveRoom: () => void;
+  onOpenInfoModal: (modal: InfoModalId) => void;
+  onResolveTurnTimeout: () => void;
+  onResolveGraveyardChoice: (buyBack: boolean) => void;
+  onSendChatMessage: (message: string) => void;
+  onSelectRole: (roleId: string) => void;
+  onSkipCurrentOfflinePlayer: () => void;
+  onTakeGold: () => void;
+  onUseSkill: (payload: UseRoleSkillPayload) => void;
+  onUseDistrictEffect: (payload: UseDistrictEffectPayload) => void;
+};
+
+type PendingConfirm =
+  | { type: "build"; district: BuildableDistrictCard }
+  | { type: "magician-swap"; targetPlayerId: string; targetPlayerName: string; targetHandCount: number }
+  | {
+      type: "table-target";
+      source: TableDistrictTargetSource;
+      targetPlayerId: string;
+      targetPlayerName: string;
+      targetDistrictCardId: string;
+      targetDistrictName: string;
+      cost: number;
+    };
+
+export function GameTableView(props: GameTableViewProps) {
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const [districtEffectCardId, setDistrictEffectCardId] = useState<string | null>(null);
+  const [districtEffectDiscardCardId, setDistrictEffectDiscardCardId] = useState<string | null>(null);
+  const [roleSkillTargeting, setRoleSkillTargeting] = useState<RoleSkillTargeting | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [objectiveIntroVisible, setObjectiveIntroVisible] = useState(false);
+  const gameShellRef = useRef<HTMLElement>(null);
+  const tableTargeting = useTableDistrictTargeting();
+  const lastResolvedDeadlineRef = useRef<string | null>(null);
+  const viewModel = useGameViewModel({ gameState: props.gameState, playerId: props.playerId });
+  const districtEffectCard =
+    viewModel.self?.city.find((card) => card.id === districtEffectCardId) ?? null;
+  const usedDistrictEffectIds = viewModel.turnState?.usedDistrictEffectIds ?? [];
+  const canConfirmDistrictEffect = Boolean(
+    districtEffectCard &&
+    viewModel.isMyTurn &&
+    !usedDistrictEffectIds.includes(districtEffectCard.id) &&
+    (districtEffectCard.effectType === "discard_hand_for_gold"
+      ? districtEffectDiscardCardId && viewModel.self?.hand?.some((card) => card.id === districtEffectDiscardCardId)
+      : districtEffectCard.effectType === "pay_gold_draw_cards" && (viewModel.self?.gold ?? 0) >= 2)
+  );
+  const tableSeats = useMemo(
+    () => arrangeGameTableSeats(props.gameState.players, props.playerId),
+    [props.gameState.players, props.playerId]
+  );
+  const timerDeadlineAt = props.gameState.turnTimer?.deadlineAt ?? null;
+  const remainingSeconds = useMemo(() => {
+    if (!timerDeadlineAt) {
+      return null;
+    }
+    return Math.max(0, Math.ceil((new Date(timerDeadlineAt).getTime() - now) / 1000));
+  }, [now, timerDeadlineAt]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    const storageKey = `citadel-objective-intro:${props.gameState.roomId}`;
+    const shouldShow =
+      props.gameState.currentRound === 1 &&
+      window.sessionStorage.getItem(storageKey) !== "seen";
+
+    if (!shouldShow) {
+      setObjectiveIntroVisible(false);
+      return;
+    }
+
+    setObjectiveIntroVisible(true);
+    const timeoutId = window.setTimeout(() => {
+      window.sessionStorage.setItem(storageKey, "seen");
+      setObjectiveIntroVisible(false);
+    }, 4200);
+    return () => window.clearTimeout(timeoutId);
+  }, [props.gameState.roomId]);
+
+  useEffect(() => {
+    if (props.gameState.currentRound > 1) {
+      setObjectiveIntroVisible(false);
+    }
+  }, [props.gameState.currentRound]);
+
+  useEffect(() => {
+    lastResolvedDeadlineRef.current = null;
+  }, [timerDeadlineAt]);
+
+  useEffect(() => {
+    if (!timerDeadlineAt || remainingSeconds === null || remainingSeconds > 0) {
+      return;
+    }
+    if (lastResolvedDeadlineRef.current === timerDeadlineAt) {
+      return;
+    }
+    const timerPlayer = props.gameState.players.find(
+      (player) => player.id === props.gameState.turnTimer?.playerId
+    );
+    if (timerPlayer?.isBot) {
+      return;
+    }
+    lastResolvedDeadlineRef.current = timerDeadlineAt;
+    props.onResolveTurnTimeout();
+  }, [props, remainingSeconds, timerDeadlineAt]);
+
+  function requestBuildDistrict(district: BuildableDistrictCard) {
+    tableTargeting.cancel();
+    setRoleSkillTargeting(null);
+    setDistrictEffectCardId(null);
+    setDistrictEffectDiscardCardId(null);
+    setPendingConfirm({ type: "build", district });
+  }
+
+  function requestDistrictEffect(card: BuildableDistrictCard) {
+    if (!viewModel.isMyTurn || usedDistrictEffectIds.includes(card.id)) {
+      return;
+    }
+    if (card.effectType !== "discard_hand_for_gold" && card.effectType !== "pay_gold_draw_cards") {
+      return;
+    }
+    tableTargeting.cancel();
+    setRoleSkillTargeting(null);
+    setPendingConfirm(null);
+    setDistrictEffectCardId(card.id);
+    setDistrictEffectDiscardCardId(null);
+  }
+
+  function cancelDistrictEffect() {
+    setDistrictEffectCardId(null);
+    setDistrictEffectDiscardCardId(null);
+  }
+
+  function confirmDistrictEffect() {
+    if (!districtEffectCard || !canConfirmDistrictEffect) {
+      return;
+    }
+    props.onUseDistrictEffect({
+      districtCardId: districtEffectCard.id,
+      discardCardId:
+        districtEffectCard.effectType === "discard_hand_for_gold"
+          ? districtEffectDiscardCardId ?? undefined
+          : undefined
+    });
+    cancelDistrictEffect();
+  }
+
+  useEffect(() => {
+    if (!pendingConfirm) {
+      return;
+    }
+    if (props.gameState.phase !== "ROLE_ACTION" || !viewModel.isMyTurn) {
+      setPendingConfirm(null);
+      return;
+    }
+    if (pendingConfirm.type === "build") {
+      const stillInHand = viewModel.self?.hand?.some((card) => card.id === pendingConfirm.district.id) ?? false;
+      if (!stillInHand || !viewModel.canBuild) {
+        setPendingConfirm(null);
+      }
+    }
+  }, [
+    pendingConfirm,
+    props.gameState.phase,
+    props.gameState.currentTurnPlayerId,
+    viewModel.canBuild,
+    viewModel.isMyTurn,
+    viewModel.self?.hand
+  ]);
+
+  useEffect(() => {
+    if (!tableTargeting.source) {
+      return;
+    }
+    if (
+      props.gameState.phase !== "ROLE_ACTION" ||
+      !viewModel.isMyTurn ||
+      props.gameState.pendingDrawChoice ||
+      viewModel.skillUsed
+    ) {
+      tableTargeting.cancel();
+      if (pendingConfirm?.type === "table-target") {
+        setPendingConfirm(null);
+      }
+    }
+  }, [
+    pendingConfirm,
+    props.gameState.pendingDrawChoice,
+    props.gameState.phase,
+    tableTargeting.cancel,
+    tableTargeting.source,
+    viewModel.isMyTurn,
+    viewModel.skillUsed
+  ]);
+
+  useEffect(() => {
+    if (!districtEffectCardId) {
+      return;
+    }
+    const selectedCardStillExists = viewModel.self?.city.some(
+      (card) => card.id === districtEffectCardId
+    );
+    if (
+      props.gameState.phase !== "ROLE_ACTION" ||
+      !viewModel.isMyTurn ||
+      props.gameState.pendingDrawChoice ||
+      !selectedCardStillExists ||
+      usedDistrictEffectIds.includes(districtEffectCardId)
+    ) {
+      cancelDistrictEffect();
+    }
+  }, [
+    districtEffectCardId,
+    props.gameState.currentTurnPlayerId,
+    props.gameState.pendingDrawChoice,
+    props.gameState.phase,
+    usedDistrictEffectIds,
+    viewModel.isMyTurn,
+    viewModel.self?.city
+  ]);
+
+  useEffect(() => {
+    if (!roleSkillTargeting) {
+      return;
+    }
+    if (
+      props.gameState.phase !== "ROLE_ACTION" ||
+      !viewModel.isMyTurn ||
+      props.gameState.pendingDrawChoice ||
+      viewModel.skillUsed
+    ) {
+      setRoleSkillTargeting(null);
+    }
+  }, [
+    props.gameState.pendingDrawChoice,
+    props.gameState.phase,
+    roleSkillTargeting,
+    viewModel.isMyTurn,
+    viewModel.skillUsed
+  ]);
+
+  function requestUseSkill(payload: UseRoleSkillPayload) {
+    if (viewModel.selfRoleId === "assassin" || viewModel.selfRoleId === "thief") {
+      tableTargeting.cancel();
+      cancelDistrictEffect();
+      setPendingConfirm(null);
+      setRoleSkillTargeting({
+        kind: "role",
+        sourceRoleId: viewModel.selfRoleId,
+        selectedRoleId: null
+      });
+      return;
+    }
+    if (viewModel.selfRoleId === "magician") {
+      tableTargeting.cancel();
+      cancelDistrictEffect();
+      viewModel.clearDiscardCards();
+      setPendingConfirm(null);
+      setRoleSkillTargeting({ kind: "magician-choice" });
+      return;
+    }
+    if (viewModel.selfRoleId !== "warlord") {
+      props.onUseSkill(payload);
+      return;
+    }
+    setRoleSkillTargeting(null);
+    setPendingConfirm(null);
+    cancelDistrictEffect();
+    tableTargeting.begin({
+      kind: "role",
+      roleId: "warlord",
+      name: "军阀技能",
+      costMode: "warlord"
+    });
+  }
+
+  function chooseRoleTarget(roleId: string) {
+    setRoleSkillTargeting((current) =>
+      current?.kind === "role" ? { ...current, selectedRoleId: roleId } : current
+    );
+  }
+
+  function confirmRoleTarget() {
+    if (roleSkillTargeting?.kind !== "role" || !roleSkillTargeting.selectedRoleId) {
+      return;
+    }
+    props.onUseSkill({ targetRoleId: roleSkillTargeting.selectedRoleId });
+    setRoleSkillTargeting(null);
+  }
+
+  function chooseMagicianMode(mode: "discard" | "player") {
+    viewModel.clearDiscardCards();
+    setRoleSkillTargeting(
+      mode === "discard"
+        ? { kind: "magician-discard", selectedCardIds: [] }
+        : { kind: "magician-player", selectedPlayerId: null }
+    );
+  }
+
+  function confirmMagicianDiscard() {
+    if (roleSkillTargeting?.kind !== "magician-discard" || viewModel.discardCardIds.length === 0) {
+      return;
+    }
+    props.onUseSkill({ discardCardIds: viewModel.discardCardIds });
+    viewModel.clearDiscardCards();
+    setRoleSkillTargeting(null);
+  }
+
+  function requestMagicianPlayerTarget(targetPlayer: (typeof props.gameState.players)[number]) {
+    if (roleSkillTargeting?.kind !== "magician-player") {
+      return;
+    }
+    setRoleSkillTargeting({ kind: "magician-player", selectedPlayerId: targetPlayer.id });
+    setPendingConfirm({
+      type: "magician-swap",
+      targetPlayerId: targetPlayer.id,
+      targetPlayerName: targetPlayer.name,
+      targetHandCount: targetPlayer.handCount
+    });
+  }
+
+  function requestTableDistrictTarget(
+    targetPlayer: (typeof props.gameState.players)[number],
+    targetDistrict: BuildableDistrictCard
+  ) {
+    if (!tableTargeting.source) {
+      return;
+    }
+    const targetStatus = getDistrictTargetStatus({
+      actorGold: getTableTargetingGold(viewModel.self),
+      endCitySize: props.gameState.settings.endCitySize,
+      protectedPlayerIds: props.gameState.roleEffects.protectedPlayerIds,
+      targetDistrict,
+      targetPlayer
+    });
+    if (!targetStatus.eligible) {
+      return;
+    }
+    setPendingConfirm({
+      type: "table-target",
+      source: tableTargeting.source,
+      targetPlayerId: targetPlayer.id,
+      targetPlayerName: targetPlayer.name,
+      targetDistrictCardId: targetDistrict.id,
+      targetDistrictName: targetDistrict.name,
+      cost: targetStatus.cost
+    });
+  }
+
+  function confirmPendingAction() {
+    if (!pendingConfirm) {
+      return;
+    }
+    if (pendingConfirm.type === "build") {
+      props.onBuildDistrict(pendingConfirm.district.id);
+    } else if (pendingConfirm.type === "magician-swap") {
+      props.onUseSkill({ targetPlayerId: pendingConfirm.targetPlayerId });
+      setRoleSkillTargeting(null);
+    } else {
+      props.onUseSkill({
+        targetPlayerId: pendingConfirm.targetPlayerId,
+        targetDistrictCardId: pendingConfirm.targetDistrictCardId
+      });
+    }
+    tableTargeting.cancel();
+    setPendingConfirm(null);
+  }
+
+  return (
+    <section
+      ref={gameShellRef}
+      className={`citadel-game-shell citadel-game-shell--players-${props.gameState.players.length} ${pendingConfirm ? "citadel-game-shell--confirming" : ""} ${districtEffectCard ? "citadel-game-shell--hand-choice" : ""} ${tableTargeting.source ? "citadel-game-shell--table-targeting" : ""} ${objectiveIntroVisible ? "citadel-game-shell--objective-intro" : ""} ${props.gameState.pendingDrawChoice ? "citadel-game-shell--draw-choice" : ""}`}
+      data-crown-player-id={props.gameState.crownPlayerId}
+    >
+      <GameTopBar
+        gameState={props.gameState}
+        objectiveIntroVisible={objectiveIntroVisible}
+        onLeaveRoom={props.onLeaveRoom}
+        onOpenInfoModal={props.onOpenInfoModal}
+      />
+      <main className="citadel-game-table" aria-label={"\u5bf9\u5c40\u684c\u9762"}>
+        <div className="citadel-game-board" aria-hidden="true" />
+        <GameObjectiveNotice
+          endCitySize={props.gameState.settings.endCitySize}
+          visible={objectiveIntroVisible}
+        />
+        {tableSeats.opponents.map((seat) => (
+          <GameOpponentSeat
+            key={seat.player.id}
+            dense={
+              props.gameState.players.length >= 7 &&
+              (seat.position.startsWith("left-") || seat.position.startsWith("right-"))
+            }
+            hasCrown={seat.player.id === props.gameState.crownPlayerId}
+            currentTurnPlayerId={props.gameState.currentTurnPlayerId}
+            districtTargeting={Boolean(tableTargeting.source)}
+            playerTargeting={roleSkillTargeting?.kind === "magician-player"}
+            playerTargetSelected={
+              roleSkillTargeting?.kind === "magician-player" &&
+              roleSkillTargeting.selectedPlayerId === seat.player.id
+            }
+            selectedDistrictCardId={pendingConfirm?.type === "table-target" ? pendingConfirm.targetDistrictCardId : null}
+            getDistrictTargetStatus={(card) => tableTargeting.source
+              ? getDistrictTargetStatus({
+                  actorGold: getTableTargetingGold(viewModel.self),
+                  endCitySize: props.gameState.settings.endCitySize,
+                  protectedPlayerIds: props.gameState.roleEffects.protectedPlayerIds,
+                  targetDistrict: card,
+                  targetPlayer: seat.player
+                })
+              : { eligible: false, reason: "", cost: 0 }}
+            onSelectDistrictTarget={(card) => requestTableDistrictTarget(seat.player, card)}
+            onSelectPlayerTarget={() => requestMagicianPlayerTarget(seat.player)}
+            player={seat.player}
+            position={seat.position}
+          />
+        ))}
+        <GameCenterStatus
+          currentTurnName={viewModel.currentTurnName}
+          gameState={props.gameState}
+          remainingSeconds={remainingSeconds}
+          roleSelectionTurnName={viewModel.roleSelectionTurnName}
+        />
+        {tableSeats.self && (
+          <GameSelfCity
+            activeDistrictCardId={districtEffectCardId}
+            canUseDistrictEffects={viewModel.isMyTurn && !pendingConfirm && !tableTargeting.source && !roleSkillTargeting && !props.gameState.pendingDrawChoice}
+            city={tableSeats.self.city ?? []}
+            usedDistrictEffectIds={usedDistrictEffectIds}
+            onSelectDistrictEffect={requestDistrictEffect}
+          />
+        )}
+        {tableSeats.self && (
+          <GameSelfArea
+            avatarImage={props.selfAvatarImage}
+            avatarLabel={props.selfAvatarLabel}
+            canBuild={viewModel.canBuild && !districtEffectCard && !tableTargeting.source && !roleSkillTargeting}
+            canConfirmDistrictEffect={canConfirmDistrictEffect}
+            districtEffectCard={districtEffectCard}
+            districtEffectDiscardCardId={districtEffectDiscardCardId}
+            magicianDiscardSelection={roleSkillTargeting?.kind === "magician-discard"}
+            magicianDiscardCardIds={viewModel.discardCardIds}
+            gameState={props.gameState}
+            hasCrown={tableSeats.self.id === props.gameState.crownPlayerId}
+            self={tableSeats.self}
+            onBuildDistrict={requestBuildDistrict}
+            onCancelDistrictEffect={cancelDistrictEffect}
+            onConfirmDistrictEffect={confirmDistrictEffect}
+            onSelectDistrictDiscardCard={(cardId) => {
+              setDistrictEffectDiscardCardId((current) => current === cardId ? null : cardId);
+            }}
+            onToggleMagicianDiscardCard={viewModel.toggleDiscardCard}
+          />
+        )}
+        <GameActionDock
+          canSkipCurrentOfflinePlayer={viewModel.canSkipCurrentOfflinePlayer}
+          canBuild={viewModel.canBuild}
+          canTakeResource={viewModel.canTakeResource}
+          canUseSkill={viewModel.canUseSkill}
+          discardCardIds={viewModel.discardCardIds}
+          gameState={props.gameState}
+          isMyTurn={viewModel.isMyTurn}
+          isSelectingRole={viewModel.isSelectingRole}
+          currentTurnName={viewModel.currentTurnName}
+          players={props.gameState.players}
+          selfPlayerId={props.playerId}
+          skillBlockedReason={viewModel.skillBlockedReason}
+          skillHint={skillHint(viewModel.selfRoleId)}
+          skillTargetSpec={viewModel.skillTargetSpec}
+          roleSkillTargeting={roleSkillTargeting}
+          legalRoleTargets={roleSkillTargeting?.kind === "role"
+            ? legalRoleTargets(props.gameState, roleSkillTargeting.sourceRoleId)
+            : []}
+          tableTargeting={tableTargeting.source
+            ? {
+                sourceName: tableTargeting.source.name,
+                canSkip: true
+              }
+            : null}
+          turnState={viewModel.turnState}
+          onChooseDrawnCard={props.onChooseDrawnCard}
+          onDrawCards={props.onDrawCards}
+          onEndTurn={props.onEndTurn}
+          onSelectRole={props.onSelectRole}
+          onSkipCurrentOfflinePlayer={props.onSkipCurrentOfflinePlayer}
+          onTakeGold={props.onTakeGold}
+          onCancelRoleSkillTargeting={() => {
+            viewModel.clearDiscardCards();
+            setRoleSkillTargeting(null);
+            setPendingConfirm(null);
+          }}
+          onChooseRoleTarget={chooseRoleTarget}
+          onChooseMagicianMode={chooseMagicianMode}
+          onConfirmRoleTarget={confirmRoleTarget}
+          onConfirmMagicianDiscard={confirmMagicianDiscard}
+          onUseSkill={requestUseSkill}
+          onCancelTableTargeting={() => {
+            tableTargeting.cancel();
+            setPendingConfirm(null);
+          }}
+          onSkipTableTargeting={() => {
+            props.onUseSkill({});
+            tableTargeting.cancel();
+            setPendingConfirm(null);
+          }}
+        />
+        <GameCornerDocks
+          actionEvents={props.actionEvents}
+          chatMessages={props.chatMessages}
+          gameState={props.gameState}
+          onSendChatMessage={props.onSendChatMessage}
+        />
+        {props.gameState.phase === "ENDED" && viewModel.scoringResults.length > 0 && (
+          <GameResultOverlay
+            avatarImage={props.selfAvatarImage}
+            avatarLabel={props.selfAvatarLabel}
+            players={props.gameState.players}
+            results={viewModel.scoringResults}
+            selfPlayerId={props.playerId}
+            onReturnLobby={props.onLeaveRoom}
+          />
+        )}
+      </main>
+      {pendingConfirm && (
+        <ConfirmDialog
+          title={pendingConfirm.type === "build"
+            ? "\u786e\u8ba4\u5efa\u9020"
+            : pendingConfirm.type === "magician-swap"
+              ? "确认交换手牌"
+              : `确认使用${pendingConfirm.source.name}`}
+          confirmLabel={"\u786e\u5b9a"}
+          body={
+            pendingConfirm.type === "build" ? (
+              <p>{"\u662f\u5426\u5efa\u9020 "}{pendingConfirm.district.name}{"\uff1f\u9700\u8981 "}{pendingConfirm.district.cost}{" \u679a\u91d1\u5e01\u3002"}</p>
+            ) : pendingConfirm.type === "magician-swap" ? (
+              <p>是否与 {pendingConfirm.targetPlayerName} 交换全部手牌？对方当前有 {pendingConfirm.targetHandCount} 张手牌。</p>
+            ) : (
+              <p>
+                {"是否破坏 "}{pendingConfirm.targetPlayerName}{" 的 "}{pendingConfirm.targetDistrictName}{"？"}
+                {pendingConfirm.cost > 0 ? `需要 ${pendingConfirm.cost} 枚金币。` : "无需支付金币。"}
+              </p>
+            )
+          }
+          onCancel={() => setPendingConfirm(null)}
+          onConfirm={confirmPendingAction}
+        />
+      )}
+      {props.gameState.pendingGraveyardChoice?.playerId === props.playerId && (
+        <ConfirmDialog
+          title="墓地：是否收回建筑"
+          confirmLabel="支付 1 金币收回"
+          body={(
+            <p>
+              你的 {props.gameState.pendingGraveyardChoice.districtCard.name} 刚被破坏。
+              是否支付 1 枚金币，将它放回手牌？
+            </p>
+          )}
+          onCancel={() => props.onResolveGraveyardChoice(false)}
+          onConfirm={() => props.onResolveGraveyardChoice(true)}
+        />
+      )}
+      <GameCardInspector rootRef={gameShellRef} />
+    </section>
+  );
+}
+

@@ -1,4 +1,4 @@
-﻿import type { VisibleGameState } from "@zy/shared";
+import type { VisibleGameState } from "@zy/shared";
 import type { RoleOption } from "./testGameTypes";
 
 export const roleOptions: RoleOption[] = [
@@ -49,7 +49,7 @@ export function skillHint(roleId: string | null) {
     king: "国王：使用后获得下一轮先手权。",
     bishop: "主教：使用后本轮你的建筑受到保护。",
     merchant: "商人：按你城市里的绿色建筑数量获得额外金币。",
-    architect: "建筑师：使用后抽额外建筑牌，并且本轮可额外建造。",
+    architect: "建筑师：使用后额外抽 2 张建筑牌，本轮最多建造 3 个建筑。",
     warlord: "军阀：选择其他玩家的一座建筑，支付建筑费用 -1 的金币后破坏。"
   };
 

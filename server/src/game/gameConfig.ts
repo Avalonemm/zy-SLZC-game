@@ -15,7 +15,8 @@ export const STANDARD_ROLE_IDS = [
 ] as const;
 
 export const MIN_PLAYERS_TO_START = 2;
-export const MAX_PLAYERS = 4;
+export const DEFAULT_MAX_PLAYERS = 4;
+export const MAX_PLAYERS = 8;
 export const FUTURE_MAX_PLAYERS = 8;
 export const TEST_BOT_UID_BASE = 900000;
 
@@ -29,6 +30,6 @@ export const BOT_THINK_DELAY_MS = 2_000;
 export const ROLE_SELECTION_TIMEOUT_MS = 60_000;
 export const ROLE_ACTION_TIMEOUT_MS = 60_000;
 
-export function currentPlayerRangeText() {
-  return `${MIN_PLAYERS_TO_START}-${MAX_PLAYERS}`;
+export function currentPlayerRangeText(maxPlayers = MAX_PLAYERS) {
+  return `${MIN_PLAYERS_TO_START}-${maxPlayers}`;
 }

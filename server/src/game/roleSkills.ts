@@ -1,5 +1,7 @@
 import type { DistrictCard, GameRoom, Player, RoleCard, UseRoleSkillPayload } from "@zy/shared";
 import type { Result } from "./gameEngineTypes";
+import { drawAvailableDistrictCards } from "./districtDeck";
+import { destroyOpponentDistrict } from "./districtDestruction";
 import { addLog, findPlayer, findRole } from "./gameEngineUtils";
 
 export function applyRoleSkill(
@@ -33,16 +35,32 @@ export function applyRoleSkill(
       if (!gameRoom.turnState || gameRoom.turnState.playerId !== player.id) {
         return { ok: false, error: "当前回合状态不存在。" };
       }
-      gameRoom.turnState.maxBuilds += 1;
+      gameRoom.turnState.maxBuilds = Math.max(gameRoom.turnState.maxBuilds, 3);
       drawCardsToHand(gameRoom, player, 2);
-      addLog(gameRoom, "skill_extra_build", `${player.name} 抽了 2 张建筑牌，本回合可以额外建造 1 次。`);
+      addLog(gameRoom, "skill_extra_build", `${player.name} 抽了 2 张建筑牌，本回合最多可以建造 3 次。`);
       return { ok: true };
     case "destroy_district":
-      applyStandardRoleColorIncome(gameRoom, player, role);
       if (!input.targetPlayerId && !input.targetDistrictCardId) {
+        applyStandardRoleColorIncome(gameRoom, player, role);
         return { ok: true };
       }
-      return applyDestroyDistrict(gameRoom, player, input.targetPlayerId, input.targetDistrictCardId);
+      const income = standardRoleColorIncome(player, role);
+      const destroyResult = destroyOpponentDistrict(
+        gameRoom,
+        player,
+        input.targetPlayerId,
+        input.targetDistrictCardId,
+        {
+          bonusGoldBeforeCost: income,
+          costMode: "warlord",
+          logType: "skill_destroy_district",
+          sourceName: "军阀技能"
+        }
+      );
+      if (destroyResult.ok) {
+        logStandardRoleColorIncome(gameRoom, player, income);
+      }
+      return destroyResult;
     default:
       return { ok: false, error: "该角色技能暂未实现。" };
   }
@@ -163,10 +181,7 @@ function applyExchangeCardsSkill(
   player.hand = player.hand.filter((card) => !uniqueDiscardIds.includes(card.id));
   gameRoom.districtDiscardPile.push(...(discardCards as DistrictCard[]));
 
-  const drawnCards = gameRoom.districtDeck.splice(
-    0,
-    Math.min(uniqueDiscardIds.length, gameRoom.districtDeck.length)
-  );
+  const drawnCards = drawAvailableDistrictCards(gameRoom, uniqueDiscardIds.length);
   player.hand.push(...drawnCards);
   addLog(
     gameRoom,
@@ -179,7 +194,7 @@ function applyExchangeCardsSkill(
 function applyIncomeByColor(gameRoom: GameRoom, player: Player, role: RoleCard): Result {
   const color = typeof role.effectParams.color === "string" ? role.effectParams.color : "green";
   const income =
-    player.city.filter((district) => district.color === color).length +
+    countRoleColorDistricts(player, color as DistrictCard["color"]) +
     (role.id === "merchant" ? 1 : 0);
   player.gold += income;
   addLog(gameRoom, "skill_extra_gold", `${player.name} 通过角色技能获得 ${income} 枚金币。`);
@@ -187,6 +202,12 @@ function applyIncomeByColor(gameRoom: GameRoom, player: Player, role: RoleCard):
 }
 
 function applyStandardRoleColorIncome(gameRoom: GameRoom, player: Player, role: RoleCard) {
+  const income = standardRoleColorIncome(player, role);
+  player.gold += income;
+  logStandardRoleColorIncome(gameRoom, player, income);
+}
+
+function standardRoleColorIncome(player: Player, role: RoleCard) {
   const colorByRoleId: Record<string, DistrictCard["color"] | undefined> = {
     king: "yellow",
     bishop: "blue",
@@ -194,70 +215,30 @@ function applyStandardRoleColorIncome(gameRoom: GameRoom, player: Player, role: 
   };
   const color = colorByRoleId[role.id];
   if (!color) {
-    return;
+    return 0;
   }
 
-  const income = player.city.filter((district) => district.color === color).length;
+  return countRoleColorDistricts(player, color);
+}
+
+function countRoleColorDistricts(player: Player, color: DistrictCard["color"]) {
+  return player.city.filter(
+    (district) =>
+      district.color === color || district.effectType === "wildcard_income_color"
+  ).length;
+}
+
+function logStandardRoleColorIncome(gameRoom: GameRoom, player: Player, income: number) {
   if (income <= 0) {
     addLog(gameRoom, "skill_color_income", `${player.name} 没有获得额外颜色收入。`);
     return;
   }
 
-  player.gold += income;
   addLog(gameRoom, "skill_color_income", `${player.name} 获得 ${income} 枚颜色建筑收入。`);
 }
 
 function drawCardsToHand(gameRoom: GameRoom, player: Player, count: number) {
-  const drawnCards = gameRoom.districtDeck.splice(0, Math.min(count, gameRoom.districtDeck.length));
+  const drawnCards = drawAvailableDistrictCards(gameRoom, count);
   player.hand.push(...drawnCards);
   return drawnCards;
-}
-
-function applyDestroyDistrict(
-  gameRoom: GameRoom,
-  player: Player,
-  targetPlayerId?: string,
-  targetDistrictCardId?: string
-): Result {
-  if (!targetPlayerId || !targetDistrictCardId) {
-    return { ok: false, error: "请选择要破坏的目标建筑。" };
-  }
-
-  if (targetPlayerId === player.id) {
-    return { ok: false, error: "不能破坏自己的建筑。" };
-  }
-
-  const targetPlayer = findPlayer(gameRoom, targetPlayerId);
-  if (!targetPlayer) {
-    return { ok: false, error: "目标玩家不存在。" };
-  }
-
-  if (gameRoom.roleEffects.protectedPlayerIds.includes(targetPlayerId)) {
-    return { ok: false, error: "目标玩家的城市受到保护。" };
-  }
-
-  if (targetPlayer.city.length >= gameRoom.settings.endCitySize) {
-    return { ok: false, error: "不能破坏已经完成城市的玩家建筑。" };
-  }
-
-  const districtIndex = targetPlayer.city.findIndex((district) => district.id === targetDistrictCardId);
-  if (districtIndex === -1) {
-    return { ok: false, error: "目标建筑不存在。" };
-  }
-
-  const district = targetPlayer.city[districtIndex];
-  const destroyCost = Math.max(district.cost - 1, 0);
-  if (player.gold < destroyCost) {
-    return { ok: false, error: "金币不足，无法破坏建筑。" };
-  }
-
-  targetPlayer.city.splice(districtIndex, 1);
-  player.gold -= destroyCost;
-  gameRoom.districtDiscardPile.push(district);
-  addLog(
-    gameRoom,
-    "skill_destroy_district",
-    `${player.name} 花费 ${destroyCost} 枚金币破坏了 ${targetPlayer.name} 的 ${district.name}。`
-  );
-  return { ok: true };
 }
