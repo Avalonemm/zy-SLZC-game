@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GameRoom } from "@zy/shared";
-import { createActionEventFromLog } from "./actionEvents";
+import { createActionEventFromLog, createActionEventsFromLogs } from "./actionEvents";
 
 function createGameRoomWithLog(): GameRoom {
   return {
@@ -80,5 +80,38 @@ describe("action events", () => {
     });
     expect(event.id).toContain("log-1");
     expect("districtDeck" in event).toBe(false);
+  });
+
+  it("keeps structured presentation data and preserves the requested event order", () => {
+    const gameRoom = createGameRoomWithLog();
+    const logs = [
+      {
+        id: "log-skill",
+        type: "skill_swap_hands",
+        message: "Alice 与 Bob 交换了全部手牌。",
+        presentation: {
+          kind: "magician_swap" as const,
+          actorPlayerId: "player-1",
+          targetPlayerId: "player-2",
+          actorHandCount: 2,
+          targetHandCount: 5
+        },
+        createdAt: "2026-07-03T00:00:01.000Z"
+      },
+      gameRoom.gameLog[0]
+    ];
+
+    const events = createActionEventsFromLogs(gameRoom, logs);
+
+    expect(events.map((event) => event.id)).toEqual(["log-skill:event", "log-1:event"]);
+    expect(events[0]).toMatchObject({
+      actorPlayerId: "player-1",
+      targetPlayerId: "player-2",
+      presentation: {
+        kind: "magician_swap",
+        actorHandCount: 2,
+        targetHandCount: 5
+      }
+    });
   });
 });

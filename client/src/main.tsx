@@ -5,6 +5,7 @@ import "./styles.css";
 import "./styles/lobby-screens.css";
 import "./styles/game-table.css";
 import "./styles/game-opponents.css";
+import "./styles/game-skill-presentations.css";
 import "./styles/result-screen.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

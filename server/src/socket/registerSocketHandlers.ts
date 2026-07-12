@@ -7,7 +7,7 @@ import type {
   ServerToClientEvents,
   SocketData
 } from "@zy/shared";
-import { createLatestActionEvent } from "../game/actionEvents";
+import { createActionEventsFromLogs, createLatestActionEvent } from "../game/actionEvents";
 import { createRoomManager } from "../game/roomManager";
 import {
   advanceOfflinePlayers,
@@ -40,7 +40,7 @@ type GameSocket = Socket<
   SocketData
 >;
 
-type ActionResult = { ok: boolean; error?: string; actionEvent?: ActionEventPayload | null };
+type ActionResult = { ok: boolean; error?: string; actionEvents?: ActionEventPayload[] };
 
 const roomManager = createRoomManager();
 let nextUid = 100001;
@@ -535,7 +535,7 @@ export function registerSocketHandlers(io: GameServer) {
       return;
     }
 
-    broadcastActionEvent(result.actionEvent);
+    broadcastActionEvents(result.actionEvents);
     const gameRoom = roomManager.getGameRoom(roomCode);
     if (gameRoom) {
       broadcastGameState(gameRoom);
@@ -548,7 +548,8 @@ export function registerSocketHandlers(io: GameServer) {
     if (!gameRoom) {
       return { ok: false, error: "游戏房间不存在。" };
     }
-    return withActionEvent(gameRoom, takeGold(gameRoom, payload), payload.playerId);
+    const previousLogId = gameRoom.gameLog[0]?.id;
+    return withActionEvents(gameRoom, takeGold(gameRoom, payload), payload.playerId, previousLogId);
   }
 
   function drawCardsOrError(payload: { roomCode: string; playerId: string }) {
@@ -556,7 +557,8 @@ export function registerSocketHandlers(io: GameServer) {
     if (!gameRoom) {
       return { ok: false, error: "游戏房间不存在。" };
     }
-    return withActionEvent(gameRoom, drawDistrictCards(gameRoom, payload), payload.playerId);
+    const previousLogId = gameRoom.gameLog[0]?.id;
+    return withActionEvents(gameRoom, drawDistrictCards(gameRoom, payload), payload.playerId, previousLogId);
   }
 
   function chooseDrawnCardOrError(payload: {
@@ -568,7 +570,13 @@ export function registerSocketHandlers(io: GameServer) {
     if (!gameRoom) {
       return { ok: false, error: "游戏房间不存在。" };
     }
-    return withActionEvent(gameRoom, chooseDrawnDistrictCard(gameRoom, payload), payload.playerId);
+    const previousLogId = gameRoom.gameLog[0]?.id;
+    return withActionEvents(
+      gameRoom,
+      chooseDrawnDistrictCard(gameRoom, payload),
+      payload.playerId,
+      previousLogId
+    );
   }
 
   function buildDistrictOrError(payload: {
@@ -580,7 +588,8 @@ export function registerSocketHandlers(io: GameServer) {
     if (!gameRoom) {
       return { ok: false, error: "游戏房间不存在。" };
     }
-    return withActionEvent(gameRoom, buildDistrict(gameRoom, payload), payload.playerId);
+    const previousLogId = gameRoom.gameLog[0]?.id;
+    return withActionEvents(gameRoom, buildDistrict(gameRoom, payload), payload.playerId, previousLogId);
   }
 
   function useRoleSkillOrError(payload: {
@@ -595,7 +604,8 @@ export function registerSocketHandlers(io: GameServer) {
     if (!gameRoom) {
       return { ok: false, error: "游戏房间不存在。" };
     }
-    return withActionEvent(gameRoom, useRoleSkill(gameRoom, payload), payload.playerId);
+    const previousLogId = gameRoom.gameLog[0]?.id;
+    return withActionEvents(gameRoom, useRoleSkill(gameRoom, payload), payload.playerId, previousLogId);
   }
 
 
@@ -609,7 +619,8 @@ export function registerSocketHandlers(io: GameServer) {
     if (!gameRoom) {
       return { ok: false, error: "游戏房间不存在。" };
     }
-    return withActionEvent(gameRoom, useDistrictEffect(gameRoom, payload), payload.playerId);
+    const previousLogId = gameRoom.gameLog[0]?.id;
+    return withActionEvents(gameRoom, useDistrictEffect(gameRoom, payload), payload.playerId, previousLogId);
   }
 
   function resolveGraveyardChoiceOrError(payload: {
@@ -621,14 +632,21 @@ export function registerSocketHandlers(io: GameServer) {
     if (!gameRoom) {
       return { ok: false, error: "游戏房间不存在。" };
     }
-    return withActionEvent(gameRoom, resolveGraveyardChoice(gameRoom, payload), payload.playerId);
+    const previousLogId = gameRoom.gameLog[0]?.id;
+    return withActionEvents(
+      gameRoom,
+      resolveGraveyardChoice(gameRoom, payload),
+      payload.playerId,
+      previousLogId
+    );
   }
   function endTurnOrError(payload: { roomCode: string; playerId: string }) {
     const gameRoom = roomManager.getGameRoom(payload.roomCode);
     if (!gameRoom) {
       return { ok: false, error: "游戏房间不存在。" };
     }
-    return withActionEvent(gameRoom, endTurn(gameRoom, payload), payload.playerId);
+    const previousLogId = gameRoom.gameLog[0]?.id;
+    return withActionEvents(gameRoom, endTurn(gameRoom, payload), payload.playerId, previousLogId);
   }
 
   function skipOfflineCurrentPlayerOrError(payload: {
@@ -639,12 +657,14 @@ export function registerSocketHandlers(io: GameServer) {
     if (!gameRoom) {
       return { ok: false, error: "游戏房间不存在。" };
     }
-    return withActionEvent(
+    const previousLogId = gameRoom.gameLog[0]?.id;
+    return withActionEvents(
       gameRoom,
       skipOfflineCurrentPlayer(gameRoom, {
         requesterPlayerId: payload.requesterPlayerId
       }),
-      payload.requesterPlayerId
+      payload.requesterPlayerId,
+      previousLogId
     );
   }
 
@@ -655,22 +675,24 @@ export function registerSocketHandlers(io: GameServer) {
     }
 
     const actorPlayerId = gameRoom.turnTimer?.playerId ?? "";
+    const previousLogId = gameRoom.gameLog[0]?.id;
     const result = resolveExpiredTurn(gameRoom);
     if (!result.ok) {
       return result;
     }
 
     if (!result.timedOut) {
-      return { ...result, actionEvent: null };
+      return { ...result, actionEvents: [] };
     }
 
-    return withActionEvent(gameRoom, result, actorPlayerId);
+    return withActionEvents(gameRoom, result, actorPlayerId, previousLogId);
   }
 
-  function withActionEvent<T extends ActionResult>(
+  function withActionEvents<T extends ActionResult>(
     gameRoom: NonNullable<ReturnType<typeof roomManager.getGameRoom>>,
     result: T,
-    actorPlayerId: string
+    actorPlayerId: string,
+    previousLogId: string | undefined
   ): T {
     if (!result.ok) {
       return result;
@@ -678,8 +700,27 @@ export function registerSocketHandlers(io: GameServer) {
 
     return {
       ...result,
-      actionEvent: createLatestActionEvent(gameRoom, { actorPlayerId })
+      actionEvents: createActionEventsFromLogs(
+        gameRoom,
+        newLogsSince(gameRoom, previousLogId),
+        { actorPlayerId }
+      )
     };
+  }
+
+  function newLogsSince(
+    gameRoom: NonNullable<ReturnType<typeof roomManager.getGameRoom>>,
+    previousLogId: string | undefined
+  ) {
+    if (!previousLogId) {
+      return gameRoom.gameLog[0] ? [gameRoom.gameLog[0]] : [];
+    }
+
+    const previousIndex = gameRoom.gameLog.findIndex((log) => log.id === previousLogId);
+    const newLogs = previousIndex >= 0
+      ? gameRoom.gameLog.slice(0, previousIndex)
+      : gameRoom.gameLog;
+    return [...newLogs].reverse();
   }
 
   function broadcastActionEvent(event: ActionEventPayload | null | undefined) {
@@ -688,6 +729,12 @@ export function registerSocketHandlers(io: GameServer) {
     }
 
     io.to(event.roomCode).emit("action_event", event);
+  }
+
+  function broadcastActionEvents(events: ActionEventPayload[] | null | undefined) {
+    for (const event of events ?? []) {
+      broadcastActionEvent(event);
+    }
   }
 
   function broadcastGameState(gameRoom: NonNullable<ReturnType<typeof roomManager.getGameRoom>>) {
@@ -751,6 +798,8 @@ export function registerSocketHandlers(io: GameServer) {
         return;
       }
 
+      const actorPlayerId = getAutoTurnPlayer(latestGameRoom)?.id ?? "";
+      const previousLogId = latestGameRoom.gameLog[0]?.id;
       const result = runNextBotTurn(latestGameRoom);
       if (!result.ok) {
         io.to(roomCode).emit("error_message", { message: result.error });
@@ -758,6 +807,13 @@ export function registerSocketHandlers(io: GameServer) {
         return;
       }
 
+      broadcastActionEvents(
+        createActionEventsFromLogs(
+          latestGameRoom,
+          newLogsSince(latestGameRoom, previousLogId),
+          { actorPlayerId }
+        )
+      );
       broadcastGameState(latestGameRoom);
       scheduleBotTurn(latestGameRoom);
     }, BOT_THINK_DELAY_MS);

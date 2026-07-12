@@ -86,6 +86,7 @@ function OpponentCityRow(props: {
             aria-disabled={props.targeting && !targetStatus.eligible}
             aria-label={`${card.name}\uff0c\u8d39\u7528 ${card.cost}\uff0c${card.score} \u5206\u3002${card.description}${props.targeting ? `\u3002${targetStatus.reason}` : ""}`}
             className={`citadel-mini-city-card citadel-mini-city-card--${card.color} ${targetClass} ${selectedClass}`}
+            data-district-card-id={card.id}
             data-tooltip={tooltip}
             {...districtInspectorAttributes(card, props.inspectorPlacement, "table-small")}
             key={card.id}

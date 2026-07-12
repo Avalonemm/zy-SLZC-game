@@ -132,7 +132,32 @@ export type GameLog = {
   id: string;
   type: string;
   message: string;
+  presentation?: ActionEventPresentation;
   createdAt: string;
+};
+
+export type ActionEventPresentationKind =
+  | "assassin_mark"
+  | "assassin_skip"
+  | "thief_mark"
+  | "thief_steal"
+  | "magician_swap"
+  | "magician_redraw"
+  | "warlord_destroy";
+
+export type ActionEventPresentation = {
+  kind: ActionEventPresentationKind;
+  actorPlayerId?: string;
+  targetPlayerId?: string;
+  targetRoleId?: string;
+  amount?: number;
+  cardCount?: number;
+  actorHandCount?: number;
+  targetHandCount?: number;
+  districtCardId?: string;
+  districtName?: string;
+  districtColor?: DistrictColor;
+  cost?: number;
 };
 
 export type TurnState = {
@@ -269,6 +294,7 @@ export type ActionEventPayload = {
   message: string;
   actorPlayerId?: string;
   targetPlayerId?: string;
+  presentation?: ActionEventPresentation;
   visibility: "public" | "private";
   phase: GamePhase;
   round: number;

@@ -23,6 +23,7 @@ import {
 import { useTableDistrictTargeting } from "./useTableDistrictTargeting";
 import { legalRoleTargets, type RoleSkillTargeting } from "./roleSkillTargeting";
 import { GameCardInspector } from "./GameCardInspector";
+import { GameSkillPresentationLayer } from "./GameSkillPresentationLayer";
 
 export type GameTableViewProps = {
   actionEvents: ActionEventPayload[];
@@ -68,6 +69,7 @@ export function GameTableView(props: GameTableViewProps) {
   const [now, setNow] = useState(() => Date.now());
   const [objectiveIntroVisible, setObjectiveIntroVisible] = useState(false);
   const gameShellRef = useRef<HTMLElement>(null);
+  const gameTableRef = useRef<HTMLElement>(null);
   const tableTargeting = useTableDistrictTargeting();
   const lastResolvedDeadlineRef = useRef<string | null>(null);
   const viewModel = useGameViewModel({ gameState: props.gameState, playerId: props.playerId });
@@ -419,7 +421,7 @@ export function GameTableView(props: GameTableViewProps) {
         onLeaveRoom={props.onLeaveRoom}
         onOpenInfoModal={props.onOpenInfoModal}
       />
-      <main className="citadel-game-table" aria-label={"\u5bf9\u5c40\u684c\u9762"}>
+      <main ref={gameTableRef} className="citadel-game-table" aria-label={"\u5bf9\u5c40\u684c\u9762"}>
         <div className="citadel-game-board" aria-hidden="true" />
         <GameObjectiveNotice
           endCitySize={props.gameState.settings.endCitySize}
@@ -550,6 +552,12 @@ export function GameTableView(props: GameTableViewProps) {
           chatMessages={props.chatMessages}
           gameState={props.gameState}
           onSendChatMessage={props.onSendChatMessage}
+        />
+        <GameSkillPresentationLayer
+          actionEvents={props.actionEvents}
+          gameState={props.gameState}
+          selfPlayerId={props.playerId}
+          tableRef={gameTableRef}
         />
         {props.gameState.phase === "ENDED" && viewModel.scoringResults.length > 0 && (
           <GameResultOverlay

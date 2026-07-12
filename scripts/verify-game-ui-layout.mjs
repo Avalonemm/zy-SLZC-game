@@ -1370,11 +1370,14 @@ async function collectTableTargetingFlow(cdp, sessionId, screenshotName) {
   `);
   await waitForSelector(cdp, sessionId, ".confirm-dialog", 10000);
   await evaluate(cdp, sessionId, `document.querySelector(".confirm-dialog__actions button:last-child")?.click()`);
+  await waitForSelector(cdp, sessionId, ".citadel-skill-presentation--warlord_destroy", 10000);
+  const presentation = await collectSkillPresentation(cdp, sessionId);
+  const presentationScreenshot = await captureScreenshot(cdp, sessionId, `${screenshotName}-presentation`);
   await waitForSelectorAbsent(cdp, sessionId, ".confirm-dialog", 10000);
   await waitForSelectorAbsent(cdp, sessionId, ".citadel-action-dock--table-targeting", 10000);
   await delay(220);
   const afterConfirm = await collectLayout(cdp, sessionId);
-  return { opened, targeting, screenshot, selectedTarget, confirming, afterCancel, afterConfirm };
+  return { opened, targeting, screenshot, selectedTarget, confirming, afterCancel, afterConfirm, presentation, presentationScreenshot };
 }
 
 function checkTableTargetingFlow(label, flow) {
@@ -1402,6 +1405,12 @@ function checkTableTargetingFlow(label, flow) {
     !flow.afterConfirm.confirmDialog &&
     !flow.afterConfirm.shellClass.includes("citadel-game-shell--table-targeting")
   ), flow.afterConfirm);
+  addCheck("warlord result uses a non-layout presentation overlay", Boolean(
+    flow.presentation?.className.includes("warlord_destroy") &&
+    flow.presentation.position === "absolute" &&
+    flow.presentation.pointerEvents === "none" &&
+    flow.presentation.coversTable
+  ), flow.presentation);
   const failures = checks.filter((check) => !check.pass);
   return { label, pass: failures.length === 0, failures, checks };
 }
@@ -1422,8 +1431,28 @@ async function collectRoleSkillTargetFlow(cdp, sessionId, screenshotName) {
   await waitForSelector(cdp, sessionId, ".citadel-skill-role-options .is-selected", 10000);
   const screenshot = await captureScreenshot(cdp, sessionId, screenshotName);
   await evaluate(cdp, sessionId, `document.querySelector(".citadel-skill-target-controls .citadel-action-button--gold")?.click()`);
+  await waitForSelector(cdp, sessionId, ".citadel-skill-presentation--assassin_mark", 10000);
+  const presentation = await collectSkillPresentation(cdp, sessionId);
+  const presentationScreenshot = await captureScreenshot(cdp, sessionId, `${screenshotName}-presentation`);
   await waitForSelectorAbsent(cdp, sessionId, ".citadel-action-dock--skill-roles", 10000);
-  return { opened, optionCount, screenshot, closedAfterConfirm: true };
+  await waitForSelectorAbsent(cdp, sessionId, ".citadel-skill-presentation", 5000);
+  await evaluate(cdp, sessionId, `
+    [...document.querySelectorAll(".citadel-action-dock .citadel-action-button")]
+      .find((button) => button.textContent.includes("结束回合"))?.click()
+  `);
+  await waitForSelector(cdp, sessionId, ".citadel-skill-presentation--assassin_skip", 10000);
+  const skipPresentation = await collectSkillPresentation(cdp, sessionId);
+  const skipPresentationScreenshot = await captureScreenshot(cdp, sessionId, `${screenshotName}-skip-presentation`);
+  return {
+    opened,
+    optionCount,
+    screenshot,
+    presentation,
+    presentationScreenshot,
+    skipPresentation,
+    skipPresentationScreenshot,
+    closedAfterConfirm: true
+  };
 }
 
 async function collectMagicianDiscardFlow(cdp, sessionId, screenshotName) {
@@ -1444,8 +1473,11 @@ async function collectMagicianDiscardFlow(cdp, sessionId, screenshotName) {
     [...document.querySelectorAll(".citadel-action-dock--skill-targeting .citadel-action-button")]
       .find((button) => button.textContent.includes("确认弃牌重抽"))?.click()
   `);
+  await waitForSelector(cdp, sessionId, ".citadel-skill-presentation--magician_redraw", 10000);
+  const presentation = await collectSkillPresentation(cdp, sessionId);
+  const presentationScreenshot = await captureScreenshot(cdp, sessionId, `${screenshotName}-presentation`);
   await waitForSelectorAbsent(cdp, sessionId, ".citadel-action-dock--skill-targeting", 10000);
-  return { targetableCount, selectedCount, screenshot, closedAfterConfirm: true };
+  return { targetableCount, selectedCount, screenshot, presentation, presentationScreenshot, closedAfterConfirm: true };
 }
 
 async function collectMagicianPlayerFlow(cdp, sessionId, screenshotName) {
@@ -1462,9 +1494,65 @@ async function collectMagicianPlayerFlow(cdp, sessionId, screenshotName) {
   await waitForSelector(cdp, sessionId, ".confirm-dialog", 10000);
   const confirmText = await evaluate(cdp, sessionId, `document.querySelector(".confirm-dialog")?.textContent ?? ""`);
   await evaluate(cdp, sessionId, `document.querySelector(".confirm-dialog__actions button:last-child")?.click()`);
+  await waitForSelector(cdp, sessionId, ".citadel-skill-presentation--magician_swap", 10000);
+  const presentation = await collectSkillPresentation(cdp, sessionId);
+  const presentationScreenshot = await captureScreenshot(cdp, sessionId, `${screenshotName}-presentation`);
   await waitForSelectorAbsent(cdp, sessionId, ".confirm-dialog", 10000);
   await waitForSelectorAbsent(cdp, sessionId, ".citadel-player-mini.is-player-targetable", 10000);
-  return { targetablePlayers, screenshot, confirmText, closedAfterConfirm: true };
+  return { targetablePlayers, screenshot, confirmText, presentation, presentationScreenshot, closedAfterConfirm: true };
+}
+
+async function collectThiefPresentationFlow(cdp, sessionId, screenshotName) {
+  await evaluate(cdp, sessionId, `document.querySelector(".citadel-action-button--skill:not(:disabled)")?.click()`);
+  await waitForSelector(cdp, sessionId, ".citadel-action-dock--skill-roles", 10000);
+  const selected = await evaluate(cdp, sessionId, `
+    (() => {
+      const role = document.querySelector('.citadel-skill-role-options [data-inspector-role-id="magician"]');
+      if (!role) return false;
+      role.click();
+      return true;
+    })()
+  `);
+  if (!selected) return { selected: false };
+  await waitForSelector(cdp, sessionId, ".citadel-skill-role-options .is-selected", 10000);
+  await evaluate(cdp, sessionId, `document.querySelector(".citadel-skill-target-controls .citadel-action-button--gold")?.click()`);
+  await waitForSelector(cdp, sessionId, ".citadel-skill-presentation--thief_mark", 10000);
+  const markPresentation = await collectSkillPresentation(cdp, sessionId);
+  const markScreenshot = await captureScreenshot(cdp, sessionId, `${screenshotName}-mark`);
+  await waitForSelectorAbsent(cdp, sessionId, ".citadel-skill-presentation", 5000);
+  await evaluate(cdp, sessionId, `
+    [...document.querySelectorAll(".citadel-action-dock .citadel-action-button")]
+      .find((button) => button.textContent.includes("结束回合"))?.click()
+  `);
+  await waitForSelector(cdp, sessionId, ".citadel-skill-presentation--thief_steal", 10000);
+  const stealPresentation = await collectSkillPresentation(cdp, sessionId);
+  const stealScreenshot = await captureScreenshot(cdp, sessionId, `${screenshotName}-steal`);
+  return { selected, markPresentation, markScreenshot, stealPresentation, stealScreenshot };
+}
+
+async function collectSkillPresentation(cdp, sessionId) {
+  await delay(420);
+  return evaluate(cdp, sessionId, `
+    (() => {
+      const overlay = document.querySelector(".citadel-skill-presentation");
+      const table = document.querySelector(".citadel-game-table");
+      if (!overlay || !table) return null;
+      const overlayRect = overlay.getBoundingClientRect();
+      const tableRect = table.getBoundingClientRect();
+      const style = getComputedStyle(overlay);
+      return {
+        className: overlay.className,
+        text: overlay.textContent?.replace(/\\s+/g, " ").trim() ?? "",
+        position: style.position,
+        pointerEvents: style.pointerEvents,
+        coversTable:
+          Math.abs(overlayRect.left - tableRect.left) <= 1 &&
+          Math.abs(overlayRect.top - tableRect.top) <= 1 &&
+          Math.abs(overlayRect.width - tableRect.width) <= 1 &&
+          Math.abs(overlayRect.height - tableRect.height) <= 1
+      };
+    })()
+  `);
 }
 
 function checkDirectSkillFlow(label, checks) {
@@ -1771,6 +1859,7 @@ async function main() {
   let assassinTargetingSetup = null;
   let magicianDiscardSetup = null;
   let magicianPlayerSetup = null;
+  let thiefSetup = null;
   let inspectorSetup = null;
   let utilityMenuSetup = null;
   const opponentSetups = [];
@@ -1906,6 +1995,7 @@ async function main() {
         `${label}-warlord-table-targeting`
       );
       if (flow.screenshot) screenshots.push(flow.screenshot);
+      if (flow.presentationScreenshot) screenshots.push(flow.presentationScreenshot);
       results.push(checkTableTargetingFlow(`${label} warlord-table-targeting`, flow));
     }
 
@@ -1917,29 +2007,37 @@ async function main() {
       await preparePage(browser.cdp, browser.sessionId, assassinTargetingSetup.created, viewport);
       const assassinFlow = await collectRoleSkillTargetFlow(browser.cdp, browser.sessionId, `${label}-assassin-role-targeting`);
       if (assassinFlow.screenshot) screenshots.push(assassinFlow.screenshot);
+      if (assassinFlow.presentationScreenshot) screenshots.push(assassinFlow.presentationScreenshot);
+      if (assassinFlow.skipPresentationScreenshot) screenshots.push(assassinFlow.skipPresentationScreenshot);
       results.push(checkDirectSkillFlow(`${label} assassin-role-targeting`, [
         ["skill opens explicit role targets", assassinFlow.opened && assassinFlow.optionCount > 0, assassinFlow],
-        ["confirming a role closes targeting", assassinFlow.closedAfterConfirm, assassinFlow]
+        ["confirming a role closes targeting", assassinFlow.closedAfterConfirm, assassinFlow],
+        ["assassin confirmation launches a non-layout presentation", assassinFlow.presentation?.className.includes("assassin_mark") && assassinFlow.presentation?.pointerEvents === "none" && assassinFlow.presentation?.coversTable, assassinFlow.presentation],
+        ["assassinated role visibly skips its turn", assassinFlow.skipPresentation?.className.includes("assassin_skip") && assassinFlow.skipPresentation?.text.includes("跳过"), assassinFlow.skipPresentation]
       ]));
 
       magicianDiscardSetup = await setupPreferredRoleGame(8, "magician");
       await preparePage(browser.cdp, browser.sessionId, magicianDiscardSetup.created, viewport);
       const discardFlow = await collectMagicianDiscardFlow(browser.cdp, browser.sessionId, `${label}-magician-discard-targeting`);
       if (discardFlow.screenshot) screenshots.push(discardFlow.screenshot);
+      if (discardFlow.presentationScreenshot) screenshots.push(discardFlow.presentationScreenshot);
       results.push(checkDirectSkillFlow(`${label} magician-discard-targeting`, [
         ["own hand cards become directly targetable", discardFlow.targetableCount > 0, discardFlow],
         ["multiple hand cards can be selected", discardFlow.selectedCount > 0, discardFlow],
-        ["confirming discard exits targeting", discardFlow.closedAfterConfirm, discardFlow]
+        ["confirming discard exits targeting", discardFlow.closedAfterConfirm, discardFlow],
+        ["redraw launches a non-layout presentation", discardFlow.presentation?.className.includes("magician_redraw") && discardFlow.presentation?.pointerEvents === "none" && discardFlow.presentation?.coversTable, discardFlow.presentation]
       ]));
 
       magicianPlayerSetup = await setupPreferredRoleGame(8, "magician");
       await preparePage(browser.cdp, browser.sessionId, magicianPlayerSetup.created, viewport);
       const playerFlow = await collectMagicianPlayerFlow(browser.cdp, browser.sessionId, `${label}-magician-player-targeting`);
       if (playerFlow.screenshot) screenshots.push(playerFlow.screenshot);
+      if (playerFlow.presentationScreenshot) screenshots.push(playerFlow.presentationScreenshot);
       results.push(checkDirectSkillFlow(`${label} magician-player-targeting`, [
         ["all opponents become direct player targets", playerFlow.targetablePlayers === 7, playerFlow],
         ["clicking a player opens swap confirmation", playerFlow.confirmText.includes("交换全部手牌"), playerFlow],
-        ["confirming swap exits targeting", playerFlow.closedAfterConfirm, playerFlow]
+        ["confirming swap exits targeting", playerFlow.closedAfterConfirm, playerFlow],
+        ["swap launches a non-layout presentation", playerFlow.presentation?.className.includes("magician_swap") && playerFlow.presentation?.pointerEvents === "none" && playerFlow.presentation?.coversTable, playerFlow.presentation]
       ]));
     }
 
@@ -1950,10 +2048,12 @@ async function main() {
       await preparePage(browser.cdp, browser.sessionId, magicianDiscardSetup.created, viewport);
       const discardFlow = await collectMagicianDiscardFlow(browser.cdp, browser.sessionId, `${label}-magician-discard-targeting`);
       if (discardFlow.screenshot) screenshots.push(discardFlow.screenshot);
+      if (discardFlow.presentationScreenshot) screenshots.push(discardFlow.presentationScreenshot);
       results.push(checkDirectSkillFlow(`${label} magician-discard-targeting`, [
         ["own hand cards become directly targetable", discardFlow.targetableCount > 0, discardFlow],
         ["multiple hand cards can be selected", discardFlow.selectedCount > 0, discardFlow],
-        ["confirming discard exits targeting", discardFlow.closedAfterConfirm, discardFlow]
+        ["confirming discard exits targeting", discardFlow.closedAfterConfirm, discardFlow],
+        ["redraw launches a non-layout presentation", discardFlow.presentation?.className.includes("magician_redraw") && discardFlow.presentation?.coversTable, discardFlow.presentation]
       ]));
     }
 
@@ -1964,10 +2064,27 @@ async function main() {
       await preparePage(browser.cdp, browser.sessionId, magicianPlayerSetup.created, viewport);
       const playerFlow = await collectMagicianPlayerFlow(browser.cdp, browser.sessionId, `${label}-magician-player-targeting`);
       if (playerFlow.screenshot) screenshots.push(playerFlow.screenshot);
+      if (playerFlow.presentationScreenshot) screenshots.push(playerFlow.presentationScreenshot);
       results.push(checkDirectSkillFlow(`${label} magician-player-targeting`, [
         ["all opponents become direct player targets", playerFlow.targetablePlayers === 7, playerFlow],
         ["clicking a player opens swap confirmation", playerFlow.confirmText.includes("交换全部手牌"), playerFlow],
-        ["confirming swap exits targeting", playerFlow.closedAfterConfirm, playerFlow]
+        ["confirming swap exits targeting", playerFlow.closedAfterConfirm, playerFlow],
+        ["swap launches a non-layout presentation", playerFlow.presentation?.className.includes("magician_swap") && playerFlow.presentation?.coversTable, playerFlow.presentation]
+      ]));
+    }
+
+    if (qaMode === "skill-thief") {
+      const viewport = viewports[0];
+      const label = `${viewport.width}x${viewport.height}`;
+      thiefSetup = await setupPreferredRoleGame(8, "thief");
+      await preparePage(browser.cdp, browser.sessionId, thiefSetup.created, viewport);
+      const flow = await collectThiefPresentationFlow(browser.cdp, browser.sessionId, `${label}-thief-presentation`);
+      if (flow.markScreenshot) screenshots.push(flow.markScreenshot);
+      if (flow.stealScreenshot) screenshots.push(flow.stealScreenshot);
+      results.push(checkDirectSkillFlow(`${label} thief-presentation`, [
+        ["thief can mark the magician role", flow.selected, flow],
+        ["thief mark launches a non-layout presentation", flow.markPresentation?.className.includes("thief_mark") && flow.markPresentation?.pointerEvents === "none" && flow.markPresentation?.coversTable, flow.markPresentation],
+        ["resolved theft launches a coin-transfer presentation", flow.stealPresentation?.className.includes("thief_steal") && flow.stealPresentation?.text.includes("金币") && flow.stealPresentation?.coversTable, flow.stealPresentation]
       ]));
     }
 
@@ -1978,9 +2095,13 @@ async function main() {
       await preparePage(browser.cdp, browser.sessionId, assassinTargetingSetup.created, viewport);
       const assassinFlow = await collectRoleSkillTargetFlow(browser.cdp, browser.sessionId, `${label}-assassin-role-targeting`);
       if (assassinFlow.screenshot) screenshots.push(assassinFlow.screenshot);
+      if (assassinFlow.presentationScreenshot) screenshots.push(assassinFlow.presentationScreenshot);
+      if (assassinFlow.skipPresentationScreenshot) screenshots.push(assassinFlow.skipPresentationScreenshot);
       results.push(checkDirectSkillFlow(`${label} assassin-role-targeting`, [
         ["skill opens explicit role targets", assassinFlow.opened && assassinFlow.optionCount > 0, assassinFlow],
-        ["confirming a role closes targeting", assassinFlow.closedAfterConfirm, assassinFlow]
+        ["confirming a role closes targeting", assassinFlow.closedAfterConfirm, assassinFlow],
+        ["assassin confirmation launches a non-layout presentation", assassinFlow.presentation?.className.includes("assassin_mark") && assassinFlow.presentation?.coversTable, assassinFlow.presentation],
+        ["assassinated role visibly skips its turn", assassinFlow.skipPresentation?.className.includes("assassin_skip") && assassinFlow.skipPresentation?.text.includes("跳过"), assassinFlow.skipPresentation]
       ]));
     }
 
@@ -2014,6 +2135,7 @@ async function main() {
     assassinTargetingSetup?.socket.disconnect();
     magicianDiscardSetup?.socket.disconnect();
     magicianPlayerSetup?.socket.disconnect();
+    thiefSetup?.socket.disconnect();
     inspectorSetup?.socket.disconnect();
     utilityMenuSetup?.socket.disconnect();
     for (const opponentSetup of opponentSetups) opponentSetup.socket.disconnect();

@@ -85,7 +85,18 @@ export function destroyOpponentDistrict(
   addLog(
     gameRoom,
     options.logType,
-    `${player.name} 使用${options.sourceName}，花费 ${destroyCost} 枚金币破坏了 ${targetPlayer.name} 的 ${district.name}。`
+    `${player.name} 使用${options.sourceName}，花费 ${destroyCost} 枚金币破坏了 ${targetPlayer.name} 的 ${district.name}。`,
+    options.costMode === "warlord"
+      ? {
+          kind: "warlord_destroy",
+          actorPlayerId: player.id,
+          targetPlayerId: targetPlayer.id,
+          districtCardId: district.id,
+          districtName: district.name,
+          districtColor: district.color,
+          cost: destroyCost
+        }
+      : undefined
   );
   return { ok: true };
 }

@@ -1,4 +1,4 @@
-import type { GameLog, GameRoom, Player } from "@zy/shared";
+import type { ActionEventPresentation, GameLog, GameRoom, Player } from "@zy/shared";
 import { randomUUID } from "node:crypto";
 import { loadRoleCards } from "./cardData";
 import type { Result } from "./gameEngineTypes";
@@ -25,11 +25,17 @@ export function findPlayer(gameRoom: GameRoom, playerId: string) {
   return gameRoom.players.find((player) => player.id === playerId) ?? null;
 }
 
-export function addLog(gameRoom: GameRoom, type: string, message: string) {
+export function addLog(
+  gameRoom: GameRoom,
+  type: string,
+  message: string,
+  presentation?: ActionEventPresentation
+) {
   const log: GameLog = {
     id: randomUUID(),
     type,
     message,
+    presentation,
     createdAt: new Date().toISOString()
   };
   gameRoom.gameLog.unshift(log);

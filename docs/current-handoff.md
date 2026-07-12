@@ -174,6 +174,36 @@ UI 验收脚本：`scripts/verify-game-ui-layout.mjs`。
 - 1893×881 下大厅、准备房间、8 人对局三页真实浏览器验收通过；公告、帮助、设置弹窗、键盘焦点、退出到大厅和重新创建准备房间流程均通过。
 - `scripts/verify-game-ui-layout.mjs` 新增 `utility-menu` 模式，会检查三页按钮数量、图标原始比例、弹窗行为和键盘焦点，并保留三页截图。
 
+### 2026-07-12 关键技能桌面演出
+
+- 已新增 `client/src/pages/game/GameSkillPresentationLayer.tsx` 与 `client/src/styles/game-skill-presentations.css`。演出层绝对定位覆盖整个牌桌、保持 `pointer-events: none`，根据玩家标签的实时位置计算起点与目标点，不参与座位网格、手牌区域或玩家标签尺寸，因此后续可以继续做 UI 比例调音台。
+- 共享层新增 `ActionEventPresentation` 结构，当前包含刺客指定 / 跳过、盗贼指定 / 实际偷取、魔术师换牌 / 弃牌重抽、军阀破坏建筑所需的安全字段。`GameLog` 和 `ActionEventPayload` 可以携带该结构，客户端不从中文消息反向解析数据。
+- 服务端动作广播从“只取本次操作最后一条日志”改为按产生顺序广播本次操作的全部新日志，解决军阀破坏结果可能被后续红色收入日志覆盖的问题；人机完整回合产生的动作事件也会广播。
+- 刺客现在分成两段演出：使用技能时显示从刺客玩家到目标身份的红色轨迹和身份封印；轮到目标身份时显示“该身份被刺客跳过行动”。公开演出只关联身份，不提前公开玩家；如果本地玩家自己是被跳过身份，客户端会基于自己的可见身份额外显示“你被刺杀”的私有红色警示。
+- 盗贼同样分成两段：指定身份时显示黄色钱袋封印；实际结算时金币从被偷玩家标签飞向盗贼标签，并显示双方和准确金币数。
+- 魔术师与玩家交换手牌时，两组牌背沿双向路径互换并显示交换前张数；弃牌重抽时显示紫色魔法路径和重抽张数。演出只公开数量，不公开具体手牌。
+- 军阀破坏时显示从军阀玩家到目标玩家的战争轨迹、双方光圈、目标建筑幻影破裂，以及建筑名和实际花费。墓地后续选择仍沿用现有规则，不由演出层裁定。
+- 正式美术粒子、角色专属音效和更高级的碎片素材尚未制作；当前是可直接游玩的 CSS 基础演出版，后续可以在不改变事件结构和布局的前提下继续精修。
+- `scripts/verify-game-ui-layout.mjs` 已扩展技能演出检查：`skills` 覆盖刺客、魔术师两种方式，`targeting` 覆盖军阀破坏，新增 `skill-thief` 覆盖盗贼指定身份与实际金币转移；检查覆盖层占满牌桌、绝对定位且不接管点击，并保留演出截图。
+- 2026-07-12 最新验证：服务端 6 个测试文件共 94 项通过，完整客户端 / 服务端 / shared 构建通过；1893×881 下刺客完整跳过链路、盗贼两段链路、魔术师换牌 / 重抽和军阀破坏的真实浏览器验收全部通过。
+
+局部复验命令：
+
+```powershell
+$env:UI_QA_VIEWPORTS='1893x881'
+$env:UI_QA_MODE='skill-role'  # 刺客指定与实际跳过
+node scripts/verify-game-ui-layout.mjs
+
+$env:UI_QA_MODE='skill-thief' # 盗贼指定与实际偷取
+node scripts/verify-game-ui-layout.mjs
+
+$env:UI_QA_MODE='skills'      # 刺客与魔术师
+node scripts/verify-game-ui-layout.mjs
+
+$env:UI_QA_MODE='targeting'   # 军阀选建筑与破坏演出
+node scripts/verify-game-ui-layout.mjs
+```
+
 局部对手布局调整优先运行轻量模式：
 
 ```powershell

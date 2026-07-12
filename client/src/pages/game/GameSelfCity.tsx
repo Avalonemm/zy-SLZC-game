@@ -53,6 +53,7 @@ function BuiltDistrictCard(props: {
       aria-pressed={props.active}
       aria-disabled={!props.canActivate}
       className={`citadel-built-card citadel-built-card--${props.card.color} ${props.canActivate ? "is-activatable" : ""} ${props.active ? "is-selected" : ""} ${props.effectUsed ? "is-used" : ""}`}
+      data-district-card-id={props.card.id}
       data-tooltip={effectHint}
       {...districtInspectorAttributes(props.card)}
       type="button"

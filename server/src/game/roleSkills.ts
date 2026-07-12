@@ -88,7 +88,17 @@ export function applyStealEffectBeforeTurn(
   const stolenGold = player.gold;
   player.gold = 0;
   thief.gold += stolenGold;
-  addLog(gameRoom, "skill_steal_resolved", `${thief.name} 偷取了 ${player.name} 的 ${stolenGold} 枚金币。`);
+  addLog(
+    gameRoom,
+    "skill_steal_resolved",
+    `${thief.name} 偷取了 ${player.name} 的 ${stolenGold} 枚金币。`,
+    {
+      kind: "thief_steal",
+      actorPlayerId: thief.id,
+      targetPlayerId: player.id,
+      amount: stolenGold
+    }
+  );
 }
 
 function applySkipRole(gameRoom: GameRoom, player: Player, targetRoleId?: string): Result {
@@ -108,7 +118,16 @@ function applySkipRole(gameRoom: GameRoom, player: Player, targetRoleId?: string
   if (!gameRoom.roleEffects.skippedRoleIds.includes(targetRole.id)) {
     gameRoom.roleEffects.skippedRoleIds.push(targetRole.id);
   }
-  addLog(gameRoom, "skill_skip_role", `${player.name} 指定 ${targetRole.name} 本轮跳过行动。`);
+  addLog(
+    gameRoom,
+    "skill_skip_role",
+    `${player.name} 指定 ${targetRole.name} 本轮跳过行动。`,
+    {
+      kind: "assassin_mark",
+      actorPlayerId: player.id,
+      targetRoleId: targetRole.id
+    }
+  );
   return { ok: true };
 }
 
@@ -135,7 +154,16 @@ function applyStealGold(gameRoom: GameRoom, player: Player, targetRoleId?: strin
   }
 
   gameRoom.roleEffects.stealTargets[targetRole.id] = player.id;
-  addLog(gameRoom, "skill_steal_gold", `${player.name} 准备偷取 ${targetRole.name} 的金币。`);
+  addLog(
+    gameRoom,
+    "skill_steal_gold",
+    `${player.name} 准备偷取 ${targetRole.name} 的金币。`,
+    {
+      kind: "thief_mark",
+      actorPlayerId: player.id,
+      targetRoleId: targetRole.id
+    }
+  );
   return { ok: true };
 }
 
@@ -154,13 +182,22 @@ function applyExchangeCardsSkill(
       return { ok: false, error: "不能与自己交换手牌。" };
     }
 
+    const actorHandCount = player.hand.length;
+    const targetHandCount = targetPlayer.hand.length;
     const ownHand = player.hand;
     player.hand = targetPlayer.hand;
     targetPlayer.hand = ownHand;
     addLog(
       gameRoom,
       "skill_swap_hands",
-      `${player.name} 与 ${targetPlayer.name} 交换了全部手牌。`
+      `${player.name} 与 ${targetPlayer.name} 交换了全部手牌（${actorHandCount} 张 ↔ ${targetHandCount} 张）。`,
+      {
+        kind: "magician_swap",
+        actorPlayerId: player.id,
+        targetPlayerId: targetPlayer.id,
+        actorHandCount,
+        targetHandCount
+      }
     );
     return { ok: true };
   }
@@ -186,7 +223,12 @@ function applyExchangeCardsSkill(
   addLog(
     gameRoom,
     "skill_exchange_cards",
-    `${player.name} 弃置 ${uniqueDiscardIds.length} 张手牌并抽了 ${drawnCards.length} 张牌。`
+    `${player.name} 弃置 ${uniqueDiscardIds.length} 张手牌并抽了 ${drawnCards.length} 张牌。`,
+    {
+      kind: "magician_redraw",
+      actorPlayerId: player.id,
+      cardCount: drawnCards.length
+    }
   );
   return { ok: true };
 }

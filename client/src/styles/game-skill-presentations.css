@@ -1,0 +1,350 @@
+.citadel-skill-presentation {
+  --skill-accent: #e9c26f;
+  position: absolute;
+  z-index: 44;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: #fff2c7;
+}
+
+.citadel-skill-presentation--assassin_mark,
+.citadel-skill-presentation--assassin_skip {
+  --skill-accent: #d74445;
+}
+
+.citadel-skill-presentation--thief_mark,
+.citadel-skill-presentation--thief_steal {
+  --skill-accent: #d5ab48;
+}
+
+.citadel-skill-presentation--magician_swap,
+.citadel-skill-presentation--magician_redraw {
+  --skill-accent: #ae70ec;
+}
+
+.citadel-skill-presentation--warlord_destroy {
+  --skill-accent: #e2623c;
+}
+
+.citadel-skill-presentation__vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 44%, transparent 18%, rgb(0 0 0 / 22%) 64%, rgb(0 0 0 / 48%)),
+    linear-gradient(180deg, rgb(0 0 0 / 12%), transparent 34%, rgb(0 0 0 / 18%));
+  animation: citadel-skill-vignette 2.3s ease both;
+}
+
+.citadel-skill-presentation__route {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.citadel-skill-presentation__route path {
+  fill: none;
+  stroke: var(--skill-accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 0.12 0.05;
+  filter: drop-shadow(0 0 7px var(--skill-accent));
+  animation: citadel-skill-route 1.15s ease-out both;
+}
+
+.citadel-skill-presentation__halo {
+  position: absolute;
+  width: clamp(82px, 8vw, 132px);
+  aspect-ratio: 1;
+  border: 2px solid var(--skill-accent);
+  border-radius: 50%;
+  box-shadow: 0 0 18px var(--skill-accent), inset 0 0 24px rgb(255 255 255 / 8%);
+  transform: translate(-50%, -50%);
+  animation: citadel-skill-halo 1.8s ease-out both;
+}
+
+.citadel-skill-presentation__halo--target {
+  animation-delay: 360ms;
+}
+
+.citadel-skill-projectile,
+.citadel-skill-card-stack,
+.citadel-skill-coin-stream > span {
+  position: absolute;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+}
+
+.citadel-skill-projectile {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgb(255 255 255 / 48%);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff8d6 0 10%, var(--skill-accent) 38%, rgb(8 8 12 / 92%) 72%);
+  box-shadow: 0 0 22px var(--skill-accent);
+  color: #fff9dc;
+  font-size: 1.3rem;
+  animation: citadel-skill-fly 1.05s cubic-bezier(.22, .74, .22, 1) both;
+}
+
+.citadel-skill-presentation--warlord_destroy .citadel-skill-projectile {
+  width: 48px;
+  height: 48px;
+  font-size: 1.55rem;
+}
+
+.citadel-skill-card-stack {
+  width: 42px;
+  height: 62px;
+  border: 2px solid #d9b6ff;
+  border-radius: 6px;
+  background:
+    linear-gradient(135deg, transparent 42%, rgb(240 218 255 / 54%) 44% 48%, transparent 50%),
+    linear-gradient(160deg, #4d216e, #181129);
+  box-shadow: 5px 4px 0 -1px #251335, 0 0 20px #a764df;
+}
+
+.citadel-skill-card-stack--forward {
+  animation: citadel-skill-swap-forward 1.35s cubic-bezier(.2, .72, .2, 1) both;
+}
+
+.citadel-skill-card-stack--reverse {
+  animation: citadel-skill-swap-reverse 1.35s cubic-bezier(.2, .72, .2, 1) both;
+}
+
+.citadel-skill-coin-stream > span {
+  --skill-delay: 0ms;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid #ffe09a;
+  border-radius: 50%;
+  background: #c78c25;
+  box-shadow: 0 0 12px #f6bd45;
+  color: #4d2a08;
+  font-weight: 900;
+  animation: citadel-skill-coin-fly 1s var(--skill-delay) cubic-bezier(.18, .7, .2, 1) both;
+}
+
+.citadel-skill-district-ghost {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  width: 74px;
+  height: 108px;
+  padding: 8px;
+  border: 2px solid #f0c177;
+  border-radius: 7px;
+  background: linear-gradient(160deg, #9d4a39, #321513);
+  box-shadow: 0 0 26px #e2623c;
+  transform: translate(-50%, -50%);
+  transform-origin: center;
+  animation: citadel-skill-district-break 1.75s 480ms ease-in both;
+}
+
+.citadel-skill-district-ghost--blue { background: linear-gradient(160deg, #477096, #16314c); }
+.citadel-skill-district-ghost--green { background: linear-gradient(160deg, #507331, #172d17); }
+.citadel-skill-district-ghost--yellow { background: linear-gradient(160deg, #a16a2c, #3c240f); }
+.citadel-skill-district-ghost--purple { background: linear-gradient(160deg, #684386, #281938); }
+
+.citadel-skill-district-ghost b {
+  justify-self: start;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #edc66f;
+  color: #211205;
+}
+
+.citadel-skill-district-ghost strong {
+  align-self: end;
+  font-size: 0.72rem;
+  text-align: center;
+}
+
+.citadel-skill-role-seal {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: clamp(86px, 7.4vw, 118px);
+  aspect-ratio: 0.72;
+  border: 2px solid var(--skill-accent);
+  border-radius: 8px;
+  background: linear-gradient(160deg, rgb(27 17 30 / 96%), rgb(5 8 12 / 98%));
+  box-shadow: 0 0 28px var(--skill-accent);
+  transform: translate(-50%, -50%);
+  animation: citadel-skill-role-seal 1.8s 280ms ease both;
+}
+
+.citadel-skill-role-seal b {
+  max-width: 80%;
+  color: #ffe4aa;
+  text-align: center;
+}
+
+.citadel-skill-role-seal i {
+  position: absolute;
+  color: var(--skill-accent);
+  font-size: 3.8rem;
+  font-style: normal;
+  opacity: 0.78;
+  transform: rotate(-12deg);
+}
+
+.citadel-skill-presentation__banner {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  top: 54%;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  min-width: min(520px, 68vw);
+  max-width: min(720px, 76vw);
+  padding: 11px 28px 13px;
+  border-block: 1px solid color-mix(in srgb, var(--skill-accent) 72%, white);
+  background: linear-gradient(90deg, transparent, rgb(5 8 12 / 94%) 16% 84%, transparent);
+  text-align: center;
+  text-shadow: 0 2px 8px #000;
+  transform: translate(-50%, -50%);
+  animation: citadel-skill-banner 2.3s ease both;
+}
+
+.citadel-skill-presentation__banner small {
+  color: var(--skill-accent);
+  font-size: clamp(0.68rem, 0.8vw, 0.84rem);
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
+.citadel-skill-presentation__banner strong {
+  color: #fff0c8;
+  font-size: clamp(0.88rem, 1.15vw, 1.25rem);
+}
+
+.citadel-skill-presentation__banner span {
+  color: #d9c59c;
+  font-size: clamp(0.68rem, 0.82vw, 0.88rem);
+}
+
+.citadel-skill-private-warning {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  border: clamp(5px, 0.55vw, 10px) solid rgb(173 27 30 / 58%);
+  background: radial-gradient(circle, transparent 24%, rgb(83 0 4 / 18%) 72%, rgb(61 0 3 / 36%));
+  box-shadow: inset 0 0 72px rgb(154 13 19 / 52%);
+  animation: citadel-skill-private-warning 2.8s ease both;
+}
+
+.citadel-skill-private-warning b {
+  color: #ffced0;
+  font-size: clamp(1.8rem, 4vw, 4.2rem);
+  letter-spacing: 0.16em;
+  text-shadow: 0 0 22px #c81f27;
+}
+
+.citadel-skill-private-warning span {
+  color: #e7b9ad;
+  font-size: clamp(0.8rem, 1.2vw, 1.2rem);
+}
+
+@keyframes citadel-skill-vignette {
+  0%, 100% { opacity: 0; }
+  14%, 78% { opacity: 1; }
+}
+
+@keyframes citadel-skill-route {
+  0% { opacity: 0; stroke-dashoffset: 1; }
+  18% { opacity: 1; }
+  78% { opacity: 1; stroke-dashoffset: 0; }
+  100% { opacity: 0; stroke-dashoffset: 0; }
+}
+
+@keyframes citadel-skill-halo {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.35); }
+  28% { opacity: 1; }
+  72% { opacity: .82; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.22); }
+}
+
+@keyframes citadel-skill-fly {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.4); }
+  18% { opacity: 1; }
+  78% { opacity: 1; transform: translate(calc(-50% + var(--skill-dx)), calc(-50% + var(--skill-dy))) scale(1.1) rotate(320deg); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--skill-dx)), calc(-50% + var(--skill-dy))) scale(1.7) rotate(360deg); }
+}
+
+@keyframes citadel-skill-swap-forward {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-8deg) scale(.65); }
+  18% { opacity: 1; }
+  82% { opacity: 1; transform: translate(calc(-50% + var(--skill-dx)), calc(-50% + var(--skill-dy) - 54px)) rotate(12deg); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--skill-dx)), calc(-50% + var(--skill-dy))) rotate(4deg) scale(.8); }
+}
+
+@keyframes citadel-skill-swap-reverse {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(8deg) scale(.65); }
+  18% { opacity: 1; }
+  82% { opacity: 1; transform: translate(calc(-50% + var(--skill-dx)), calc(-50% + var(--skill-dy) + 54px)) rotate(-12deg); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--skill-dx)), calc(-50% + var(--skill-dy))) rotate(-4deg) scale(.8); }
+}
+
+@keyframes citadel-skill-coin-fly {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.45); }
+  18% { opacity: 1; }
+  82% { opacity: 1; transform: translate(calc(-50% + var(--skill-dx)), calc(-50% + var(--skill-dy) - 18px)) rotate(540deg); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--skill-dx)), calc(-50% + var(--skill-dy))) rotate(620deg) scale(.7); }
+}
+
+@keyframes citadel-skill-district-break {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.55); filter: brightness(1); }
+  18% { opacity: 1; transform: translate(-50%, -50%) scale(1.06) rotate(-2deg); }
+  45% { transform: translate(-50%, -50%) scale(1) rotate(2deg); filter: brightness(1.65); }
+  62% { opacity: 1; clip-path: polygon(0 0, 43% 0, 55% 17%, 100% 0, 100% 100%, 58% 100%, 47% 78%, 0 100%); }
+  100% { opacity: 0; transform: translate(-50%, 20%) scale(.62) rotate(12deg); filter: grayscale(1) brightness(.55); }
+}
+
+@keyframes citadel-skill-role-seal {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.45) rotate(-8deg); }
+  26% { opacity: 1; transform: translate(-50%, -50%) scale(1.08) rotate(2deg); }
+  68% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(.92); }
+}
+
+@keyframes citadel-skill-banner {
+  0% { opacity: 0; transform: translate(-50%, -42%) scaleX(.72); }
+  18%, 76% { opacity: 1; transform: translate(-50%, -50%) scaleX(1); }
+  100% { opacity: 0; transform: translate(-50%, -56%) scaleX(.88); }
+}
+
+@keyframes citadel-skill-private-warning {
+  0%, 100% { opacity: 0; }
+  10% { opacity: 1; }
+  18% { opacity: .45; }
+  25%, 76% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .citadel-skill-presentation *,
+  .citadel-skill-presentation *::before,
+  .citadel-skill-presentation *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+  }
+
+  .citadel-skill-presentation__banner {
+    animation-duration: 2.3s !important;
+  }
+}

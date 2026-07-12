@@ -702,11 +702,20 @@ describe("game engine", () => {
       targetRoleId: roles[1].id
     });
     expect(skillResult.ok).toBe(true);
+    expect(gameRoom.gameLog[0].presentation).toMatchObject({
+      kind: "assassin_mark",
+      actorPlayerId: "player-1",
+      targetRoleId: roles[1].id
+    });
 
     const endResult = endTurn(gameRoom, { playerId: "player-1" });
     expect(endResult.ok).toBe(true);
     expect(gameRoom.currentTurnPlayerId).toBe("player-3");
     expect(gameRoom.completedRoleIds).toContain(roles[1].id);
+    expect(gameRoom.gameLog.find((log) => log.type === "role_skipped")?.presentation).toEqual({
+      kind: "assassin_skip",
+      targetRoleId: roles[1].id
+    });
   });
 
   it("lets the thief mark a role and steal its gold before that role acts", () => {
@@ -730,6 +739,12 @@ describe("game engine", () => {
     expect(gameRoom.currentTurnPlayerId).toBe(target.id);
     expect(target.gold).toBe(0);
     expect(thief.gold).toBe(8);
+    expect(gameRoom.gameLog.find((log) => log.type === "skill_steal_resolved")?.presentation).toMatchObject({
+      kind: "thief_steal",
+      actorPlayerId: thief.id,
+      targetPlayerId: target.id,
+      amount: 5
+    });
   });
 
   it("lets the magician discard selected hand cards and draw the same amount", () => {
@@ -752,6 +767,11 @@ describe("game engine", () => {
       discardA.id,
       discardB.id
     ]);
+    expect(gameRoom.gameLog[0].presentation).toMatchObject({
+      kind: "magician_redraw",
+      actorPlayerId: magician.id,
+      cardCount: 2
+    });
   });
 
   it("lets the magician exchange their hand with another player", () => {
@@ -772,6 +792,13 @@ describe("game engine", () => {
     expect(skillResult.ok).toBe(true);
     expect(magician.hand.map((card) => card.id)).toEqual(targetHandIds);
     expect(target.hand.map((card) => card.id)).toEqual(magicianHandIds);
+    expect(gameRoom.gameLog[0].presentation).toMatchObject({
+      kind: "magician_swap",
+      actorPlayerId: magician.id,
+      targetPlayerId: target.id,
+      actorHandCount: 2,
+      targetHandCount: 3
+    });
   });
 
   it("rejects magician discards that are not in the player's hand", () => {
@@ -885,6 +912,14 @@ describe("game engine", () => {
     expect(warlord.gold).toBe(0);
     expect(target.city).toHaveLength(0);
     expect(gameRoom.districtDiscardPile).toContain(district);
+    expect(gameRoom.gameLog.find((log) => log.type === "skill_destroy_district")?.presentation).toMatchObject({
+      kind: "warlord_destroy",
+      actorPlayerId: warlord.id,
+      targetPlayerId: target.id,
+      districtCardId: district.id,
+      districtName: district.name,
+      cost: 3
+    });
   });
 
   it("lets the warlord target a non-adjacent player's district", () => {

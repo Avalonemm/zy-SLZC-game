@@ -95,7 +95,15 @@ export function advanceToNextTurn(gameRoom: GameRoom) {
 
   while (nextEntry && gameRoom.roleEffects.skippedRoleIds.includes(nextEntry.role.id)) {
     gameRoom.completedRoleIds.push(nextEntry.role.id);
-    addLog(gameRoom, "role_skipped", `${nextEntry.role.name} 被刺客跳过了行动。`);
+    addLog(
+      gameRoom,
+      "role_skipped",
+      `${nextEntry.role.name} 被刺客跳过了行动。`,
+      {
+        kind: "assassin_skip",
+        targetRoleId: nextEntry.role.id
+      }
+    );
     nextEntry = nextPendingRoleEntry(gameRoom);
   }
 

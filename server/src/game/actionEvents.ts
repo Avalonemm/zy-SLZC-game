@@ -16,13 +16,22 @@ export function createActionEventFromLog(
     roomCode: gameRoom.roomId,
     type: log.type,
     message: log.message,
-    actorPlayerId: options.actorPlayerId,
-    targetPlayerId: options.targetPlayerId,
+    actorPlayerId: log.presentation?.actorPlayerId ?? options.actorPlayerId,
+    targetPlayerId: log.presentation?.targetPlayerId ?? options.targetPlayerId,
+    presentation: log.presentation,
     visibility: options.visibility ?? "public",
     phase: gameRoom.phase,
     round: gameRoom.currentRound,
     createdAt: log.createdAt
   };
+}
+
+export function createActionEventsFromLogs(
+  gameRoom: GameRoom,
+  logs: GameLog[],
+  options: ActionEventOptions = {}
+) {
+  return logs.map((log) => createActionEventFromLog(gameRoom, log, options));
 }
 
 export function createLatestActionEvent(
