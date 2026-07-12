@@ -246,6 +246,7 @@ class CdpClient {
 }
 
 async function createBrowserPage() {
+  await closeStaleQaPages();
   const version = await fetch(`http://127.0.0.1:${chromePort}/json/version`).then((response) => response.json());
   const cdp = new CdpClient(version.webSocketDebuggerUrl);
   await cdp.connect();
@@ -277,6 +278,24 @@ async function closeBrowserPage(browser) {
     // Disposing the temporary context is best-effort cleanup.
   }
   browser.cdp.close();
+  await closeStaleQaPages();
+}
+
+async function closeStaleQaPages() {
+  try {
+    const targets = await fetch(`http://127.0.0.1:${chromePort}/json/list`).then((response) => response.json());
+    const stalePages = targets.filter((target) =>
+      target.type === "page" &&
+      (target.url === "about:blank" || target.url.startsWith(`${appUrl}/?qa-room=`))
+    );
+    await Promise.allSettled(
+      stalePages.map((target) =>
+        fetch(`http://127.0.0.1:${chromePort}/json/close/${encodeURIComponent(target.id)}`)
+      )
+    );
+  } catch {
+    // The dedicated QA browser may already be closed.
+  }
 }
 
 async function setViewport(cdp, sessionId, viewport) {
@@ -363,7 +382,8 @@ function delay(ms) {
 async function preparePage(cdp, sessionId, session, viewport, options = {}) {
   await setViewport(cdp, sessionId, viewport);
   await navigate(cdp, sessionId, "about:blank");
-  const qaUrl = `${appUrl}?qa-room=${encodeURIComponent(session.roomCode)}&qa-ts=${Date.now()}`;
+  const extraQuery = options.extraQuery ? `&${options.extraQuery}` : "";
+  const qaUrl = `${appUrl}?qa-room=${encodeURIComponent(session.roomCode)}&qa-ts=${Date.now()}${extraQuery}`;
   const objectiveStorageKey = `citadel-objective-intro:${session.roomCode}`;
   const skipObjectiveIntro = options.skipObjectiveIntro !== false;
   const initScript = await cdp.send("Page.addScriptToEvaluateOnNewDocument", {
@@ -1809,13 +1829,51 @@ async function collectUtilityMenuFlow(cdp, sessionId, label) {
 
   await evaluate(cdp, sessionId, `document.querySelector(".home-action-card--create")?.click()`);
   await waitForSelector(cdp, sessionId, ".fantasy-screen--lobby", 10000);
+  for (const botName of ["人机 1", "人机 2", "人机 3"]) {
+    await evaluate(cdp, sessionId, `document.querySelector(".lobby-image-button--add-bot")?.click()`);
+    await waitForPageText(cdp, sessionId, botName, 10000);
+  }
   const ready = await collectUtilityMenuState(cdp, sessionId);
+  const readyLayout = await evaluate(cdp, sessionId, `
+    (() => {
+      const rect = (element) => {
+        if (!element) return null;
+        const value = element.getBoundingClientRect();
+        return {
+          left: value.left,
+          top: value.top,
+          right: value.right,
+          bottom: value.bottom,
+          width: value.width,
+          height: value.height
+        };
+      };
+      const actionButtons = [...document.querySelectorAll(".lobby-actions button")];
+      const hostSeat = [...document.querySelectorAll(".player-seat")]
+        .find((seat) => seat.querySelector(".game-badge")?.textContent?.includes("房主"));
+      return {
+        actionLabels: actionButtons.map((button) => button.getAttribute("aria-label")),
+        actionButtonRects: actionButtons.map(rect),
+        actions: rect(document.querySelector(".lobby-actions")),
+        addSeat: rect(document.querySelector(".player-seat--add-seat")),
+        hostBadges: hostSeat
+          ? [...hostSeat.querySelectorAll(".game-badge")].map((badge) => badge.textContent?.trim())
+          : [],
+        readySummary: [...document.querySelectorAll(".lobby-badges .game-badge")]
+          .map((badge) => badge.textContent?.trim())
+          .find((text) => text?.includes("已准备")) ?? "",
+        hasCountdown: document.body.innerText.includes("自动开始"),
+        startDisabled: document.querySelector(".lobby-image-button--start")?.disabled ?? true
+      };
+    })()
+  `);
   const readyScreenshot = await captureScreenshot(cdp, sessionId, `${label}-ready-utility-menu`);
 
   return {
     game,
     home,
     ready,
+    readyLayout,
     focusedButtons,
     openedModals,
     screenshots: [gameScreenshot, homeScreenshot, readyScreenshot]
@@ -1835,6 +1893,23 @@ function checkUtilityMenuFlow(label, flow) {
   addCheck("game uses all four shared utility buttons", JSON.stringify(labels(flow.game)) === JSON.stringify(expectedGameLabels), flow.game);
   addCheck("home keeps the three shared utility buttons", JSON.stringify(labels(flow.home)) === JSON.stringify(expectedHomeLabels), flow.home);
   addCheck("ready room restores the shared exit button", JSON.stringify(labels(flow.ready)) === JSON.stringify(expectedGameLabels), flow.ready);
+  addCheck("host keeps exactly the original three room actions", JSON.stringify(flow.readyLayout.actionLabels) === JSON.stringify([
+    "开始游戏",
+    "添加人机",
+    "离开房间"
+  ]), flow.readyLayout);
+  addCheck("host seat only shows the host badge", JSON.stringify(flow.readyLayout.hostBadges) === JSON.stringify(["房主"]), flow.readyLayout);
+  addCheck("ready summary excludes the host", flow.readyLayout.readySummary.includes("3/3 已准备"), flow.readyLayout);
+  addCheck("ready room does not auto-start", !flow.readyLayout.hasCountdown && !flow.readyLayout.startDisabled, flow.readyLayout);
+  addCheck("room actions stay below the add-seat row", Boolean(
+    flow.readyLayout.actions && flow.readyLayout.addSeat &&
+    flow.readyLayout.actions.top >= flow.readyLayout.addSeat.bottom + 6
+  ), flow.readyLayout);
+  addCheck("host action buttons stay on one row", Boolean(
+    flow.readyLayout.actionButtonRects.length === 3 &&
+    Math.max(...flow.readyLayout.actionButtonRects.map((rect) => rect.top)) -
+      Math.min(...flow.readyLayout.actionButtonRects.map((rect) => rect.top)) <= 2
+  ), flow.readyLayout);
   addCheck("non-square PNG artwork preserves its original aspect ratio", [flow.game, flow.home, flow.ready].every(imagesPreserveRatio), {
     game: flow.game.buttons,
     home: flow.home.buttons,
@@ -1862,6 +1937,8 @@ async function main() {
   let thiefSetup = null;
   let inspectorSetup = null;
   let utilityMenuSetup = null;
+  let uiTuningSetup = null;
+  let actionFeedbackSetup = null;
   const opponentSetups = [];
   const browser = await createBrowserPage();
   const results = [];
@@ -1955,6 +2032,81 @@ async function main() {
         expectedOpponentCount: 7,
         expectedDenseCount: 4
       }));
+    }
+
+    if (qaMode === "ui-tuning") {
+      uiTuningSetup = await setupGame(8, { actionDeadlineMs: 90000 });
+      const viewport = viewports[0];
+      const label = `${viewport.width}x${viewport.height}`;
+      await preparePage(browser.cdp, browser.sessionId, uiTuningSetup.created, viewport, {
+        extraQuery: "uiTune=1"
+      });
+      await waitForSelector(browser.cdp, browser.sessionId, ".game-ui-tuning-panel", 10000);
+      const state = await evaluate(browser.cdp, browser.sessionId, `
+        (() => {
+          const shell = document.querySelector('.citadel-game-shell');
+          const panel = document.querySelector('.game-ui-tuning-panel');
+          const slider = panel?.querySelector('input[type="range"]');
+          const before = getComputedStyle(shell).getPropertyValue('--ui-self-card-width').trim();
+          if (slider) {
+            const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            setValue?.call(slider, String(Math.min(Number(slider.max), Number(slider.value) + 4)));
+            slider.dispatchEvent(new Event('input', { bubbles: true }));
+            slider.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          const bounds = panel?.querySelector('input[type="checkbox"]');
+          bounds?.click();
+          return new Promise((resolve) => setTimeout(() => resolve({
+            panelVisible: Boolean(panel),
+            sliderCount: panel?.querySelectorAll('input[type="range"]').length ?? 0,
+            before,
+            after: getComputedStyle(shell).getPropertyValue('--ui-self-card-width').trim(),
+            boundsVisible: shell?.classList.contains('ui-show-bounds'),
+            stored: Boolean(localStorage.getItem('zy-game-ui-tuning-v1'))
+          }), 120));
+        })()
+      `);
+      screenshots.push(await captureScreenshot(browser.cdp, browser.sessionId, `${label}-ui-tuning`));
+      results.push(checkDirectSkillFlow(`${label} ui-tuning`, [
+        ["development tuning panel is visible", state.panelVisible, state],
+        ["high-impact controls are available", state.sliderCount >= 10, state],
+        ["slider changes a semantic CSS variable", state.before !== state.after, state],
+        ["boundary overlay can be enabled", state.boundsVisible, state],
+        ["tuning config is stored locally", state.stored, state]
+      ]));
+    }
+
+    if (qaMode === "action-feedback") {
+      actionFeedbackSetup = await setupGame(4, { actionDeadlineMs: 90000 });
+      const viewport = viewports[0];
+      const label = `${viewport.width}x${viewport.height}`;
+      await preparePage(browser.cdp, browser.sessionId, actionFeedbackSetup.created, viewport);
+      await evaluate(browser.cdp, browser.sessionId, `document.querySelector('.citadel-action-button--gold')?.click()`);
+      await waitForSelector(browser.cdp, browser.sessionId, ".citadel-skill-presentation--take_gold", 5000);
+      const state = await evaluate(browser.cdp, browser.sessionId, `
+        (() => {
+          const presentation = document.querySelector('.citadel-skill-presentation--take_gold');
+          const timer = document.querySelector('.citadel-game-center__timer');
+          const modal = document.querySelector('.modal-backdrop');
+          const pStyle = presentation ? getComputedStyle(presentation) : null;
+          const timerRect = timer?.getBoundingClientRect();
+          return {
+            presentationVisible: Boolean(presentation),
+            pointerEvents: pStyle?.pointerEvents,
+            timerVisible: Boolean(timerRect && timerRect.width > 0 && timerRect.height > 0),
+            queueCount: document.querySelectorAll('.citadel-skill-presentation').length,
+            modalAbove: !modal || Number(getComputedStyle(modal).zIndex) > Number(pStyle?.zIndex ?? 0)
+          };
+        })()
+      `);
+      screenshots.push(await captureScreenshot(browser.cdp, browser.sessionId, `${label}-action-feedback`));
+      results.push(checkDirectSkillFlow(`${label} action-feedback`, [
+        ["gold action produces a presentation", state.presentationVisible, state],
+        ["presentation never captures pointer input", state.pointerEvents === "none", state],
+        ["center timer remains visible", state.timerVisible, state],
+        ["only one presentation is active", state.queueCount === 1, state],
+        ["confirmation modal stays above presentations", state.modalAbove, state]
+      ]));
     }
 
     if (qaMode === "opponents") {
@@ -2138,6 +2290,8 @@ async function main() {
     thiefSetup?.socket.disconnect();
     inspectorSetup?.socket.disconnect();
     utilityMenuSetup?.socket.disconnect();
+    uiTuningSetup?.socket.disconnect();
+    actionFeedbackSetup?.socket.disconnect();
     for (const opponentSetup of opponentSetups) opponentSetup.socket.disconnect();
     await closeBrowserPage(browser);
   }

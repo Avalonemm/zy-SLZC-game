@@ -1,5 +1,6 @@
 import type { BuildableDistrictCard } from "./gameTypes";
 import { districtInspectorAttributes } from "./cardInspectorData";
+import { CardArtwork, cardFaceAttributes } from "../../config/cardArt";
 
 const colorLabels: Record<BuildableDistrictCard["color"], string> = {
   blue: "\u5b97\u6559",
@@ -16,10 +17,12 @@ export function DistrictChoiceCard(props: {
   return (
     <button
       className={`citadel-district-choice-card citadel-district-choice-card--${props.card.color}`}
+      {...cardFaceAttributes()}
       {...districtInspectorAttributes(props.card)}
       type="button"
       onClick={props.onChoose}
     >
+      <CardArtwork kind="district" cardId={props.card.id} alt={props.card.name} />
       <span className="citadel-district-choice-card__cost" aria-label={`\u8d39\u7528 ${props.card.cost}`}>
         {props.card.cost}
       </span>

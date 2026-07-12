@@ -33,7 +33,12 @@ export function GameSkillPresentationLayer(props: {
     for (const event of incoming) {
       seenEventIds.current.add(event.id);
     }
-    setQueue((current) => [...current, ...incoming].slice(-12));
+    setQueue((current) => {
+      const active = current[0] ?? null;
+      const waiting = [...current.slice(active ? 1 : 0), ...incoming]
+        .sort((first, second) => presentationPriority(second.presentation?.kind) - presentationPriority(first.presentation?.kind));
+      return (active ? [active, ...waiting] : waiting).slice(0, 5);
+    });
   }, [props.actionEvents]);
 
   useEffect(() => {
@@ -63,9 +68,37 @@ export function GameSkillPresentationLayer(props: {
         y: tableRect.height * 0.4
       };
       const actor = playerCenter(table, activeEvent.presentation.actorPlayerId, tableRect) ?? center;
-      const target = playerCenter(table, activeEvent.presentation.targetPlayerId, tableRect) ?? center;
-      const source = activeEvent.presentation.kind === "thief_steal" ? target : actor;
-      const destination = activeEvent.presentation.kind === "thief_steal" ? actor : target;
+      const playerTarget = playerCenter(table, activeEvent.presentation.targetPlayerId, tableRect) ?? center;
+      const hand = elementCenter(table.querySelector<HTMLElement>(".citadel-hand-zone"), tableRect) ?? actor;
+      const deck = elementCenter(table.querySelector<HTMLElement>(".citadel-self-area .citadel-deck-stack"), tableRect) ?? center;
+      const district = districtCenter(table, activeEvent.presentation.districtCardId, tableRect);
+      const roleTarget = { x: center.x, y: Math.min(tableRect.height - 170, center.y + 120) };
+      const kind = activeEvent.presentation.kind;
+      let source = actor;
+      let destination = playerTarget;
+
+      if (kind === "thief_steal") {
+        source = playerTarget;
+        destination = actor;
+      } else if (kind === "warlord_destroy" || kind === "build_district") {
+        source = kind === "build_district" ? hand : actor;
+        destination = district ?? playerTarget;
+      } else if (kind === "magician_redraw") {
+        source = hand;
+        destination = deck;
+      } else if (kind === "take_gold") {
+        source = center;
+        destination = actor;
+      } else if (kind === "draw_cards" || kind === "draw_resolved") {
+        source = deck;
+        destination = activeEvent.presentation.actorPlayerId === props.selfPlayerId ? hand : actor;
+      } else if (kind === "assassin_mark" || kind === "thief_mark") {
+        destination = roleTarget;
+      } else if (kind === "role_lock" || kind === "turn_start") {
+        destination = actor;
+      } else if (kind === "crown_transfer") {
+        destination = playerTarget;
+      }
       setGeometry({
         actor,
         source,
@@ -95,31 +128,35 @@ export function GameSkillPresentationLayer(props: {
   const path = curvedPath(geometry.source, geometry.target);
   const sourceStyle = movingStyle(geometry.source, geometry.target);
   const reverseStyle = movingStyle(geometry.target, geometry.source);
+  const isNormalAction = isNormalPresentation(kind);
+  const showRoute = !["role_lock", "turn_start", "final_round", "game_ended"].includes(kind);
 
   return (
     <aside
-      className={`citadel-skill-presentation citadel-skill-presentation--${kind} ${selfAssassinated ? "is-self-affected" : ""}`}
+      className={`citadel-skill-presentation citadel-skill-presentation--${kind} ${isNormalAction ? "is-normal-action" : ""} ${selfAssassinated ? "is-self-affected" : ""}`}
       aria-live="polite"
       aria-label={activeEvent.message}
     >
       <div className="citadel-skill-presentation__vignette" />
-      <svg
-        className="citadel-skill-presentation__route"
-        viewBox={`0 0 ${geometry.width} ${geometry.height}`}
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
-        <path d={path} pathLength="1" />
-      </svg>
-      <span className="citadel-skill-presentation__halo citadel-skill-presentation__halo--actor" style={pointStyle(geometry.actor)} />
+      {showRoute && (
+        <svg
+          className="citadel-skill-presentation__route"
+          viewBox={`0 0 ${geometry.width} ${geometry.height}`}
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <path d={path} pathLength="1" />
+        </svg>
+      )}
+      {!isNormalAction && <span className="citadel-skill-presentation__halo citadel-skill-presentation__halo--actor" style={pointStyle(geometry.actor)} />}
       <span className="citadel-skill-presentation__halo citadel-skill-presentation__halo--target" style={pointStyle(geometry.target)} />
 
-      {kind === "magician_swap" ? (
+      {kind === "magician_swap" || kind === "magician_redraw" ? (
         <>
           <span className="citadel-skill-card-stack citadel-skill-card-stack--forward" style={sourceStyle} />
           <span className="citadel-skill-card-stack citadel-skill-card-stack--reverse" style={reverseStyle} />
         </>
-      ) : kind === "thief_steal" ? (
+      ) : kind === "thief_steal" || kind === "take_gold" ? (
         <div className="citadel-skill-coin-stream" aria-hidden="true">
           {Array.from({ length: 6 }, (_, index) => (
             <span
@@ -135,7 +172,7 @@ export function GameSkillPresentationLayer(props: {
         </span>
       )}
 
-      {kind === "warlord_destroy" && (
+      {(kind === "warlord_destroy" || kind === "build_district") && (
         <span
           className={`citadel-skill-district-ghost citadel-skill-district-ghost--${presentation.districtColor ?? "red"}`}
           style={pointStyle(geometry.target)}
@@ -170,9 +207,14 @@ export function GameSkillPresentationLayer(props: {
 }
 
 function presentationDuration(kind?: ActionEventPresentation["kind"]) {
-  return kind === "warlord_destroy" || kind === "magician_swap" || kind === "assassin_skip"
-    ? 2800
-    : 2300;
+  if (!kind) return 700;
+  if (kind === "final_round" || kind === "game_ended") return 1100;
+  return isNormalPresentation(kind) ? 700 : 1500;
+}
+
+function presentationPriority(kind?: ActionEventPresentation["kind"]) {
+  if (kind === "game_ended" || kind === "final_round") return 3;
+  return kind && !isNormalPresentation(kind) ? 2 : 1;
 }
 
 function playerCenter(table: HTMLElement, playerId: string | undefined, tableRect: DOMRect) {
@@ -181,6 +223,13 @@ function playerCenter(table: HTMLElement, playerId: string | undefined, tableRec
   }
   const element = [...table.querySelectorAll<HTMLElement>("[data-player-id]")]
     .find((candidate) => candidate.dataset.playerId === playerId);
+  return elementCenter(element ?? null, tableRect);
+}
+
+function districtCenter(table: HTMLElement, districtCardId: string | undefined, tableRect: DOMRect) {
+  if (!districtCardId) return null;
+  const element = [...table.querySelectorAll<HTMLElement>("[data-district-card-id]")]
+    .find((candidate) => candidate.dataset.districtCardId === districtCardId);
   return elementCenter(element ?? null, tableRect);
 }
 
@@ -221,6 +270,10 @@ function presentationGlyph(kind: ActionEventPresentation["kind"]) {
   if (kind === "magician_redraw") {
     return "✦";
   }
+  if (kind === "build_district") return "▣";
+  if (kind === "draw_cards" || kind === "draw_resolved") return "▤";
+  if (kind === "crown_transfer") return "♛";
+  if (kind === "final_round" || kind === "game_ended") return "◆";
   if (kind.startsWith("assassin")) {
     return "◆";
   }
@@ -235,7 +288,16 @@ function presentationTitle(kind: ActionEventPresentation["kind"]) {
     thief_steal: "金币被盗",
     magician_swap: "扭转手牌",
     magician_redraw: "魔术重塑",
-    warlord_destroy: "军阀攻城"
+    warlord_destroy: "军阀攻城",
+    role_lock: "身份已锁定",
+    take_gold: "获取金币",
+    draw_cards: "抽取建筑牌",
+    draw_resolved: "建筑牌已收入手牌",
+    build_district: "建筑落成",
+    turn_start: "回合开始",
+    crown_transfer: "王冠转移",
+    final_round: "进入最后一轮",
+    game_ended: "本局结束"
   };
   return titles[kind];
 }
@@ -253,8 +315,20 @@ function presentationDetail(presentation: ActionEventPresentation) {
   if (presentation.kind === "warlord_destroy") {
     return `${presentation.districtName ?? "建筑"} · 花费 ${presentation.cost ?? 0} 金币`;
   }
+  if (presentation.kind === "take_gold") return `获得 ${presentation.amount ?? 0} 枚金币`;
+  if (presentation.kind === "draw_cards" || presentation.kind === "draw_resolved") {
+    return `${presentation.cardCount ?? 0} 张建筑牌`;
+  }
+  if (presentation.kind === "build_district") return presentation.districtName ?? "建筑";
   if (presentation.targetRoleId) {
     return `目标身份：${roleName(presentation.targetRoleId)}`;
   }
   return "";
+}
+
+function isNormalPresentation(kind: ActionEventPresentation["kind"]) {
+  return [
+    "role_lock", "take_gold", "draw_cards", "draw_resolved", "build_district",
+    "turn_start", "crown_transfer", "final_round", "game_ended"
+  ].includes(kind);
 }

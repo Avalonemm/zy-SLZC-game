@@ -25,7 +25,7 @@ function createGameRoomWithLog(): GameRoom {
       enableFaceUpRoleDiscard: true,
       enableFaceDownRoleDiscard: true,
       drawMode: "draw2Choose1",
-      roleRulePreset: "standard4Player"
+      roleRulePreset: "classicStandard"
     },
     phase: "ROLE_ACTION",
     currentRound: 3,
@@ -44,7 +44,8 @@ function createGameRoomWithLog(): GameRoom {
       skippedRoleIds: [],
       protectedPlayerIds: [],
       stealTargets: {},
-      usedSkillPlayerIds: []
+      usedSkillPlayerIds: [],
+      queenIncomePlayerIds: []
     },
     availableRoles: [],
     discardedRoles: [],

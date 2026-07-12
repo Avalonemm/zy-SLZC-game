@@ -30,7 +30,7 @@ export function scoreGame(gameRoom: GameRoom) {
   gameRoom.turnState = null;
   gameRoom.turnTimer = null;
   gameRoom.scoringResults = scoringResults;
-  addLog(gameRoom, "game_ended", "本局结束，进入最终结算。");
+  addLog(gameRoom, "game_ended", "本局结束，进入最终结算。", { kind: "game_ended" });
 }
 
 function getCompletionBonus(gameRoom: GameRoom, playerId: string, citySize: number) {

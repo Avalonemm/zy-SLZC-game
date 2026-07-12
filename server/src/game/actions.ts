@@ -25,7 +25,11 @@ export function takeGold(
   result.player.gold += 2;
   result.turnState.resourceActionTaken = true;
   result.turnState.actionStep = "ACTION";
-  addLog(gameRoom, "take_gold", `${result.player.name} 拿了 2 枚金币。`);
+  addLog(gameRoom, "take_gold", `${result.player.name} 拿了 2 枚金币。`, {
+    kind: "take_gold",
+    actorPlayerId: result.player.id,
+    amount: 2
+  });
 
   return { ok: true, player: result.player };
 }
@@ -59,7 +63,8 @@ export function drawDistrictCards(
     addLog(
       gameRoom,
       "draw_empty_take_gold",
-      `${result.player.name} 抽牌时牌堆已空，系统改为领取 2 枚金币。`
+      `${result.player.name} 抽牌时牌堆已空，系统改为领取 2 枚金币。`,
+      { kind: "take_gold", actorPlayerId: result.player.id, amount: 2 }
     );
     return { ok: true, drawnCards };
   }
@@ -71,7 +76,11 @@ export function drawDistrictCards(
     result.player.hand.push(...drawnCards);
     result.turnState.resourceActionTaken = true;
     result.turnState.actionStep = "ACTION";
-    addLog(gameRoom, "draw_cards_kept", `${result.player.name} 保留了 ${drawnCards.length} 张建筑牌。`);
+    addLog(gameRoom, "draw_cards_kept", `${result.player.name} 保留了 ${drawnCards.length} 张建筑牌。`, {
+      kind: "draw_resolved",
+      actorPlayerId: result.player.id,
+      cardCount: drawnCards.length
+    });
     return { ok: true, drawnCards };
   }
 
@@ -79,7 +88,11 @@ export function drawDistrictCards(
     playerId: result.player.id,
     drawnCards
   };
-  addLog(gameRoom, "draw_cards", `${result.player.name} 抽了 ${drawnCards.length} 张建筑牌，等待选择 1 张。`);
+  addLog(gameRoom, "draw_cards", `${result.player.name} 抽了 ${drawnCards.length} 张建筑牌，等待选择 1 张。`, {
+    kind: "draw_cards",
+    actorPlayerId: result.player.id,
+    cardCount: drawnCards.length
+  });
 
   return { ok: true, drawnCards };
 }
@@ -116,7 +129,8 @@ export function chooseDrawnDistrictCard(
   addLog(
     gameRoom,
     "choose_drawn_card",
-    `${result.player.name} 保留 1 张建筑牌，未选牌放回牌堆底部。`
+    `${result.player.name} 保留 1 张建筑牌，未选牌放回牌堆底部。`,
+    { kind: "draw_resolved", actorPlayerId: result.player.id, cardCount: 1 }
   );
 
   return { ok: true, chosenCard };
@@ -163,9 +177,19 @@ export function buildDistrict(
     result.player.city.length >= gameRoom.settings.endCitySize
   ) {
     gameRoom.firstCompletedCityPlayerId = result.player.id;
-    addLog(gameRoom, "final_round_triggered", `${result.player.name} 完成城市，本轮结束后进入结算。`);
+    addLog(gameRoom, "final_round_triggered", `${result.player.name} 完成城市，本轮结束后进入结算。`, {
+      kind: "final_round",
+      actorPlayerId: result.player.id
+    });
   }
-  addLog(gameRoom, "build_district", `${result.player.name} 建造了 ${district.name}。`);
+  addLog(gameRoom, "build_district", `${result.player.name} 建造了 ${district.name}。`, {
+    kind: "build_district",
+    actorPlayerId: result.player.id,
+    districtCardId: district.id,
+    districtName: district.name,
+    districtColor: district.color,
+    cost: district.cost
+  });
 
   return { ok: true, district };
 }
@@ -194,7 +218,10 @@ export function endTurn(gameRoom: GameRoom, input: { playerId: string }): Result
     result.player.city.length >= gameRoom.settings.endCitySize
   ) {
     gameRoom.firstCompletedCityPlayerId = result.player.id;
-    addLog(gameRoom, "final_round_triggered", `${result.player.name} 完成城市，本轮结束后进入结算。`);
+    addLog(gameRoom, "final_round_triggered", `${result.player.name} 完成城市，本轮结束后进入结算。`, {
+      kind: "final_round",
+      actorPlayerId: result.player.id
+    });
   }
 
   gameRoom.completedRoleIds.push(result.player.selectedRoleId ?? "");

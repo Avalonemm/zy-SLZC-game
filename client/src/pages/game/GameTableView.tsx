@@ -24,6 +24,15 @@ import { useTableDistrictTargeting } from "./useTableDistrictTargeting";
 import { legalRoleTargets, type RoleSkillTargeting } from "./roleSkillTargeting";
 import { GameCardInspector } from "./GameCardInspector";
 import { GameSkillPresentationLayer } from "./GameSkillPresentationLayer";
+import { GameUiTuningPanel } from "./GameUiTuningPanel";
+import {
+  canShowUiTuningPanel,
+  defaultGameUiTuning,
+  densityForPlayerCount,
+  GAME_UI_TUNING_STORAGE_KEY,
+  gameUiTuningStyle,
+  readStoredGameUiTuning
+} from "./gameUiTuning";
 
 export type GameTableViewProps = {
   actionEvents: ActionEventPayload[];
@@ -37,6 +46,7 @@ export type GameTableViewProps = {
   onDrawCards: () => void;
   onEndTurn: () => void;
   onLeaveRoom: () => void;
+  onRematch: () => void;
   onOpenInfoModal: (modal: InfoModalId) => void;
   onResolveTurnTimeout: () => void;
   onResolveGraveyardChoice: (buyBack: boolean) => void;
@@ -68,6 +78,13 @@ export function GameTableView(props: GameTableViewProps) {
   const [roleSkillTargeting, setRoleSkillTargeting] = useState<RoleSkillTargeting | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [objectiveIntroVisible, setObjectiveIntroVisible] = useState(false);
+  const density = densityForPlayerCount(props.gameState.players.length);
+  const tuningDefaults = useMemo(
+    () => defaultGameUiTuning(props.gameState.players.length, window.innerHeight <= 700),
+    [props.gameState.players.length]
+  );
+  const tuningPanelVisible = canShowUiTuningPanel();
+  const [uiTuning, setUiTuning] = useState(() => readStoredGameUiTuning(tuningDefaults));
   const gameShellRef = useRef<HTMLElement>(null);
   const gameTableRef = useRef<HTMLElement>(null);
   const tableTargeting = useTableDistrictTargeting();
@@ -409,12 +426,29 @@ export function GameTableView(props: GameTableViewProps) {
     setPendingConfirm(null);
   }
 
+  function updateUiTuning(nextConfig: typeof uiTuning) {
+    setUiTuning(nextConfig);
+    window.localStorage.setItem(GAME_UI_TUNING_STORAGE_KEY, JSON.stringify(nextConfig));
+  }
+
   return (
     <section
       ref={gameShellRef}
-      className={`citadel-game-shell citadel-game-shell--players-${props.gameState.players.length} ${pendingConfirm ? "citadel-game-shell--confirming" : ""} ${districtEffectCard ? "citadel-game-shell--hand-choice" : ""} ${tableTargeting.source ? "citadel-game-shell--table-targeting" : ""} ${objectiveIntroVisible ? "citadel-game-shell--objective-intro" : ""} ${props.gameState.pendingDrawChoice ? "citadel-game-shell--draw-choice" : ""}`}
+      className={`citadel-game-shell citadel-game-shell--players-${props.gameState.players.length} citadel-game-shell--density-${density} ${pendingConfirm ? "citadel-game-shell--confirming" : ""} ${districtEffectCard ? "citadel-game-shell--hand-choice" : ""} ${tableTargeting.source ? "citadel-game-shell--table-targeting" : ""} ${objectiveIntroVisible ? "citadel-game-shell--objective-intro" : ""} ${props.gameState.pendingDrawChoice ? "citadel-game-shell--draw-choice" : ""} ${tuningPanelVisible && uiTuning.showBounds ? "ui-show-bounds" : ""}`}
       data-crown-player-id={props.gameState.crownPlayerId}
+      style={gameUiTuningStyle(tuningPanelVisible ? uiTuning : tuningDefaults)}
     >
+      {tuningPanelVisible && (
+        <GameUiTuningPanel
+          config={uiTuning}
+          density={density}
+          onChange={updateUiTuning}
+          onReset={() => {
+            window.localStorage.removeItem(GAME_UI_TUNING_STORAGE_KEY);
+            setUiTuning(tuningDefaults);
+          }}
+        />
+      )}
       <GameTopBar
         gameState={props.gameState}
         objectiveIntroVisible={objectiveIntroVisible}
@@ -566,6 +600,8 @@ export function GameTableView(props: GameTableViewProps) {
             players={props.gameState.players}
             results={viewModel.scoringResults}
             selfPlayerId={props.playerId}
+            canRematch={viewModel.self?.isHost ?? false}
+            onRematch={props.onRematch}
             onReturnLobby={props.onLeaveRoom}
           />
         )}

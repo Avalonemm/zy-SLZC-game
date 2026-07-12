@@ -1,5 +1,6 @@
 import type { BuildableDistrictCard } from "./gameTypes";
 import { districtInspectorAttributes } from "./cardInspectorData";
+import { CardArtwork, cardFaceAttributes } from "../../config/cardArt";
 
 const ACTIVE_EFFECT_TYPES = new Set(["discard_hand_for_gold", "pay_gold_draw_cards"]);
 
@@ -55,6 +56,7 @@ function BuiltDistrictCard(props: {
       className={`citadel-built-card citadel-built-card--${props.card.color} ${props.canActivate ? "is-activatable" : ""} ${props.active ? "is-selected" : ""} ${props.effectUsed ? "is-used" : ""}`}
       data-district-card-id={props.card.id}
       data-tooltip={effectHint}
+      {...cardFaceAttributes()}
       {...districtInspectorAttributes(props.card)}
       type="button"
       onClick={() => {
@@ -63,6 +65,7 @@ function BuiltDistrictCard(props: {
         }
       }}
     >
+      <CardArtwork kind="district" cardId={props.card.id} alt={props.card.name} />
       <span>{props.card.cost}</span>
       <strong>{props.card.name}</strong>
     </button>

@@ -28,7 +28,7 @@ export type RoomSettings = {
   enableFaceUpRoleDiscard: boolean;
   enableFaceDownRoleDiscard: boolean;
   drawMode: "draw2Choose1";
-  roleRulePreset: "standard4Player";
+  roleRulePreset: "classicStandard";
 };
 
 export type RoomSettingsUpdate = Partial<RoomSettings> & {
@@ -83,6 +83,7 @@ export type RoomState = {
 export type RoomCommandResult = {
   roomCode: string;
   playerId: string;
+  reconnectToken: string;
 };
 
 export type ChatMessage = {
@@ -143,7 +144,16 @@ export type ActionEventPresentationKind =
   | "thief_steal"
   | "magician_swap"
   | "magician_redraw"
-  | "warlord_destroy";
+  | "warlord_destroy"
+  | "role_lock"
+  | "take_gold"
+  | "draw_cards"
+  | "draw_resolved"
+  | "build_district"
+  | "turn_start"
+  | "crown_transfer"
+  | "final_round"
+  | "game_ended";
 
 export type ActionEventPresentation = {
   kind: ActionEventPresentationKind;
@@ -196,6 +206,7 @@ export type RoleEffectState = {
   protectedPlayerIds: string[];
   stealTargets: Record<string, string>;
   usedSkillPlayerIds: string[];
+  queenIncomePlayerIds: string[];
 };
 
 export type UseRoleSkillPayload = {
@@ -306,6 +317,7 @@ export type ServerToClientEvents = {
   room_created: (payload: RoomCommandResult) => void;
   joined_room: (payload: RoomCommandResult) => void;
   reconnected_room: (payload: RoomCommandResult) => void;
+  returned_to_ready_room: (payload: { roomCode: string }) => void;
   room_state: (payload: RoomState) => void;
   game_state: (payload: VisibleGameState) => void;
   action_event: (payload: ActionEventPayload) => void;
@@ -317,10 +329,12 @@ export type ServerToClientEvents = {
 export type ClientToServerEvents = {
   ping_server: (payload: { sentAt: string }) => void;
   create_room: (payload: { playerName: string }) => void;
+  create_tutorial_room: (payload: { playerName: string }) => void;
   join_room: (payload: { roomCode: string; playerName: string }) => void;
-  reconnect_room: (payload: { roomCode: string; playerId: string }) => void;
+  reconnect_room: (payload: { roomCode: string; playerId: string; reconnectToken: string }) => void;
   set_ready: (payload: { roomCode: string; playerId: string; isReady: boolean }) => void;
   start_game: (payload: { roomCode: string; playerId: string }) => void;
+  request_rematch: (payload: { roomCode: string; playerId: string }) => void;
   leave_room: (payload: { roomCode: string; playerId: string }) => void;
   add_test_bots: (payload: { roomCode: string; playerId: string }) => void;
   remove_test_bot: (payload: {
@@ -335,7 +349,6 @@ export type ClientToServerEvents = {
     playerId: string;
     settings: RoomSettingsUpdate;
   }) => void;
-  resolve_start_countdown: (payload: { roomCode: string; playerId: string }) => void;
   select_role: (payload: { roomCode: string; playerId: string; roleId: string }) => void;
   take_gold: (payload: { roomCode: string; playerId: string }) => void;
   draw_district_cards: (payload: { roomCode: string; playerId: string }) => void;

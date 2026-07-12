@@ -2,6 +2,7 @@ import { roleName, roleOrder, skillHint } from "./gameText";
 import { roleInspectorAttributes } from "./cardInspectorData";
 import type { CardInspectorPlacement } from "./cardInspectorData";
 import type { CardInspectorSize } from "./cardInspectorData";
+import { CardArtwork, cardFaceAttributes } from "../../config/cardArt";
 
 export function RoleIdentityCard(props: {
   className?: string;
@@ -31,6 +32,7 @@ export function RoleIdentityCard(props: {
   );
   const body = (
     <>
+      <CardArtwork kind="role" cardId={props.roleId} alt={name} />
       <span className="citadel-role-card__order">{hidden ? "?" : order}</span>
       <strong>{name}</strong>
       <small>{props.caption ?? (hidden ? "\u8eab\u4efd\u672a\u516c\u5f00" : "\u8eab\u4efd\u724c")}</small>
@@ -39,14 +41,14 @@ export function RoleIdentityCard(props: {
 
   if (props.onClick) {
     return (
-      <button className={className} type="button" onClick={props.onClick} aria-label={ariaLabel} {...inspectorAttributes}>
+      <button className={className} type="button" onClick={props.onClick} aria-label={ariaLabel} {...cardFaceAttributes()} {...inspectorAttributes}>
         {body}
       </button>
     );
   }
 
   return (
-    <div className={className} tabIndex={0} aria-label={ariaLabel} {...inspectorAttributes}>
+    <div className={className} tabIndex={0} aria-label={ariaLabel} {...cardFaceAttributes()} {...inspectorAttributes}>
       {body}
     </div>
   );

@@ -168,6 +168,14 @@ export function GameActionDock(props: {
   const skillTooltip = props.skillBlockedReason
     ? `${props.skillHint}\n${props.skillBlockedReason}`
     : props.skillHint;
+  const resourceTooltip = !props.isMyTurn
+    ? `等待 ${props.currentTurnName} 完成行动。`
+    : !props.canTakeResource
+      ? "本回合已经选择过金币或抽卡。"
+      : "获取 2 枚金币，或抽 2 张建筑牌后选择 1 张。两项只能选择一次。";
+  const endTurnTooltip = props.isMyTurn
+    ? "结束当前角色的行动；如果尚未选择资源，系统会自动领取 2 枚金币。"
+    : `等待 ${props.currentTurnName} 完成行动。`;
 
   return (
     <section className="citadel-action-layer" aria-label={"\u5f53\u524d\u64cd\u4f5c"}>
@@ -178,7 +186,8 @@ export function GameActionDock(props: {
         </p>
         <button
           className="citadel-action-button citadel-action-button--gold citadel-has-tooltip"
-          data-tooltip={"\u83b7\u53d6 2 \u679a\u91d1\u5e01\u3002\u6bcf\u56de\u5408\u53ea\u80fd\u5728\u83b7\u53d6\u91d1\u5e01\u548c\u62bd\u5361\u4e2d\u9009\u4e00\u6b21\u3002"}
+          data-tooltip={resourceTooltip}
+          title={resourceTooltip}
           disabled={!props.canTakeResource}
           type="button"
           onClick={props.onTakeGold}
@@ -187,7 +196,8 @@ export function GameActionDock(props: {
         </button>
         <button
           className="citadel-action-button citadel-action-button--draw citadel-has-tooltip"
-          data-tooltip={"\u62bd 2 \u5f20\u5efa\u7b51\u5361\uff0c\u7136\u540e\u9009\u62e9 1 \u5f20\u52a0\u5165\u624b\u724c\u3002"}
+          data-tooltip={resourceTooltip}
+          title={resourceTooltip}
           disabled={!props.canTakeResource}
           type="button"
           onClick={props.onDrawCards}
@@ -197,6 +207,7 @@ export function GameActionDock(props: {
         <button
           className="citadel-action-button citadel-action-button--skill citadel-has-tooltip"
           data-tooltip={skillTooltip}
+          title={skillTooltip}
           disabled={!props.canUseSkill}
           type="button"
           onClick={() => props.onUseSkill({})}
@@ -205,7 +216,8 @@ export function GameActionDock(props: {
         </button>
         <button
           className="citadel-action-button citadel-has-tooltip"
-          data-tooltip={"\u7ed3\u675f\u5f53\u524d\u89d2\u8272\u7684\u884c\u52a8\u3002\u5982\u679c\u672a\u9009\u62e9\u91d1\u5e01\u6216\u62bd\u724c\uff0c\u7cfb\u7edf\u4f1a\u81ea\u52a8\u9886\u53d6 2 \u679a\u91d1\u5e01\u3002"}
+          data-tooltip={endTurnTooltip}
+          title={endTurnTooltip}
           disabled={!props.isMyTurn}
           type="button"
           onClick={props.onEndTurn}

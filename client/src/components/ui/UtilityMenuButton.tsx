@@ -1,10 +1,12 @@
+import { visualAssets } from "../../config/visualAssets";
+
 export type UtilityMenuIcon = "announcement" | "help" | "settings" | "exit";
 
 const utilityMenuIconSources: Record<UtilityMenuIcon, string> = {
-  announcement: "/assets/homepage-v1/icon-announcement.png",
-  help: "/assets/homepage-v1/icon-help.png",
-  settings: "/assets/homepage-v1/icon-settings.png",
-  exit: "/assets/homepage-v1/icon-exit.svg",
+  announcement: visualAssets.icons.announcement,
+  help: visualAssets.icons.help,
+  settings: visualAssets.icons.settings,
+  exit: visualAssets.icons.exit,
 };
 
 export function UtilityMenuButton(props: {

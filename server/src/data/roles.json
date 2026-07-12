@@ -78,5 +78,15 @@
         "effectParams":  {
 
                          }
+    },
+    {
+        "id":  "queen",
+        "order":  9,
+        "name":  "王后",
+        "description":  "若你与国王玩家相邻，获得 3 枚金币。国王被刺杀时在本轮结束时结算。",
+        "effectType":  "queen_adjacent_income",
+        "effectParams":  {
+                             "amount":  3
+                         }
     }
 ]

@@ -12,6 +12,7 @@ export function RoomSettingsModal(props: {
   canUseFaceDownRoleDiscard: boolean;
   canSaveRoomSettings: boolean;
   requiredRoleCount: number;
+  queenRequired: boolean;
   onTurnTimeoutChange: (value: string) => void;
   onEndCitySizeChange: (value: string) => void;
   onToggleEnabledRole: (roleId: string) => void;
@@ -50,10 +51,12 @@ export function RoomSettingsModal(props: {
               <label key={role.id}>
                 <input
                   type="checkbox"
+                  disabled={role.id === "queen" && props.queenRequired}
                   checked={props.enabledRoleIdsInput.includes(role.id)}
                   onChange={() => props.onToggleEnabledRole(role.id)}
                 />
                 {role.name}
+                {role.id === "queen" && props.queenRequired ? "（8 人局固定启用）" : ""}
               </label>
             ))}
           </div>
@@ -81,7 +84,7 @@ export function RoomSettingsModal(props: {
             onChange={(event) => props.onFaceDownRoleDiscardChange(event.target.checked)}
           />
           {"\u542f\u7528\u6697\u5f03\u89d2\u8272"}
-          {!props.canUseFaceDownRoleDiscard && <small>{"8\u4eba\u4e0d\u4f7f\u7528\u5f03\u724c"}</small>}
+          {!props.canUseFaceDownRoleDiscard && <small>{"\u5f53\u524d\u4eba\u6570\u4e0e\u89d2\u8272\u6570\u91cf\u65e0\u9700\u6697\u5f03"}</small>}
         </label>
         <button type="submit" disabled={!props.canSaveRoomSettings}>{"\u4fdd\u5b58\u8bbe\u7f6e"}</button>
       </form>

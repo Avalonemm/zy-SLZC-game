@@ -6,6 +6,7 @@ export function HomeMenu(props: {
   playerName: string;
   roomCodeInput: string;
   onCreateRoom: () => void;
+  onCreateTutorialRoom: () => void;
   onJoinRoom: (event: FormEvent<HTMLFormElement>) => void;
   onRoomCodeChange: (value: string) => void;
 }) {
@@ -59,6 +60,15 @@ export function HomeMenu(props: {
             </span>
           </button>
         </div>
+
+        <button
+          className="home-menu__tutorial"
+          disabled={!canUseRoomActions}
+          type="button"
+          onClick={props.onCreateTutorialRoom}
+        >
+          第一次玩？创建新手教学房（你 + 3 名人机）
+        </button>
 
         <form className="home-menu__join" onSubmit={props.onJoinRoom}>
           <label className="home-menu__field" aria-label={"\u623f\u95f4\u53f7"}>

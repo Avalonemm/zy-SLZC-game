@@ -49,7 +49,8 @@ export function createEmptyRoleEffects() {
     skippedRoleIds: [],
     protectedPlayerIds: [],
     stealTargets: {},
-    usedSkillPlayerIds: []
+    usedSkillPlayerIds: [],
+    queenIncomePlayerIds: []
   };
 }
 

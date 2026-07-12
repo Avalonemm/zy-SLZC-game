@@ -10,7 +10,8 @@
     "build": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces",
     "smoke:reconnect": "node scripts/smoke-socket-reconnect.mjs",
-    "smoke:local-flow": "node scripts/smoke-local-game-flow.mjs"
+    "smoke:local-flow": "node scripts/smoke-local-game-flow.mjs",
+    "verify:art": "node scripts/verify-art-assets.mjs"
   },
   "workspaces": [
     "client",

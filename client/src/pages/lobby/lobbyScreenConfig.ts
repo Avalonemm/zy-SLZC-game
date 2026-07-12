@@ -11,5 +11,6 @@ export const standardRoles = [
   { id: "bishop", name: "\u4e3b\u6559" },
   { id: "merchant", name: "\u5546\u4eba" },
   { id: "architect", name: "\u5efa\u7b51\u5e08" },
-  { id: "warlord", name: "\u519b\u9600" }
+  { id: "warlord", name: "\u519b\u9600" },
+  { id: "queen", name: "\u738b\u540e" }
 ];

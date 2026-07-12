@@ -12,6 +12,7 @@ import type {
 } from "@zy/shared";
 import { RulebookHelp } from "../components/help/RulebookHelp";
 import type { InfoModalId } from "../components/ui/infoModalTypes";
+import { FirstTimeGuide, getCurrentGuideStep } from "../components/ui/FirstTimeGuide";
 import { GameTableView } from "./game/GameTableView";
 import {
   defaultHelpDocuments,
@@ -33,9 +34,11 @@ import { useLobbyRoom } from "./lobby/useLobbyRoom";
 import { useRoomSettings } from "./lobby/useRoomSettings";
 
 const savedSessionKey = "zy-board-game-session";
+const guideCompletionKey = "zy-board-game-guide-complete";
 type SavedSession = {
   roomCode: string;
   playerId: string;
+  reconnectToken: string;
 };
 
 function readSavedSession(): SavedSession | null {
@@ -46,13 +49,14 @@ function readSavedSession(): SavedSession | null {
 
   try {
     const parsedSession = JSON.parse(rawSession) as Partial<SavedSession>;
-    if (!parsedSession.roomCode || !parsedSession.playerId) {
+    if (!parsedSession.roomCode || !parsedSession.playerId || !parsedSession.reconnectToken) {
       return null;
     }
 
     return {
       roomCode: parsedSession.roomCode,
-      playerId: parsedSession.playerId
+      playerId: parsedSession.playerId,
+      reconnectToken: parsedSession.reconnectToken
     };
   } catch {
     clearSavedSession();
@@ -80,7 +84,6 @@ export function ConnectionPage() {
   const [actionEvents, setActionEvents] = useState<ActionEventPayload[]>([]);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const [nowMs, setNowMs] = useState(Date.now());
   const [isRoomSettingsOpen, setRoomSettingsOpen] = useState(false);
   const [avatarLabel, setAvatarLabel] = useState("王冠");
   const [avatarImage, setAvatarImage] = useState<string | null>(null);
@@ -90,6 +93,10 @@ export function ConnectionPage() {
   const [activeHelpTab, setActiveHelpTab] = useState<HelpTabId>("rules");
   const [helpDocuments, setHelpDocuments] =
     useState<Record<HelpTabId, string>>(defaultHelpDocuments);
+  const [guideEnabled, setGuideEnabled] = useState(
+    () => window.localStorage.getItem(guideCompletionKey) !== "1"
+  );
+  const [dismissedGuideStepId, setDismissedGuideStepId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const reconnectAttemptedRef = useRef(false);
 
@@ -123,6 +130,12 @@ export function ConnectionPage() {
       setPlayerId(payload.playerId);
       persistSavedSession(payload);
       setMessage(`已恢复房间 ${payload.roomCode}`);
+    }
+
+    function handleReturnedToReadyRoom() {
+      setGameState(null);
+      setActionEvents([]);
+      setMessage("已返回准备房间，请重新准备下一局。");
     }
 
     function handleRoomState(payload: RoomState) {
@@ -173,6 +186,7 @@ export function ConnectionPage() {
     socket.on("room_created", handleRoomCreated);
     socket.on("joined_room", handleJoinedRoom);
     socket.on("reconnected_room", handleReconnectedRoom);
+    socket.on("returned_to_ready_room", handleReturnedToReadyRoom);
     socket.on("room_state", handleRoomState);
     socket.on("game_state", handleGameState);
     socket.on("action_event", handleActionEvent);
@@ -191,6 +205,7 @@ export function ConnectionPage() {
       socket.off("room_created", handleRoomCreated);
       socket.off("joined_room", handleJoinedRoom);
       socket.off("reconnected_room", handleReconnectedRoom);
+      socket.off("returned_to_ready_room", handleReturnedToReadyRoom);
       socket.off("room_state", handleRoomState);
       socket.off("game_state", handleGameState);
       socket.off("action_event", handleActionEvent);
@@ -245,16 +260,6 @@ export function ConnectionPage() {
     setMessage("正在尝试恢复上次房间...");
   }, [playerId, status]);
 
-  useEffect(() => {
-    if (!roomState?.startCountdown) {
-      return;
-    }
-
-    setNowMs(Date.now());
-    const timer = window.setInterval(() => setNowMs(Date.now()), 250);
-    return () => window.clearInterval(timer);
-  }, [roomState?.startCountdown?.deadlineAt]);
-
   const uid = serverStatus?.uid ?? 100001;
   const isConnected = status === "connected";
   const currentPlayer = useMemo(
@@ -262,7 +267,11 @@ export function ConnectionPage() {
     [playerId, roomState]
   );
   const isHost = currentPlayer?.isHost ?? false;
-  const readyCount = roomState?.players.filter((player) => player.isReady).length ?? 0;
+  const guideStep = useMemo(
+    () => getCurrentGuideStep({ roomState, gameState, playerId }),
+    [gameState, playerId, roomState]
+  );
+  const isGuideVisible = guideEnabled && dismissedGuideStepId !== guideStep.id;
   const canStartGame = useMemo(() => {
     if (!roomState || !isHost) {
       return false;
@@ -271,7 +280,8 @@ export function ConnectionPage() {
     return (
       roomState.players.length >= roomState.minPlayers &&
       roomState.players.length <= roomState.maxPlayers &&
-      roomState.players.every((player) => player.isReady && player.connected) &&
+      roomState.players.every((player) => player.connected) &&
+      roomState.players.every((player) => player.isHost || player.isReady) &&
       roomState.status === "LOBBY"
     );
   }, [isHost, roomState]);
@@ -285,6 +295,7 @@ export function ConnectionPage() {
     canUseFaceDownRoleDiscard,
     roomDiscardSummary,
     requiredRoleCount,
+    queenRequired,
     canSaveRoomSettings,
     setTurnTimeoutInput,
     setEndCitySizeInput,
@@ -292,9 +303,6 @@ export function ConnectionPage() {
     setEnableFaceDownRoleDiscardInput,
     toggleEnabledRole
   } = useRoomSettings(roomState);
-  const startCountdownSeconds = roomState?.startCountdown
-    ? Math.max(0, Math.ceil((new Date(roomState.startCountdown.deadlineAt).getTime() - nowMs) / 1000))
-    : null;
   const {
     createRoom,
     joinRoom,
@@ -363,7 +371,7 @@ export function ConnectionPage() {
     : baseScreenClassName;
 
   return (
-    <main className={screenClassName}>
+    <main className={screenClassName} data-guide-stage={isGuideVisible ? guideStep.id : undefined}>
       {!gameState && (
         <PlayerIdentity
           avatarImage={avatarImage}
@@ -445,6 +453,15 @@ export function ConnectionPage() {
             });
           }}
           onLeaveRoom={leaveRoom}
+          onRematch={() => {
+            if (!playerId) {
+              return;
+            }
+            socket.emit("request_rematch", {
+              roomCode: gameState.roomId,
+              playerId
+            });
+          }}
           onOpenInfoModal={setModal}
           onSendChatMessage={sendChatMessage}
           onResolveTurnTimeout={() => {
@@ -513,9 +530,7 @@ export function ConnectionPage() {
           avatarImage={avatarImage}
           currentPlayer={currentPlayer}
           isHost={isHost}
-          readyCount={readyCount}
           canStartGame={canStartGame}
-          startCountdownSeconds={startCountdownSeconds}
           roomDiscardSummary={roomDiscardSummary}
           onOpenSettings={() => setRoomSettingsOpen(true)}
           onAddRoomSeat={addRoomSeat}
@@ -535,6 +550,10 @@ export function ConnectionPage() {
           playerName={playerName}
           roomCodeInput={roomCodeInput}
           onCreateRoom={() => createRoom()}
+          onCreateTutorialRoom={() => {
+            setMessage("");
+            socket.emit("create_tutorial_room", { playerName });
+          }}
           onJoinRoom={joinRoom}
           onRoomCodeChange={(value) => setRoomCodeInput(value.toUpperCase())}
         />
@@ -559,6 +578,7 @@ export function ConnectionPage() {
           canUseFaceDownRoleDiscard={canUseFaceDownRoleDiscard}
           canSaveRoomSettings={canSaveRoomSettings}
           requiredRoleCount={requiredRoleCount}
+          queenRequired={queenRequired}
           onTurnTimeoutChange={setTurnTimeoutInput}
           onEndCitySizeChange={setEndCitySizeInput}
           onToggleEnabledRole={toggleEnabledRole}
@@ -576,13 +596,37 @@ export function ConnectionPage() {
           )}
           {modal === "announcements" && <pre>{announcementText}</pre>}
           {modal === "help" && (
-            <RulebookHelp
-              activeTab={activeHelpTab}
-              documents={helpDocuments}
-              onChangeTab={setActiveHelpTab}
-            />
+            <>
+              <button
+                className="rulebook-replay-guide"
+                type="button"
+                onClick={() => {
+                  window.localStorage.removeItem(guideCompletionKey);
+                  setGuideEnabled(true);
+                  setDismissedGuideStepId(null);
+                  setModal(null);
+                }}
+              >
+                重新开启新手引导
+              </button>
+              <RulebookHelp
+                activeTab={activeHelpTab}
+                documents={helpDocuments}
+                onChangeTab={setActiveHelpTab}
+              />
+            </>
           )}
         </InfoModal>
+      )}
+      {isGuideVisible && (
+        <FirstTimeGuide
+          step={guideStep}
+          onDismissStep={() => setDismissedGuideStepId(guideStep.id)}
+          onFinish={() => {
+            window.localStorage.setItem(guideCompletionKey, "1");
+            setGuideEnabled(false);
+          }}
+        />
       )}
     </main>
   );

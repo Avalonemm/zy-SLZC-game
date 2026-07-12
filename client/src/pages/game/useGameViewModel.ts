@@ -33,6 +33,7 @@ export function useGameViewModel(params: UseGameViewModelParams) {
     isMyTurn &&
     !skillUsed &&
     Boolean(selfRoleId) &&
+    selfRoleId !== "queen" &&
     params.gameState.phase === "ROLE_ACTION";
   const canTakeResource =
     isMyTurn &&
@@ -84,6 +85,10 @@ export function useGameViewModel(params: UseGameViewModelParams) {
 
     if (!selfRoleId) {
       return "\u4f60\u8fd8\u6ca1\u6709\u53ef\u516c\u5f00\u4f7f\u7528\u7684\u89d2\u8272\u3002";
+    }
+
+    if (selfRoleId === "queen") {
+      return "王后能力会在与国王相邻时自动结算，无需点击。";
     }
 
     return "";

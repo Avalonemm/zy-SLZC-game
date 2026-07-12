@@ -247,6 +247,13 @@
 .citadel-result-screen > footer {
   display: flex;
   justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.citadel-result-screen .citadel-action-button--green {
+  border-color: rgb(91 190 154 / 68%);
+  background: linear-gradient(180deg, rgb(39 133 104 / 92%), rgb(17 75 61 / 96%));
 }
 
 @media (max-width: 900px) {

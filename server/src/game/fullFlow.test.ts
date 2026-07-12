@@ -22,7 +22,7 @@ function createSettings(): RoomSettings {
     enableFaceUpRoleDiscard: true,
     enableFaceDownRoleDiscard: true,
     drawMode: "draw2Choose1",
-    roleRulePreset: "standard4Player"
+    roleRulePreset: "classicStandard"
   };
 }
 

@@ -1,23 +1,21 @@
 import type { ActionEventPayload, VisibleGameState } from "@zy/shared";
 
-type GameLogPanelProps = {
+export function GameLogPanel(props: {
   actionEvents: ActionEventPayload[];
   gameLog: VisibleGameState["gameLog"];
-};
-
-export function GameLogPanel(props: GameLogPanelProps) {
+}) {
   return (
-    <section className="test-game-section test-game-section--wide">
+    <section className="game-log-panel">
       <h3>游戏日志</h3>
       {props.actionEvents.length > 0 && (
-        <div className="test-action-event-list">
+        <div className="game-log-panel__events">
           <strong>最近操作</strong>
           {props.actionEvents.slice(0, 4).map((event) => (
             <p key={event.id}>{event.message}</p>
           ))}
         </div>
       )}
-      <div className="test-log-list">
+      <div className="game-log-panel__list">
         {props.gameLog.slice(0, 10).map((log) => (
           <p key={log.id}>{log.message}</p>
         ))}

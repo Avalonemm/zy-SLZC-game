@@ -24,7 +24,7 @@ describe("room manager", () => {
     expect(result.room.futureMaxPlayers).toBe(8);
     expect(result.room.settings).toEqual({
       startCountdownSeconds: 10,
-      turnTimeoutSeconds: 15,
+      turnTimeoutSeconds: 60,
       endCitySize: 8,
       enabledRoleIds: [
         "assassin",
@@ -39,7 +39,7 @@ describe("room manager", () => {
       enableFaceUpRoleDiscard: true,
       enableFaceDownRoleDiscard: true,
       drawMode: "draw2Choose1",
-      roleRulePreset: "standard4Player"
+      roleRulePreset: "classicStandard"
     });
     expect(result.room.startCountdown).toBe(null);
     expect(result.room.players).toHaveLength(1);
@@ -48,7 +48,7 @@ describe("room manager", () => {
       name: "Alice",
       socketId: "socket-a",
       isHost: true,
-      isReady: true,
+      isReady: false,
       connected: true,
       isBot: false
     });
@@ -89,7 +89,8 @@ describe("room manager", () => {
       "人机 2"
     ]);
     expect(second.room.players.slice(1).every((player) => player.isBot)).toBe(true);
-    expect(second.room.players.every((player) => player.isReady)).toBe(true);
+    expect(second.room.players[0].isReady).toBe(false);
+    expect(second.room.players.slice(1).every((player) => player.isReady)).toBe(true);
   });
 
   it("lets the host remove one test bot before the game starts", () => {
@@ -423,7 +424,7 @@ describe("room manager", () => {
     expect(leave.room.players[0]).toMatchObject({
       name: "Bob",
       isHost: true,
-      isReady: true
+      isReady: false
     });
   });
 
@@ -540,7 +541,7 @@ describe("room manager", () => {
     expect(transferred.room.players.find((player) => player.id === host.playerId)?.isHost).toBe(false);
     expect(transferred.room.players.find((player) => player.id === bob.playerId)).toMatchObject({
       isHost: true,
-      isReady: true
+      isReady: false
     });
   });
 
@@ -667,7 +668,7 @@ describe("room manager", () => {
     });
   });
 
-  it("starts and cancels the ready auto-start countdown from lobby readiness", () => {
+  it("keeps the room waiting until the host explicitly starts", () => {
     const manager = createRoomManager();
     const host = manager.createRoom({
       uid: 100001,
@@ -690,157 +691,35 @@ describe("room manager", () => {
       throw new Error(bob.error);
     }
 
-    expect(manager.beginStartCountdown(host.room.roomCode, new Date("2026-07-04T00:00:00.000Z")).ok).toBe(false);
-
     const ready = manager.setReady({
       roomCode: host.room.roomCode,
       playerId: bob.playerId,
       isReady: true
     });
     expect(ready.ok).toBe(true);
-
-    const countdown = manager.beginStartCountdown(
-      host.room.roomCode,
-      new Date("2026-07-04T00:00:00.000Z")
-    );
-
-    expect(countdown.ok).toBe(true);
-    if (!countdown.ok) {
-      throw new Error(countdown.error);
-    }
-    expect(countdown.room.startCountdown).toMatchObject({
-      seconds: 10,
-      startedAt: "2026-07-04T00:00:00.000Z",
-      deadlineAt: "2026-07-04T00:00:10.000Z"
-    });
-
-    const unready = manager.setReady({
-      roomCode: host.room.roomCode,
-      playerId: bob.playerId,
-      isReady: false
-    });
-    expect(unready.ok).toBe(true);
-    expect(unready.ok && unready.room.startCountdown).toBe(null);
+    expect(ready.ok && ready.room.status).toBe("LOBBY");
+    expect(ready.ok && ready.room.startCountdown).toBe(null);
+    expect(manager.getGameRoom(host.room.roomCode)).toBeUndefined();
   });
 
-  it("resolves a ready countdown into game start only after its deadline", () => {
+  it("does not allow the host to toggle a ready state", () => {
     const manager = createRoomManager();
     const host = manager.createRoom({
       uid: 100001,
       socketId: "socket-a",
       playerName: "Alice"
     });
-
     if (!host.ok) {
       throw new Error(host.error);
     }
-
-    const bob = manager.joinRoom({
-      uid: 100002,
+    expect(manager.setReady({
       roomCode: host.room.roomCode,
-      socketId: "socket-b",
-      playerName: "Bob"
-    });
-    if (!bob.ok) {
-      throw new Error(bob.error);
-    }
-    const ready = manager.setReady({
-      roomCode: host.room.roomCode,
-      playerId: bob.playerId,
+      playerId: host.playerId,
       isReady: true
+    })).toEqual({
+      ok: false,
+      error: "房主无需准备，确认其他玩家准备后请直接开始游戏。"
     });
-    expect(ready.ok).toBe(true);
-
-    const countdown = manager.beginStartCountdown(
-      host.room.roomCode,
-      new Date("2026-07-04T00:00:00.000Z")
-    );
-    expect(countdown.ok).toBe(true);
-
-    const early = manager.resolveStartCountdown(
-      host.room.roomCode,
-      new Date("2026-07-04T00:00:09.000Z")
-    );
-    expect(early.ok).toBe(true);
-    expect(early.ok && early.started).toBe(false);
-
-    const resolved = manager.resolveStartCountdown(
-      host.room.roomCode,
-      new Date("2026-07-04T00:00:10.000Z")
-    );
-    expect(resolved.ok).toBe(true);
-    if (!resolved.ok) {
-      throw new Error(resolved.error);
-    }
-    expect(resolved.started).toBe(true);
-    expect(resolved.room.status).toBe("STARTED");
-    expect(resolved.gameRoom?.phase).toBe("CROWN_REVEAL");
-  });
-
-  it("does not start the ready countdown with one real player and test bots", () => {
-    const manager = createRoomManager();
-    const host = manager.createRoom({
-      uid: 100001,
-      socketId: "socket-a",
-      playerName: "Alice"
-    });
-
-    if (!host.ok) {
-      throw new Error(host.error);
-    }
-
-    const bot = manager.addTestBots({
-      roomCode: host.room.roomCode,
-      playerId: host.playerId
-    });
-    expect(bot.ok).toBe(true);
-
-    const countdown = manager.beginStartCountdown(
-      host.room.roomCode,
-      new Date("2026-07-04T00:00:00.000Z")
-    );
-
-    expect(countdown.ok).toBe(false);
-    expect(manager.getRoom(host.room.roomCode)?.startCountdown).toBe(null);
-  });
-
-  it("does not start the ready countdown when only test bots remain in the room", () => {
-    const manager = createRoomManager();
-    const host = manager.createRoom({
-      uid: 100001,
-      socketId: "socket-a",
-      playerName: "Alice"
-    });
-
-    if (!host.ok) {
-      throw new Error(host.error);
-    }
-
-    const firstBot = manager.addTestBots({
-      roomCode: host.room.roomCode,
-      playerId: host.playerId
-    });
-    const secondBot = manager.addTestBots({
-      roomCode: host.room.roomCode,
-      playerId: host.playerId
-    });
-    expect(firstBot.ok).toBe(true);
-    expect(secondBot.ok).toBe(true);
-
-    const leave = manager.leaveRoom({
-      roomCode: host.room.roomCode,
-      playerId: host.playerId
-    });
-    expect(leave.ok).toBe(true);
-    expect(manager.getRoom(host.room.roomCode)?.players.every((player) => player.isBot)).toBe(true);
-
-    const countdown = manager.beginStartCountdown(
-      host.room.roomCode,
-      new Date("2026-07-04T00:00:00.000Z")
-    );
-
-    expect(countdown.ok).toBe(false);
-    expect(manager.getRoom(host.room.roomCode)?.startCountdown).toBe(null);
   });
 
   it("starts a two-player test game when everyone is ready", () => {
@@ -1114,6 +993,7 @@ describe("room manager", () => {
     const reconnect = manager.reconnectRoom({
       roomCode: host.room.roomCode,
       playerId: host.playerId,
+      reconnectToken: host.reconnectToken,
       socketId: "socket-new"
     });
 
@@ -1226,5 +1106,77 @@ describe("room manager", () => {
     expect(started.gameRoom.hostPlayerId).toBe(bob.playerId);
     expect(started.gameRoom.players.find((player) => player.id === bob.playerId)?.isHost).toBe(true);
     expect(started.gameRoom.players.find((player) => player.id === host.playerId)?.connected).toBe(false);
+  });
+
+  it("returns an ended game to the same ready room for a rematch", () => {
+    const manager = createRoomManager();
+    const host = manager.createRoom({
+      uid: 100001,
+      socketId: "socket-a",
+      playerName: "Alice"
+    });
+    if (!host.ok) {
+      throw new Error(host.error);
+    }
+    const bot = manager.addTestBots({ roomCode: host.room.roomCode, playerId: host.playerId });
+    expect(bot.ok).toBe(true);
+
+    const started = manager.startGame({ roomCode: host.room.roomCode, playerId: host.playerId });
+    if (!started.ok) {
+      throw new Error(started.error);
+    }
+    started.gameRoom.phase = "ENDED";
+    const settingsBefore = started.room.settings;
+
+    const rematch = manager.resetForRematch({
+      roomCode: host.room.roomCode,
+      playerId: host.playerId
+    });
+    if (!rematch.ok) {
+      throw new Error(rematch.error);
+    }
+
+    expect(rematch.room.status).toBe("LOBBY");
+    expect(rematch.room.settings).toBe(settingsBefore);
+    expect(rematch.room.players.find((player) => player.id === host.playerId)?.isReady).toBe(false);
+    expect(rematch.room.players.find((player) => player.isBot)?.isReady).toBe(true);
+    expect(manager.getGameRoom(host.room.roomCode)).toBeUndefined();
+  });
+
+  it("exports and restores active rooms with reconnect credentials", () => {
+    const manager = createRoomManager();
+    const host = manager.createRoom({
+      uid: 100001,
+      socketId: "socket-a",
+      playerName: "Alice"
+    });
+    if (!host.ok) throw new Error(host.error);
+
+    const restored = createRoomManager(manager.exportSnapshot());
+    expect(restored.getRoom(host.room.roomCode)?.players[0].name).toBe("Alice");
+    const reconnect = restored.reconnectRoom({
+      roomCode: host.room.roomCode,
+      playerId: host.playerId,
+      reconnectToken: host.reconnectToken,
+      socketId: "socket-restored"
+    });
+    expect(reconnect.ok).toBe(true);
+  });
+
+  it("rejects reconnect attempts without the private credential", () => {
+    const manager = createRoomManager();
+    const host = manager.createRoom({
+      uid: 100001,
+      socketId: "socket-a",
+      playerName: "Alice"
+    });
+    if (!host.ok) throw new Error(host.error);
+
+    expect(manager.reconnectRoom({
+      roomCode: host.room.roomCode,
+      playerId: host.playerId,
+      reconnectToken: "wrong-token",
+      socketId: "socket-attacker"
+    })).toEqual({ ok: false, error: "无法恢复房间，恢复凭证无效。" });
   });
 });

@@ -53,9 +53,11 @@ export function PlayerSeat({
       </div>
       <div className="player-seat__state">
         {isHost && <GameBadge tone="active">房主</GameBadge>}
-        <GameBadge tone={isReady ? "ready" : "default"}>
-          {isReady ? "已准备" : "等待中"}
-        </GameBadge>
+        {!isHost && (
+          <GameBadge tone={isReady ? "ready" : "default"}>
+            {isReady ? "已准备" : "等待中"}
+          </GameBadge>
+        )}
         {isBot && onRemoveBot && (
           <button className="player-seat__mini-action" type="button" onClick={onRemoveBot}>
             删除

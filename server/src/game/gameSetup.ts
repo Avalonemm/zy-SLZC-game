@@ -2,7 +2,7 @@ import type { DistrictCard, GameRoom, LobbyPlayer, Player, RoomState } from "@zy
 import { randomUUID } from "node:crypto";
 import { loadDistrictCards } from "./cardData";
 import { startCrownRevealTimer } from "./timerState";
-import { MIN_PLAYERS_TO_START, currentPlayerRangeText } from "./gameConfig";
+import { currentPlayerRangeText, getMinimumPlayersToStart } from "./gameConfig";
 import { createRoleSelectionPool } from "./rolePool";
 
 const INITIAL_GOLD = 2;
@@ -10,7 +10,7 @@ const INITIAL_HAND_SIZE = 4;
 
 export function initializeGameRoom(lobbyRoom: RoomState): GameRoom {
   if (
-    lobbyRoom.players.length < MIN_PLAYERS_TO_START ||
+    lobbyRoom.players.length < getMinimumPlayersToStart() ||
     lobbyRoom.players.length > lobbyRoom.maxPlayers
   ) {
     throw new Error(`Game room requires ${currentPlayerRangeText(lobbyRoom.maxPlayers)} players for the current room.`);
@@ -66,7 +66,8 @@ function createEmptyRoleEffects() {
     skippedRoleIds: [],
     protectedPlayerIds: [],
     stealTargets: {},
-    usedSkillPlayerIds: []
+    usedSkillPlayerIds: [],
+    queenIncomePlayerIds: []
   };
 }
 

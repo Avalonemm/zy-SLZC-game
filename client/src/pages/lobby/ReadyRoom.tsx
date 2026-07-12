@@ -12,9 +12,7 @@ export function ReadyRoom(props: {
   avatarImage: string | null;
   currentPlayer: LobbyPlayer | null;
   isHost: boolean;
-  readyCount: number;
   canStartGame: boolean;
-  startCountdownSeconds: number | null;
   roomDiscardSummary: string;
   onOpenSettings: () => void;
   onAddRoomSeat: () => void;
@@ -29,6 +27,9 @@ export function ReadyRoom(props: {
   onSendChatMessage: (message: string) => void;
 }) {
   const lobbySeatSlots = createPlayerSeatSlots(props.roomState.players, props.roomState.maxPlayers);
+  const nonHostPlayers = props.roomState.players.filter((player) => !player.isHost);
+  const readyCount = nonHostPlayers.filter((player) => player.isReady).length;
+  const startDisabledReason = getStartDisabledReason(props.roomState);
 
   return (
     <section className="lobby-shell">
@@ -48,7 +49,7 @@ export function ReadyRoom(props: {
               {props.roomState.players.length}/{props.roomState.maxPlayers} {"\u4eba"}
             </GameBadge>
             <GameBadge tone="ready">
-              {props.readyCount}/{props.roomState.maxPlayers} {"\u5df2\u51c6\u5907"}
+              {readyCount}/{nonHostPlayers.length} {"\u5df2\u51c6\u5907"}
             </GameBadge>
           </div>
         </header>
@@ -67,11 +68,6 @@ export function ReadyRoom(props: {
               <strong>{"\u672c\u5c40\u5f03\u724c"}</strong>
               <b>{props.roomDiscardSummary}</b>
             </span>
-            {props.startCountdownSeconds !== null && (
-              <span className="lobby-countdown">
-                {"\u5168\u5458\u5df2\u51c6\u5907\uff0c"}{props.startCountdownSeconds}{" \u79d2\u540e\u81ea\u52a8\u5f00\u59cb"}
-              </span>
-            )}
           </div>
           {props.isHost && (
             <button className="lobby-room-settings__open" type="button" onClick={props.onOpenSettings}>
@@ -152,6 +148,7 @@ export function ReadyRoom(props: {
                 label={"\u5f00\u59cb\u6e38\u620f"}
                 onClick={props.onStartGame}
                 disabled={!props.canStartGame}
+                disabledReason={startDisabledReason}
               />
               <LobbyImageButton
                 className="lobby-image-button--add-bot"
@@ -184,6 +181,7 @@ export function ReadyRoom(props: {
 function LobbyImageButton(props: {
   className: string;
   disabled?: boolean;
+  disabledReason?: string;
   label: string;
   onClick: () => void;
 }) {
@@ -197,9 +195,29 @@ function LobbyImageButton(props: {
       }
       disabled={props.disabled}
       onClick={props.onClick}
+      title={props.disabled ? props.disabledReason : props.label}
       type="button"
     >
       <span>{props.label}</span>
     </button>
   );
+}
+
+function getStartDisabledReason(roomState: RoomState) {
+  if (roomState.status !== "LOBBY") {
+    return "当前房间不能开始游戏。";
+  }
+  if (roomState.players.length < roomState.minPlayers) {
+    return `至少需要 ${roomState.minPlayers} 名玩家才能开始。`;
+  }
+  if (roomState.players.length > roomState.maxPlayers) {
+    return "当前玩家人数超过房间上限。";
+  }
+  if (roomState.players.some((player) => !player.connected)) {
+    return "还有玩家离线，暂时不能开始。";
+  }
+  if (roomState.players.some((player) => !player.isHost && !player.isReady)) {
+    return "还有玩家未准备。";
+  }
+  return undefined;
 }

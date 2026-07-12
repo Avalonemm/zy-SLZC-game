@@ -9,7 +9,8 @@ import {
   MAX_PLAYERS,
   MAX_TURN_TIMEOUT_SECONDS,
   MIN_END_CITY_SIZE,
-  MIN_PLAYERS_TO_START,
+  ALL_ROLE_IDS,
+  getMinimumPlayersToStart,
   MIN_TURN_TIMEOUT_SECONDS,
   START_COUNTDOWN_SECONDS,
   STANDARD_ROLE_IDS,
@@ -17,6 +18,7 @@ import {
   currentPlayerRangeText
 } from "./gameConfig";
 import { initializeGameRoom } from "./gameSetup";
+import type { RoomManagerSnapshot } from "./roomSnapshotStore";
 
 type Ok<T> = T & { ok: true };
 type Fail = { ok: false; error: string };
@@ -39,6 +41,7 @@ type PlayerActionInput = {
 
 type ReconnectRoomInput = PlayerActionInput & {
   socketId: string;
+  reconnectToken: string;
 };
 
 type ReadyInput = PlayerActionInput & {
@@ -64,13 +67,19 @@ type ChatInput = PlayerActionInput & {
 const MAX_CHAT_MESSAGES = 50;
 const MAX_CHAT_MESSAGE_LENGTH = 200;
 
-export function createRoomManager() {
-  const rooms = new Map<string, RoomState>();
-  const gameRooms = new Map<string, GameRoom>();
+export function createRoomManager(initialSnapshot?: RoomManagerSnapshot) {
+  const rooms = new Map<string, RoomState>(
+    initialSnapshot?.rooms.map((room) => [room.roomCode, room]) ?? []
+  );
+  const gameRooms = new Map<string, GameRoom>(
+    initialSnapshot?.gameRooms.map((room) => [room.roomId, room]) ?? []
+  );
+  const reconnectTokens = new Map<string, string>(initialSnapshot?.reconnectTokens ?? []);
 
   function createRoom(input: CreateRoomInput): Result<{
     room: RoomState;
     playerId: string;
+    reconnectToken: string;
   }> {
     const nameResult = normalizePlayerName(input.playerName);
     if (!nameResult.ok) {
@@ -79,6 +88,7 @@ export function createRoomManager() {
 
     const roomCode = generateUniqueRoomCode(rooms);
     const playerId = randomUUID();
+    const reconnectToken = randomUUID();
     const host: LobbyPlayer = {
       id: playerId,
       uid: input.uid,
@@ -86,7 +96,7 @@ export function createRoomManager() {
       name: nameResult.name,
       connected: true,
       isHost: true,
-      isReady: true,
+      isReady: false,
       isBot: false
     };
     const room: RoomState = {
@@ -94,7 +104,7 @@ export function createRoomManager() {
       hostPlayerId: playerId,
       status: "LOBBY",
       players: [host],
-      minPlayers: MIN_PLAYERS_TO_START,
+      minPlayers: getMinimumPlayersToStart(),
       maxPlayers: DEFAULT_MAX_PLAYERS,
       futureMaxPlayers: FUTURE_MAX_PLAYERS,
       settings: createDefaultRoomSettings(),
@@ -104,17 +114,20 @@ export function createRoomManager() {
     };
 
     rooms.set(roomCode, room);
+    reconnectTokens.set(playerId, reconnectToken);
 
     return {
       ok: true,
       room,
-      playerId
+      playerId,
+      reconnectToken
     };
   }
 
   function joinRoom(input: JoinRoomInput): Result<{
     room: RoomState;
     playerId: string;
+    reconnectToken: string;
   }> {
     const roomCode = normalizeRoomCode(input.roomCode);
     const room = rooms.get(roomCode);
@@ -136,6 +149,7 @@ export function createRoomManager() {
     }
 
     const playerId = randomUUID();
+    const reconnectToken = randomUUID();
     room.players.push({
       id: playerId,
       uid: input.uid,
@@ -147,11 +161,13 @@ export function createRoomManager() {
       isBot: false
     });
     room.startCountdown = null;
+    reconnectTokens.set(playerId, reconnectToken);
 
     return {
       ok: true,
       room,
-      playerId
+      playerId,
+      reconnectToken
     };
   }
 
@@ -245,6 +261,7 @@ export function createRoomManager() {
     }
 
     const [kickedPlayer] = playerResult.room.players.splice(targetIndex, 1);
+    reconnectTokens.delete(kickedPlayer.id);
     playerResult.room.startCountdown = null;
     return { ok: true, room: playerResult.room, kickedPlayer };
   }
@@ -324,14 +341,11 @@ export function createRoomManager() {
     }
 
     if (playerResult.player.isHost) {
-      playerResult.player.isReady = true;
-    } else {
-      playerResult.player.isReady = input.isReady;
+      return { ok: false, error: "房主无需准备，确认其他玩家准备后请直接开始游戏。" };
     }
 
-    if (!isRoomReadyToStart(playerResult.room)) {
-      playerResult.room.startCountdown = null;
-    }
+    playerResult.player.isReady = playerResult.player.isBot ? true : input.isReady;
+    playerResult.room.startCountdown = null;
 
     return { ok: true, room: playerResult.room };
   }
@@ -391,7 +405,7 @@ export function createRoomManager() {
     }
 
     if (
-      playerResult.room.players.length < MIN_PLAYERS_TO_START ||
+      playerResult.room.players.length < getMinimumPlayersToStart() ||
       playerResult.room.players.length > playerResult.room.maxPlayers
     ) {
       return {
@@ -404,7 +418,11 @@ export function createRoomManager() {
       return { ok: false, error: "房间内至少需要一名真人玩家才能开始游戏。" };
     }
 
-    if (playerResult.room.players.some((player) => !player.isReady)) {
+    if (playerResult.room.players.some((player) => !player.connected)) {
+      return { ok: false, error: "还有玩家离线，暂时不能开始。" };
+    }
+
+    if (playerResult.room.players.some((player) => !player.isHost && !player.isReady)) {
       return { ok: false, error: "还有玩家未准备。" };
     }
 
@@ -455,15 +473,17 @@ export function createRoomManager() {
     }
 
     const [removedPlayer] = room.players.splice(playerIndex, 1);
+    reconnectTokens.delete(removedPlayer.id);
     if (room.players.length === 0) {
       rooms.delete(room.roomCode);
+      gameRooms.delete(room.roomCode);
       return { ok: true };
     }
 
     if (removedPlayer.isHost) {
       const nextHost = room.players[0];
       nextHost.isHost = true;
-      nextHost.isReady = true;
+      nextHost.isReady = false;
       room.hostPlayerId = nextHost.id;
     }
 
@@ -471,83 +491,11 @@ export function createRoomManager() {
     return { ok: true, room };
   }
 
-  function beginStartCountdown(
-    roomCodeInput: string,
-    now = new Date()
-  ): Result<{ room: RoomState }> {
-    const room = rooms.get(normalizeRoomCode(roomCodeInput));
-    if (!room) {
-      return { ok: false, error: "房间不存在。" };
-    }
-
-    if (room.status !== "LOBBY") {
-      return { ok: false, error: "游戏已经开始，不能启动开局倒计时。" };
-    }
-
-    if (!isRoomReadyToStart(room)) {
-      room.startCountdown = null;
-      return { ok: false, error: "开局条件还未满足。" };
-    }
-
-    if (room.startCountdown) {
-      return { ok: true, room };
-    }
-
-    const seconds = room.settings.startCountdownSeconds;
-    const startedAt = now.toISOString();
-    const deadlineAt = new Date(now.getTime() + seconds * 1000).toISOString();
-    room.startCountdown = {
-      startedAt,
-      deadlineAt,
-      seconds
-    };
-
-    return { ok: true, room };
-  }
-
-  function resolveStartCountdown(
-    roomCodeInput: string,
-    now = new Date()
-  ): Result<{ room: RoomState; started: boolean; gameRoom?: GameRoom }> {
-    const room = rooms.get(normalizeRoomCode(roomCodeInput));
-    if (!room) {
-      return { ok: false, error: "房间不存在。" };
-    }
-
-    if (!room.startCountdown) {
-      return { ok: true, room, started: false };
-    }
-
-    if (!isRoomReadyToStart(room)) {
-      room.startCountdown = null;
-      return { ok: true, room, started: false };
-    }
-
-    if (now.getTime() < new Date(room.startCountdown.deadlineAt).getTime()) {
-      return { ok: true, room, started: false };
-    }
-
-    const startResult = startGame({
-      roomCode: room.roomCode,
-      playerId: room.hostPlayerId
-    });
-    if (!startResult.ok) {
-      room.startCountdown = null;
-      return startResult;
-    }
-
-    return {
-      ok: true,
-      room: startResult.room,
-      started: true,
-      gameRoom: startResult.gameRoom
-    };
-  }
-
   function reconnectRoom(input: ReconnectRoomInput): Result<{
     room: RoomState;
     player: LobbyPlayer;
     gameRoom?: GameRoom;
+    reconnectToken: string;
   }> {
     const room = rooms.get(normalizeRoomCode(input.roomCode));
     if (!room) {
@@ -563,6 +511,11 @@ export function createRoomManager() {
       return { ok: false, error: "人机不能重连。" };
     }
 
+    const expectedToken = reconnectTokens.get(player.id);
+    if (!expectedToken || expectedToken !== input.reconnectToken) {
+      return { ok: false, error: "无法恢复房间，恢复凭证无效。" };
+    }
+
     player.socketId = input.socketId;
     player.connected = true;
 
@@ -573,7 +526,45 @@ export function createRoomManager() {
       gamePlayer.connected = true;
     }
 
-    return { ok: true, room, player, gameRoom };
+    return { ok: true, room, player, gameRoom, reconnectToken: expectedToken };
+  }
+
+  function resetForRematch(input: PlayerActionInput): Result<{
+    room: RoomState;
+    playerId: string;
+    reconnectToken: string;
+  }> {
+    const playerResult = findPlayer(input);
+    if (!playerResult.ok) {
+      return playerResult;
+    }
+    if (!playerResult.player.isHost) {
+      return { ok: false, error: "只有房主可以发起再来一局。" };
+    }
+
+    const gameRoom = gameRooms.get(playerResult.room.roomCode);
+    if (!gameRoom || gameRoom.phase !== "ENDED") {
+      return { ok: false, error: "当前对局尚未结束。" };
+    }
+
+    playerResult.room.status = "LOBBY";
+    playerResult.room.startCountdown = null;
+    for (const player of playerResult.room.players) {
+      player.isReady = player.isBot;
+    }
+    gameRooms.delete(playerResult.room.roomCode);
+
+    const reconnectToken = reconnectTokens.get(playerResult.player.id);
+    if (!reconnectToken) {
+      return { ok: false, error: "玩家恢复凭证不存在。" };
+    }
+
+    return {
+      ok: true,
+      room: playerResult.room,
+      playerId: playerResult.player.id,
+      reconnectToken
+    };
   }
 
   function markDisconnectedBySocket(socketId: string): RoomState | null {
@@ -610,6 +601,31 @@ export function createRoomManager() {
     return gameRooms.get(normalizeRoomCode(roomCode));
   }
 
+  function exportSnapshot(): RoomManagerSnapshot {
+    return {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      rooms: [...rooms.values()],
+      gameRooms: [...gameRooms.values()],
+      reconnectTokens: [...reconnectTokens.entries()]
+    };
+  }
+
+  function cleanupInactiveRooms(now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000) {
+    const removedRoomCodes: string[] = [];
+    for (const room of rooms.values()) {
+      const ageMs = now - new Date(room.createdAt).getTime();
+      const hasConnectedHuman = room.players.some((player) => !player.isBot && player.connected);
+      if (hasConnectedHuman || ageMs < maxAgeMs) continue;
+
+      rooms.delete(room.roomCode);
+      gameRooms.delete(room.roomCode);
+      for (const player of room.players) reconnectTokens.delete(player.id);
+      removedRoomCodes.push(room.roomCode);
+    }
+    return removedRoomCodes;
+  }
+
   function findPlayer(input: PlayerActionInput): Result<{
     room: RoomState;
     player: LobbyPlayer;
@@ -641,14 +657,15 @@ export function createRoomManager() {
     kickPlayer,
     transferHost,
     updateRoomSettings,
-    beginStartCountdown,
-    resolveStartCountdown,
     addChatMessage,
     leaveRoom,
     reconnectRoom,
+    resetForRematch,
     markDisconnectedBySocket,
     getRoom,
-    getGameRoom
+    getGameRoom,
+    exportSnapshot,
+    cleanupInactiveRooms
   };
 }
 
@@ -681,21 +698,9 @@ function transferHostToNextConnectedPlayer(
 function setHost(room: RoomState, hostPlayerId: string) {
   for (const player of room.players) {
     player.isHost = player.id === hostPlayerId;
-    if (player.isHost) {
-      player.isReady = true;
-    }
+    player.isReady = player.isBot;
   }
   room.hostPlayerId = hostPlayerId;
-}
-
-function isRoomReadyToStart(room: RoomState) {
-  return (
-    room.status === "LOBBY" &&
-    countConnectedRealPlayers(room) >= room.minPlayers &&
-    room.players.length >= room.minPlayers &&
-    room.players.length <= room.maxPlayers &&
-    room.players.every((player) => player.isReady && player.connected)
-  );
 }
 
 function hasConnectedRealPlayer(room: RoomState) {
@@ -715,7 +720,7 @@ function createDefaultRoomSettings(): RoomSettings {
     enableFaceUpRoleDiscard: true,
     enableFaceDownRoleDiscard: true,
     drawMode: "draw2Choose1",
-    roleRulePreset: "standard4Player"
+    roleRulePreset: "classicStandard"
   };
 }
 
@@ -728,10 +733,11 @@ function normalizeRoomMaxPlayers(
   }
 
   const maxPlayers = Math.floor(nextMaxPlayers);
-  if (!Number.isFinite(maxPlayers) || maxPlayers < MIN_PLAYERS_TO_START || maxPlayers > MAX_PLAYERS) {
+  const minimumPlayers = getMinimumPlayersToStart();
+  if (!Number.isFinite(maxPlayers) || maxPlayers < minimumPlayers || maxPlayers > MAX_PLAYERS) {
     return {
       ok: false,
-      error: `\u623f\u95f4\u4eba\u6570\u4e0a\u9650\u5fc5\u987b\u5728 ${MIN_PLAYERS_TO_START}-${MAX_PLAYERS} \u4e4b\u95f4\u3002`
+      error: `\u623f\u95f4\u4eba\u6570\u4e0a\u9650\u5fc5\u987b\u5728 ${minimumPlayers}-${MAX_PLAYERS} \u4e4b\u95f4\u3002`
     };
   }
 
@@ -786,7 +792,7 @@ function normalizeRoomSettings(
 
   if (nextSettings.enabledRoleIds !== undefined) {
     const enabledRoleIds = [...new Set(nextSettings.enabledRoleIds)];
-    const knownRoleIds = new Set<string>(STANDARD_ROLE_IDS);
+    const knownRoleIds = new Set<string>(ALL_ROLE_IDS);
     if (
       enabledRoleIds.length === 0 ||
       enabledRoleIds.some((roleId) => !knownRoleIds.has(roleId))
@@ -794,7 +800,7 @@ function normalizeRoomSettings(
       return { ok: false, error: "启用角色包含未知角色。" };
     }
 
-    if (enabledRoleIds.length < MIN_PLAYERS_TO_START) {
+    if (enabledRoleIds.length < getMinimumPlayersToStart()) {
       return { ok: false, error: "启用角色数量不能少于最小开局人数。" };
     }
 
@@ -813,7 +819,7 @@ function normalizeRoomSettings(
     return { ok: false, error: "当前只支持抽 2 选 1。" };
   }
   settings.drawMode = "draw2Choose1";
-  settings.roleRulePreset = "standard4Player";
+  settings.roleRulePreset = "classicStandard";
 
   return { ok: true, settings };
 }

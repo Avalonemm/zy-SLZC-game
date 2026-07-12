@@ -78,6 +78,7 @@ VITE_SERVER_URL=https://你的后端地址
 ```text
 PORT=3000
 CLIENT_ORIGIN=https://你的前端地址
+ROOM_SNAPSHOT_PATH=/var/data/active-rooms.json
 ```
 
 规则：
@@ -86,6 +87,7 @@ CLIENT_ORIGIN=https://你的前端地址
 - 开发环境默认允许 `localhost:5173`、`127.0.0.1:5173`、`localhost:3000`、`127.0.0.1:3000`。
 - 生产环境使用 `CLIENT_ORIGIN` 配置允许访问的前端地址。
 - `CLIENT_ORIGIN` 支持多个地址，用英文逗号分隔。
+- `ROOM_SNAPSHOT_PATH` 保存活动房间、对局状态和恢复凭证；生产环境应指向持久磁盘。
 
 示例：
 
@@ -117,6 +119,9 @@ CLIENT_ORIGIN=https://你的 Vercel 前端地址
 ```text
 https://你的 Render 后端地址/health
 ```
+
+`render.yaml` 已挂载 1GB 持久磁盘到 `/var/data`，用于活动房间快照。更换部署平台时也要为
+`ROOM_SNAPSHOT_PATH` 提供持久目录，否则服务器重启后无法恢复进行中的房间。
 
 ### Vercel 前端
 
@@ -217,6 +222,13 @@ powershell -ExecutionPolicy Bypass -File scripts/check-deploy.ps1
 - TypeScript 检查
 - 前端生产构建
 - 后端生产构建
+
+卡牌美术资源检查：
+
+```bash
+npm run verify:art
+npm run verify:art -- --strict  # 正式卡图全部交付后使用
+```
 
 ## 目录结构
 

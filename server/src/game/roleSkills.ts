@@ -61,6 +61,8 @@ export function applyRoleSkill(
         logStandardRoleColorIncome(gameRoom, player, income);
       }
       return destroyResult;
+    case "queen_adjacent_income":
+      return { ok: false, error: "王后能力会在符合条件时自动结算。" };
     default:
       return { ok: false, error: "该角色技能暂未实现。" };
   }

@@ -1,0 +1,33 @@
+:root {
+  --visual-bg-home: url("/assets/homepage-v1/main-menu-bg.png");
+  --visual-bg-lobby: url("/assets/generated-ui/citadels-main-lobby-background-v5.png");
+  --visual-bg-ready-room: url("/assets/generated-ui/citadels-ready-room-background-v3.png");
+  --visual-bg-game: url("/assets/generated-ui/citadels-game-table-background-v2.png");
+  --visual-icon-crown: url("/assets/generated-ui/citadels-crown-icon-v1.png");
+  --visual-accent: #d5b267;
+  --visual-accent-strong: #efcf86;
+  --visual-text: #f4e8cb;
+  --visual-text-muted: #b8aa8a;
+  --visual-panel: rgb(12 21 26 / 88%);
+  --visual-panel-soft: rgb(20 31 35 / 76%);
+  --visual-border: rgb(213 178 103 / 46%);
+  --visual-radius-panel: 14px;
+  --visual-radius-control: 9px;
+  --visual-shadow-panel: 0 16px 38px rgb(0 0 0 / 38%);
+  --visual-shadow-focus: 0 0 16px rgb(213 178 103 / 28%);
+}
+
+.card-artwork {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+[data-card-face-mode="baked"] > :not(.card-artwork) {
+  visibility: hidden;
+}

@@ -7,6 +7,8 @@ export function GameResultOverlay(props: {
   players: GamePlayer[];
   results: GameScoringResult[];
   selfPlayerId: string | null;
+  canRematch: boolean;
+  onRematch: () => void;
   onReturnLobby: () => void;
 }) {
   if (props.results.length === 0) {
@@ -66,6 +68,15 @@ export function GameResultOverlay(props: {
         </div>
 
         <footer>
+          <button
+            className="citadel-action-button citadel-action-button--green"
+            type="button"
+            disabled={!props.canRematch}
+            title={props.canRematch ? "保留房间和座位，返回准备房间" : "等待房主发起下一局"}
+            onClick={props.onRematch}
+          >
+            {props.canRematch ? "再来一局" : "等待房主"}
+          </button>
           <button
             className="citadel-action-button citadel-action-button--gold"
             type="button"

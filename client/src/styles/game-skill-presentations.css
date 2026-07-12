@@ -204,7 +204,7 @@
   position: absolute;
   z-index: 5;
   left: 50%;
-  top: 54%;
+  top: 63%;
   display: grid;
   justify-items: center;
   gap: 4px;
@@ -217,6 +217,72 @@
   text-shadow: 0 2px 8px #000;
   transform: translate(-50%, -50%);
   animation: citadel-skill-banner 2.3s ease both;
+}
+
+.citadel-game-shell:has(.citadel-skill-presentation) .citadel-game-center {
+  z-index: 62;
+}
+
+.citadel-game-shell:has(.citadel-skill-presentation) .citadel-card-inspector {
+  display: none;
+}
+
+.citadel-game-shell ~ .modal-backdrop {
+  z-index: 320;
+}
+
+.citadel-skill-presentation.is-normal-action {
+  --skill-accent: #e5c276;
+}
+
+.citadel-skill-presentation.is-normal-action .citadel-skill-presentation__vignette {
+  background: radial-gradient(circle at 50% 48%, transparent 30%, rgb(0 0 0 / 12%) 78%);
+  animation-duration: 700ms;
+}
+
+.citadel-skill-presentation.is-normal-action .citadel-skill-presentation__route path {
+  stroke-width: 2;
+  animation-duration: 520ms;
+}
+
+.citadel-skill-presentation.is-normal-action .citadel-skill-presentation__halo {
+  width: clamp(58px, 5vw, 86px);
+  animation-duration: 650ms;
+  animation-delay: 0ms;
+}
+
+.citadel-skill-presentation.is-normal-action .citadel-skill-projectile,
+.citadel-skill-presentation.is-normal-action .citadel-skill-coin-stream > span {
+  animation-duration: 560ms;
+}
+
+.citadel-skill-presentation.is-normal-action .citadel-skill-presentation__banner {
+  top: 61%;
+  min-width: min(360px, 52vw);
+  max-width: min(520px, 62vw);
+  padding: 7px 18px 9px;
+  animation-duration: 700ms;
+}
+
+.citadel-skill-presentation--turn_start .citadel-skill-presentation__banner,
+.citadel-skill-presentation--role_lock .citadel-skill-presentation__banner {
+  top: 56%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .citadel-skill-presentation *,
+  .citadel-skill-presentation *::before,
+  .citadel-skill-presentation *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+  }
+
+  .citadel-skill-presentation__route,
+  .citadel-skill-projectile,
+  .citadel-skill-card-stack,
+  .citadel-skill-coin-stream {
+    display: none;
+  }
 }
 
 .citadel-skill-presentation__banner small {

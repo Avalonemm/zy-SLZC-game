@@ -1,7 +1,7 @@
 ﻿import { useState } from "react";
 import type { ActionEventPayload, ChatMessage, VisibleGameState } from "@zy/shared";
 import { ChatPanel } from "../../components/ui/ChatPanel";
-import { GameLogPanel } from "../../components/test-game/GameLogPanel";
+import { GameLogPanel } from "./GameLogPanel";
 
 export function GameCornerDocks(props: {
   actionEvents: ActionEventPayload[];

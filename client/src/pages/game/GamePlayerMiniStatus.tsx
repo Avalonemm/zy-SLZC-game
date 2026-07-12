@@ -4,6 +4,7 @@ export function GamePlayerMiniStatus(props: {
   avatarImage?: string | null;
   avatarLabel?: string;
   hasCrown: boolean;
+  isCurrent?: boolean;
   player: GamePlayer;
   self?: boolean;
   targetable?: boolean;
@@ -11,7 +12,7 @@ export function GamePlayerMiniStatus(props: {
   onClick?: () => void;
 }) {
   const avatarText = props.avatarLabel || (props.self ? "\u4f60" : props.player.name.slice(0, 1));
-  const className = `citadel-player-mini ${props.self ? "citadel-player-mini--self" : ""} ${props.targetable ? "is-player-targetable" : ""} ${props.selected ? "is-player-target-selected" : ""}`;
+  const className = `citadel-player-mini ${props.self ? "citadel-player-mini--self" : ""} ${props.isCurrent ? "is-current" : ""} ${props.targetable ? "is-player-targetable" : ""} ${props.selected ? "is-player-target-selected" : ""}`;
   const body = (
     <>
       <span className="citadel-player-mini__avatar-wrap">
@@ -31,11 +32,17 @@ export function GamePlayerMiniStatus(props: {
         <span className="citadel-player-mini__name-line">
           <strong>{props.self ? "\u4f60" : props.player.name}</strong>
         </span>
-        <small>{props.player.connected ? "\u25cf" : "\u25cb"}</small>
+        <small>
+          <i aria-hidden="true">{props.player.connected ? "\u25cf" : "\u25cb"}</i>
+          {props.player.isBot ? "人机" : "玩家"} · {props.player.connected ? "在线" : "离线"}
+        </small>
       </span>
-      <span className="citadel-player-mini__stat citadel-player-mini__stat--gold">{props.player.gold}</span>
-      <span className="citadel-player-mini__stat citadel-player-mini__stat--hand">{props.player.handCount}</span>
-      <span className="citadel-player-mini__stat citadel-player-mini__stat--city">{props.player.city.length}</span>
+      <span className="citadel-player-mini__resources" aria-label="玩家资源">
+        <span className="citadel-player-mini__stat citadel-player-mini__stat--gold">{props.player.gold}</span>
+        <span className="citadel-player-mini__stat citadel-player-mini__stat--hand">{props.player.handCount}</span>
+        <span className="citadel-player-mini__stat citadel-player-mini__stat--city">{props.player.city.length}</span>
+      </span>
+      {props.isCurrent && <em className="citadel-player-mini__turn-badge">行动中</em>}
     </>
   );
 

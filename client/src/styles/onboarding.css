@@ -1,0 +1,84 @@
+.first-time-guide {
+  position: fixed;
+  z-index: 190;
+  right: clamp(16px, 2vw, 32px);
+  bottom: clamp(66px, 8vh, 92px);
+  width: min(340px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border: 1px solid rgba(228, 189, 104, 0.72);
+  border-radius: 14px;
+  background: rgba(13, 20, 23, 0.94);
+  color: #f6e5bd;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.34);
+  pointer-events: auto;
+}
+
+.first-time-guide > span {
+  color: #d9b25b;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+
+.first-time-guide > strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 18px;
+}
+
+.first-time-guide p {
+  margin: 8px 0 12px;
+  color: rgba(248, 235, 204, 0.84);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.first-time-guide div {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.first-time-guide button {
+  padding: 6px 10px;
+  border: 1px solid rgba(218, 177, 84, 0.52);
+  border-radius: 8px;
+  background: rgba(218, 177, 84, 0.12);
+  color: inherit;
+  cursor: pointer;
+}
+
+[data-guide-stage="home"] .home-menu__actions,
+[data-guide-stage="ready"] .lobby-actions,
+[data-guide-stage="role"] .citadel-action-dock--roles,
+[data-guide-stage="resource"] .citadel-action-dock,
+[data-guide-stage="draw"] .citadel-action-dock--draw-choice,
+[data-guide-stage="action"] .citadel-action-dock,
+[data-guide-stage="result"] .citadel-result-screen {
+  outline: 2px solid rgba(244, 202, 105, 0.76);
+  outline-offset: 5px;
+  filter: drop-shadow(0 0 12px rgba(234, 186, 77, 0.28));
+}
+
+@media (max-height: 700px) {
+  .first-time-guide {
+    right: 12px;
+    bottom: 52px;
+    width: min(300px, calc(100vw - 24px));
+    padding: 10px 12px;
+  }
+
+  .first-time-guide p {
+    margin-block: 5px 8px;
+    font-size: 12px;
+  }
+}
+
+.rulebook-replay-guide {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border: 1px solid rgba(212, 169, 75, 0.52);
+  border-radius: 8px;
+  background: rgba(212, 169, 75, 0.12);
+  color: #f2d995;
+  cursor: pointer;
+}

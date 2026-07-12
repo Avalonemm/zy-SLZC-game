@@ -5,7 +5,7 @@ import { standardRoles } from "./lobbyScreenConfig";
 
 export function useRoomSettings(roomState: RoomState | null) {
   const roomSettingsRoleKey = roomState?.settings.enabledRoleIds.join("|") ?? "";
-  const [turnTimeoutInput, setTurnTimeoutInput] = useState("15");
+  const [turnTimeoutInput, setTurnTimeoutInput] = useState("60");
   const [endCitySizeInput, setEndCitySizeInput] = useState("8");
   const [enabledRoleIdsInput, setEnabledRoleIdsInput] = useState<string[]>(
     standardRoles.map((role) => role.id)
@@ -20,11 +20,16 @@ export function useRoomSettings(roomState: RoomState | null) {
 
     setTurnTimeoutInput(String(roomState.settings.turnTimeoutSeconds));
     setEndCitySizeInput(String(roomState.settings.endCitySize));
-    setEnabledRoleIdsInput(roomState.settings.enabledRoleIds);
+    setEnabledRoleIdsInput(
+      roomState.maxPlayers === 8
+        ? [...new Set([...roomState.settings.enabledRoleIds, "queen"])]
+        : roomState.settings.enabledRoleIds.filter((roleId) => roleId !== "queen")
+    );
     setEnableFaceUpRoleDiscardInput(roomState.settings.enableFaceUpRoleDiscard);
     setEnableFaceDownRoleDiscardInput(roomState.settings.enableFaceDownRoleDiscard);
   }, [
     roomSettingsRoleKey,
+    roomState?.maxPlayers,
     roomState?.settings.turnTimeoutSeconds,
     roomState?.settings.endCitySize,
     roomState?.settings.enableFaceUpRoleDiscard,
@@ -34,7 +39,11 @@ export function useRoomSettings(roomState: RoomState | null) {
   const roomDiscardPolicy = useMemo(
     () =>
       roomState
-        ? getRoleDiscardPolicy(roomState.maxPlayers, roomState.settings.enabledRoleIds.length)
+        ? getRoleDiscardPolicy(
+            roomState.maxPlayers,
+            roomState.settings.enabledRoleIds.length +
+              (roomState.maxPlayers === 8 && !roomState.settings.enabledRoleIds.includes("queen") ? 1 : 0)
+          )
         : null,
     [roomState?.maxPlayers, roomState?.settings.enabledRoleIds.length]
   );
@@ -58,11 +67,14 @@ export function useRoomSettings(roomState: RoomState | null) {
           .join(" \u00b7 ") || "\u4e0d\u5f03\u724c"
       : "";
   const requiredRoleCount = roomState
-    ? Math.max(roomState.minPlayers, roomState.players.length)
+    ? Math.max(roomState.minPlayers, roomState.players.length, roomState.maxPlayers === 8 ? 9 : 0)
     : 0;
   const canSaveRoomSettings = !roomState || enabledRoleIdsInput.length >= requiredRoleCount;
 
   function toggleEnabledRole(roleId: string) {
+    if (roleId === "queen" && roomState?.maxPlayers === 8) {
+      return;
+    }
     setEnabledRoleIdsInput((current) =>
       current.includes(roleId)
         ? current.filter((enabledRoleId) => enabledRoleId !== roleId)
@@ -85,6 +97,7 @@ export function useRoomSettings(roomState: RoomState | null) {
     setEndCitySizeInput,
     setEnableFaceUpRoleDiscardInput,
     setEnableFaceDownRoleDiscardInput,
-    toggleEnabledRole
+    toggleEnabledRole,
+    queenRequired: roomState?.maxPlayers === 8
   };
 }

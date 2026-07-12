@@ -12,6 +12,7 @@ import { applyStealEffectBeforeTurn } from "./roleSkills";
 import { createRoleSelectionPool } from "./rolePool";
 import { scoreGame } from "./scoring";
 import { startRoleActionTimer, startRoleSelectionTimer } from "./timerState";
+import { resolveDeferredQueenIncome, resolveQueenIncome } from "./queenRule";
 
 export function selectRole(
   gameRoom: GameRoom,
@@ -37,7 +38,10 @@ export function selectRole(
 
   const [role] = gameRoom.availableRoles.splice(roleIndex, 1);
   player.selectedRoleId = role.id;
-  addLog(gameRoom, "role_selected", `${player.name} 已选择角色。`);
+  addLog(gameRoom, "role_selected", `${player.name} 已选择角色。`, {
+    kind: "role_lock",
+    actorPlayerId: player.id
+  });
 
   const nextPlayerId = nextRoleSelectionPlayerId(gameRoom);
   gameRoom.roleSelectionTurnPlayerId = nextPlayerId;
@@ -101,7 +105,8 @@ export function advanceToNextTurn(gameRoom: GameRoom) {
       `${nextEntry.role.name} 被刺客跳过了行动。`,
       {
         kind: "assassin_skip",
-        targetRoleId: nextEntry.role.id
+        targetRoleId: nextEntry.role.id,
+        targetPlayerId: nextEntry.player.id
       }
     );
     nextEntry = nextPendingRoleEntry(gameRoom);
@@ -113,10 +118,12 @@ export function advanceToNextTurn(gameRoom: GameRoom) {
   }
 
   if (gameRoom.firstCompletedCityPlayerId) {
+    resolveDeferredQueenIncome(gameRoom);
     scoreGame(gameRoom);
     return;
   }
 
+  resolveDeferredQueenIncome(gameRoom);
   startNextRound(gameRoom);
 }
 
@@ -187,11 +194,15 @@ function prepareTurn(gameRoom: GameRoom, player: Player | null) {
     if (role?.id === "king") {
       transferCrownToPlayer(gameRoom, player);
     }
+    if (role?.id === "queen") {
+      resolveQueenIncome(gameRoom, player, { atRoundEnd: false });
+    }
     applyStealEffectBeforeTurn(gameRoom, player, role);
     addLog(
       gameRoom,
       "turn_start",
-      `轮到 ${player.name} 行动${role ? `（${role.name}）` : ""}。`
+      `轮到 ${player.name} 行动${role ? `（${role.name}）` : ""}。`,
+      { kind: "turn_start", actorPlayerId: player.id }
     );
   }
 }
@@ -208,7 +219,10 @@ function transferCrownToPlayer(gameRoom: GameRoom, player: Player) {
     return;
   }
   gameRoom.crownPlayerId = player.id;
-  addLog(gameRoom, "crown_transferred", `${player.name} \u83b7\u5f97\u4e86\u738b\u51a0\u3002`);
+  addLog(gameRoom, "crown_transferred", `${player.name} \u83b7\u5f97\u4e86\u738b\u51a0\u3002`, {
+    kind: "crown_transfer",
+    targetPlayerId: player.id
+  });
 }
 
 function nextPendingRoleEntry(gameRoom: GameRoom) {

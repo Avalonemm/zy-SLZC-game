@@ -38,7 +38,7 @@ function createDefaultSettings(overrides: Partial<RoomSettings> = {}): RoomSetti
     enableFaceUpRoleDiscard: false,
     enableFaceDownRoleDiscard: false,
     drawMode: "draw2Choose1",
-    roleRulePreset: "standard4Player",
+    roleRulePreset: "classicStandard",
     ...overrides
   };
 }
@@ -714,7 +714,8 @@ describe("game engine", () => {
     expect(gameRoom.completedRoleIds).toContain(roles[1].id);
     expect(gameRoom.gameLog.find((log) => log.type === "role_skipped")?.presentation).toEqual({
       kind: "assassin_skip",
-      targetRoleId: roles[1].id
+      targetRoleId: roles[1].id,
+      targetPlayerId: "player-2"
     });
   });
 
@@ -823,10 +824,10 @@ describe("game engine", () => {
     const [greenA, greenB, greenC, blueDistrict] = merchant.hand;
     merchant.gold = 2;
     merchant.city = [
-      { ...greenA, id: "green-a", color: "green" },
-      { ...greenB, id: "green-b", color: "green" },
-      { ...greenC, id: "green-c", color: "green" },
-      { ...blueDistrict, id: "blue-a", color: "blue" }
+      { ...greenA, id: "green-a", color: "green", effectType: "none", effectParams: {} },
+      { ...greenB, id: "green-b", color: "green", effectType: "none", effectParams: {} },
+      { ...greenC, id: "green-c", color: "green", effectType: "none", effectParams: {} },
+      { ...blueDistrict, id: "blue-a", color: "blue", effectType: "none", effectParams: {} }
     ];
     forceRoleActionTurn(gameRoom, merchant.id, "merchant");
 
@@ -849,9 +850,9 @@ describe("game engine", () => {
       const [districtA, districtB, otherDistrict] = player.hand;
       player.gold = 1;
       player.city = [
-        { ...districtA, id: `${testCase.roleId}-a`, color: testCase.color },
-        { ...districtB, id: `${testCase.roleId}-b`, color: testCase.color },
-        { ...otherDistrict, id: `${testCase.roleId}-other`, color: "purple" }
+        { ...districtA, id: `${testCase.roleId}-a`, color: testCase.color, effectType: "none", effectParams: {} },
+        { ...districtB, id: `${testCase.roleId}-b`, color: testCase.color, effectType: "none", effectParams: {} },
+        { ...otherDistrict, id: `${testCase.roleId}-other`, color: "purple", effectType: "none", effectParams: {} }
       ];
       forceRoleActionTurn(gameRoom, player.id, testCase.roleId);
 

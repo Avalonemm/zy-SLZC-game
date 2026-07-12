@@ -3,6 +3,7 @@ import type { BuildableDistrictCard, GamePlayer } from "./gameTypes";
 import { GamePlayerMiniStatus } from "./GamePlayerMiniStatus";
 import { RoleIdentityCard } from "./RoleIdentityCard";
 import { districtInspectorAttributes } from "./cardInspectorData";
+import { CardArtwork, cardFaceAttributes } from "../../config/cardArt";
 
 export function GameSelfArea(props: {
   avatarImage: string | null;
@@ -27,6 +28,7 @@ export function GameSelfArea(props: {
   const selectingDiscard = props.districtEffectCard?.effectType === "discard_hand_for_gold";
   const selectingMagicianDiscard = props.magicianDiscardSelection;
   const selectionMode = selectingDiscard || selectingMagicianDiscard;
+  const builtNames = new Set(props.self?.city.map((district) => district.name) ?? []);
 
   return (
     <section className="citadel-self-area" aria-label={"\u4f60\u7684\u533a\u57df"}>
@@ -38,6 +40,7 @@ export function GameSelfArea(props: {
               avatarImage={props.avatarImage}
               avatarLabel={props.avatarLabel}
               hasCrown={props.hasCrown}
+              isCurrent={props.gameState.currentTurnPlayerId === props.self.id}
               player={props.self}
               self
             />
@@ -61,7 +64,16 @@ export function GameSelfArea(props: {
               <HandCard
                 key={card.id}
                 card={card}
-                disabled={selectionMode ? false : !props.canBuild || card.cost > availableGold}
+                disabled={selectionMode ? false : !props.canBuild || card.cost > availableGold || builtNames.has(card.name)}
+                disabledReason={selectionMode
+                  ? ""
+                  : !props.canBuild
+                    ? "请等待自己的行动，并先完成资源选择。"
+                    : card.cost > availableGold
+                      ? `金币不足，需要 ${card.cost} 枚金币。`
+                      : builtNames.has(card.name)
+                        ? "城市中已经有同名建筑。"
+                        : ""}
                 selected={selectingMagicianDiscard
                   ? props.magicianDiscardCardIds.includes(card.id)
                   : selectingDiscard && props.districtEffectDiscardCardId === card.id}
@@ -131,6 +143,7 @@ function DeckStack(props: { count: number; label: string; muted?: boolean }) {
 function HandCard(props: {
   card: BuildableDistrictCard;
   disabled: boolean;
+  disabledReason: string;
   selected: boolean;
   selectionMode: boolean;
   onClick: () => void;
@@ -140,7 +153,9 @@ function HandCard(props: {
       aria-pressed={props.selectionMode ? props.selected : undefined}
       aria-disabled={props.disabled}
       aria-label={`${props.card.name}，费用 ${props.card.cost}，${props.card.score} 分。${props.card.description}`}
+      title={props.disabledReason || props.card.description}
       className={`citadel-hand-card citadel-hand-card--${props.card.color} ${props.selectionMode ? "is-targetable" : ""} ${props.selected ? "is-selected" : ""}`}
+      {...cardFaceAttributes()}
       type="button"
       onClick={() => {
         if (!props.disabled) {
@@ -149,6 +164,7 @@ function HandCard(props: {
       }}
       {...districtInspectorAttributes(props.card, "hand")}
     >
+      <CardArtwork kind="district" cardId={props.card.id} alt={props.card.name} />
       <span>{props.card.cost}</span>
       <strong>{props.card.name}</strong>
     </button>

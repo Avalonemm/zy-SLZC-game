@@ -1,0 +1,160 @@
+.citadel-game-shell {
+  --ui-self-card-width: 78px;
+  --ui-hand-overlap: -14px;
+  --ui-hand-max-width: 600px;
+  --ui-player-plate-width: 268px;
+  --ui-player-plate-height: 56px;
+  --ui-avatar-size: 46px;
+  --ui-opponent-role-width: 54px;
+  --ui-opponent-hand-width: 42px;
+  --ui-opponent-district-width: 56px;
+  --ui-center-top: 44%;
+  --ui-city-top: 55.2%;
+  --ui-action-top: 75.4%;
+  --ui-self-bottom: 2.4%;
+}
+
+.citadel-game-shell .citadel-game-center { top: var(--ui-center-top); }
+.citadel-game-shell .citadel-self-city { top: var(--ui-city-top); }
+.citadel-game-shell .citadel-action-layer .citadel-action-dock { top: var(--ui-action-top); }
+.citadel-game-shell .citadel-self-area { bottom: var(--ui-self-bottom); }
+
+.citadel-game-shell .citadel-hand-zone {
+  max-width: var(--ui-hand-max-width);
+  justify-self: center;
+}
+
+.citadel-game-shell .citadel-hand-card,
+.citadel-game-shell .citadel-self-role-card .citadel-role-card,
+.citadel-game-shell .citadel-self-area .citadel-card-back {
+  width: var(--ui-self-card-width);
+  height: auto;
+  aspect-ratio: 2 / 3;
+}
+
+.citadel-game-shell .citadel-hand-card + .citadel-hand-card {
+  margin-left: var(--ui-hand-overlap);
+}
+
+.citadel-game-shell .citadel-opponent-seat > .citadel-player-mini,
+.citadel-game-shell .citadel-opponent-seat.is-dense > .citadel-player-mini {
+  width: min(var(--ui-player-plate-width), 100%);
+  min-height: var(--ui-player-plate-height);
+}
+
+.citadel-game-shell .citadel-player-mini {
+  position: relative;
+  grid-template-columns: auto minmax(72px, 1fr) auto;
+  gap: 8px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(18, 27, 31, 0.93), rgba(8, 14, 18, 0.88));
+}
+
+.citadel-game-shell .citadel-player-mini--self {
+  width: var(--ui-player-plate-width);
+  min-height: var(--ui-player-plate-height);
+}
+
+.citadel-game-shell .citadel-player-mini__copy small {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 10px;
+}
+
+.citadel-game-shell .citadel-player-mini__copy small i {
+  color: #43d8a3;
+  font-style: normal;
+}
+
+.citadel-game-shell .citadel-player-mini__resources {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.citadel-game-shell .citadel-player-mini__turn-badge {
+  position: absolute;
+  top: -8px;
+  right: 14px;
+  padding: 2px 7px;
+  border: 1px solid rgba(236, 197, 107, 0.62);
+  border-radius: 999px;
+  background: rgba(20, 27, 28, 0.96);
+  color: #f4d590;
+  font-size: 9px;
+  font-style: normal;
+}
+
+.citadel-game-shell .citadel-player-mini.is-current {
+  border-color: rgba(240, 202, 112, 0.7);
+  box-shadow: 0 0 18px rgba(226, 183, 83, 0.25);
+}
+
+.citadel-game-shell .citadel-player-mini__avatar {
+  width: var(--ui-avatar-size);
+  height: var(--ui-avatar-size);
+}
+
+.citadel-game-shell .citadel-opponent-card-line .citadel-role-card--compact {
+  width: var(--ui-opponent-role-width);
+  height: auto;
+  aspect-ratio: 2 / 3;
+}
+
+.citadel-game-shell .citadel-opponent-card-line .citadel-mini-card {
+  width: var(--ui-opponent-hand-width);
+  height: auto;
+  aspect-ratio: 2 / 3;
+}
+
+.citadel-game-shell .citadel-opponent-seat {
+  --citadel-opponent-district-width: var(--ui-opponent-district-width);
+  --citadel-opponent-district-height: calc(var(--ui-opponent-district-width) * 1.464);
+}
+
+.citadel-game-shell.ui-show-bounds :is(
+  .citadel-player-mini,
+  .citadel-self-area,
+  .citadel-self-city,
+  .citadel-hand-zone,
+  .citadel-action-dock,
+  .citadel-opponent-seat
+) {
+  outline: 1px dashed rgba(67, 220, 255, 0.72) !important;
+  outline-offset: 2px;
+  background-color: rgba(52, 182, 213, 0.06);
+}
+
+.game-ui-tuning-panel {
+  position: fixed;
+  z-index: 260;
+  top: 12px;
+  left: 12px;
+  display: grid;
+  gap: 10px;
+  width: 310px;
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid rgba(86, 208, 235, 0.62);
+  border-radius: 10px;
+  background: rgba(7, 15, 20, 0.96);
+  color: #dff7ff;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+}
+
+.game-ui-tuning-panel header,
+.game-ui-tuning-panel label span,
+.game-ui-tuning-panel footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.game-ui-tuning-panel__fields { display: grid; gap: 7px; }
+.game-ui-tuning-panel label { display: grid; gap: 3px; font-size: 12px; }
+.game-ui-tuning-panel input[type="range"] { width: 100%; }
+.game-ui-tuning-panel__check { grid-template-columns: auto 1fr; align-items: center; }
+.game-ui-tuning-panel footer button { flex: 1; padding: 6px; }

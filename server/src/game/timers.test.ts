@@ -29,7 +29,7 @@ function createStartedGame() {
       enableFaceUpRoleDiscard: false,
       enableFaceDownRoleDiscard: false,
       drawMode: "draw2Choose1",
-      roleRulePreset: "standard4Player"
+      roleRulePreset: "classicStandard"
     },
     startCountdown: null,
     createdAt: "2026-06-28T00:00:00.000Z",

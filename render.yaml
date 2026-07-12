@@ -11,3 +11,9 @@ services:
         value: 22
       - key: CLIENT_ORIGIN
         sync: false
+      - key: ROOM_SNAPSHOT_PATH
+        value: /var/data/active-rooms.json
+    disk:
+      name: room-snapshots
+      mountPath: /var/data
+      sizeGB: 1

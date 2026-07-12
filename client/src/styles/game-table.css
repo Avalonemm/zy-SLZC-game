@@ -114,7 +114,7 @@
   border-radius: 8px;
   background:
     linear-gradient(180deg, rgb(33 18 10 / 5%), rgb(16 9 6 / 12%)),
-    url("/assets/generated-ui/citadels-game-table-background-v2.png") center / cover no-repeat,
+    var(--visual-bg-game) center / cover no-repeat,
     linear-gradient(180deg, #2b1a10, #120b08);
   box-shadow: inset 0 0 42px rgb(0 0 0 / 24%);
 }
@@ -1383,7 +1383,7 @@ button.citadel-player-mini {
 }
 
 .citadel-pop-dock .chat-panel,
-.citadel-pop-dock .test-game-section {
+.citadel-pop-dock .game-log-panel {
   display: grid;
   gap: 10px;
   width: 100%;
@@ -1396,15 +1396,15 @@ button.citadel-player-mini {
 }
 
 .citadel-pop-dock .chat-panel h3,
-.citadel-pop-dock .test-game-section h3 {
+.citadel-pop-dock .game-log-panel h3 {
   margin: 0;
   color: #f3c978;
   font-size: 1rem;
 }
 
 .citadel-pop-dock .chat-panel__messages,
-.citadel-pop-dock .test-log-list,
-.citadel-pop-dock .test-action-event-list {
+.citadel-pop-dock .game-log-panel__list,
+.citadel-pop-dock .game-log-panel__events {
   max-height: 220px;
   overflow: auto;
   border: 1px solid rgb(221 177 91 / 18%);
@@ -1414,8 +1414,8 @@ button.citadel-player-mini {
 }
 
 .citadel-pop-dock .chat-panel__messages p,
-.citadel-pop-dock .test-log-list p,
-.citadel-pop-dock .test-action-event-list p {
+.citadel-pop-dock .game-log-panel__list p,
+.citadel-pop-dock .game-log-panel__events p {
   margin: 0 0 6px;
   color: rgb(255 236 198 / 82%);
   font-size: 0.82rem;
@@ -3298,7 +3298,7 @@ button.citadel-player-mini {
 
 /* Crown art, clickable district effects, and inline hand confirmation. */
 .citadel-game-shell {
-  --citadel-crown-image: url("/assets/generated-ui/citadels-crown-icon-v1.png");
+  --citadel-crown-image: var(--visual-icon-crown);
 }
 
 .citadel-player-mini__avatar-wrap {

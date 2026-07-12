@@ -5,6 +5,7 @@ import { GamePlayerMiniStatus } from "./GamePlayerMiniStatus";
 import { RoleIdentityCard } from "./RoleIdentityCard";
 import type { DistrictTargetStatus } from "./tableDistrictTargeting";
 import { districtInspectorAttributes } from "./cardInspectorData";
+import { CardArtwork, cardFaceAttributes } from "../../config/cardArt";
 
 export function GameOpponentSeat(props: {
   dense: boolean;
@@ -29,6 +30,7 @@ export function GameOpponentSeat(props: {
     >
       <GamePlayerMiniStatus
         hasCrown={props.hasCrown}
+        isCurrent={isCurrent}
         player={props.player}
         targetable={props.playerTargeting}
         selected={props.playerTargetSelected}
@@ -88,6 +90,7 @@ function OpponentCityRow(props: {
             className={`citadel-mini-city-card citadel-mini-city-card--${card.color} ${targetClass} ${selectedClass}`}
             data-district-card-id={card.id}
             data-tooltip={tooltip}
+            {...cardFaceAttributes()}
             {...districtInspectorAttributes(card, props.inspectorPlacement, "table-small")}
             key={card.id}
             role={props.targeting ? "button" : undefined}
@@ -100,6 +103,7 @@ function OpponentCityRow(props: {
               }
             }}
           >
+            <CardArtwork kind="district" cardId={card.id} alt={card.name} />
             <span className="citadel-mini-city-card__cost">{card.cost}</span>
             <strong className="citadel-mini-city-card__name">{card.name}</strong>
           </article>

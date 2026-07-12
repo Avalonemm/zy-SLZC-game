@@ -21,7 +21,7 @@ function createDefaultSettings(overrides: Partial<RoomSettings> = {}): RoomSetti
     enableFaceUpRoleDiscard: true,
     enableFaceDownRoleDiscard: true,
     drawMode: "draw2Choose1",
-    roleRulePreset: "standard4Player",
+    roleRulePreset: "classicStandard",
     ...overrides
   };
 }
@@ -92,13 +92,14 @@ describe("game setup", () => {
     const roles = loadRoleCards();
     const districts = loadDistrictCards();
 
-    expect(roles).toHaveLength(8);
-    expect(roles.map((role) => role.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(roles).toHaveLength(9);
+    expect(roles.map((role) => role.order)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
     expect(roles[0]).toMatchObject({
       id: "assassin",
       name: "刺客",
       effectType: "skip_role"
     });
+    expect(roles[8]).toMatchObject({ id: "queen", name: "王后", effectType: "queen_adjacent_income" });
 
     expect(districts.length).toBeGreaterThanOrEqual(65);
     expect(districts[0]).toEqual(
