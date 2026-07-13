@@ -29,6 +29,7 @@ import {
 import { BOT_THINK_DELAY_MS } from "../game/gameConfig";
 import { resolveExpiredTurn } from "../game/timers";
 import { createRoomSnapshotStore } from "../game/roomSnapshotStore";
+import { enabledRoleCards } from "../game/rolePool";
 
 type GameServer = Server<
   ClientToServerEvents,
@@ -52,7 +53,7 @@ const botTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const turnDeadlineTimers = new Map<string, {
   deadlineAt: string;
   phase: string;
-  playerId: string;
+  playerId: string | null;
   timeout: ReturnType<typeof setTimeout>;
 }>();
 const socketRateWindows = new Map<string, Map<string, number[]>>();
@@ -531,6 +532,8 @@ export function registerSocketHandlers(io: GameServer) {
           return;
         }
         const qaOptions = payload as typeof payload & {
+          forceSelfRoleCallReveal?: boolean;
+          forceUnansweredRoleCall?: boolean;
           incomeRoleId?: string;
           triggerOpponentBuildIndex?: number;
         };
@@ -558,7 +561,7 @@ export function registerSocketHandlers(io: GameServer) {
           gameRoom.roleSelectionTurnPlayerId = payload.playerId;
         }
         if (payload.deadlineMs !== undefined && gameRoom.turnTimer) {
-          const timeoutMs = Math.max(80, Math.min(10_000, Math.floor(payload.deadlineMs)));
+          const timeoutMs = Math.max(80, Math.min(60_000, Math.floor(payload.deadlineMs)));
           const startedAt = new Date().toISOString();
           const deadlineAt = new Date(Date.now() + timeoutMs).toISOString();
           gameRoom.turnTimer = {
@@ -575,6 +578,62 @@ export function registerSocketHandlers(io: GameServer) {
             gameRoom.turnState.deadlineAt = deadlineAt;
             gameRoom.turnState.timeoutMs = timeoutMs;
           }
+          if (gameRoom.roleCallState && gameRoom.turnTimer.phase === "ROLE_CALL") {
+            gameRoom.roleCallState.startedAt = startedAt;
+            gameRoom.roleCallState.deadlineAt = deadlineAt;
+            gameRoom.roleCallState.timeoutMs = timeoutMs;
+          }
+        }
+        if (qaOptions.forceUnansweredRoleCall) {
+          const unansweredRole = enabledRoleCards(gameRoom.settings, gameRoom.players.length)
+            .find((role) => !gameRoom.players.some((player) => player.selectedRoleId === role.id));
+          if (gameRoom.phase !== "ROLE_CALL" || !gameRoom.roleCallState || !unansweredRole) {
+            reportGameCommandError(socket, ack, "QA unanswered role-call state is not available.");
+            return;
+          }
+          const startedAt = new Date().toISOString();
+          const timeoutMs = 10_000;
+          const deadlineAt = new Date(Date.now() + timeoutMs).toISOString();
+          gameRoom.roleCallState = {
+            roleId: unansweredRole.id,
+            stage: "unanswered",
+            playerId: null,
+            startedAt,
+            deadlineAt,
+            timeoutMs
+          };
+          gameRoom.turnTimer = {
+            phase: "ROLE_CALL",
+            playerId: null,
+            startedAt,
+            deadlineAt,
+            timeoutMs
+          };
+        }
+        if (qaOptions.forceSelfRoleCallReveal) {
+          const self = gameRoom.players.find((player) => player.id === payload.playerId);
+          if (gameRoom.phase !== "ROLE_CALL" || !gameRoom.roleCallState || !self?.selectedRoleId) {
+            reportGameCommandError(socket, ack, "QA self role-call reveal is not available.");
+            return;
+          }
+          const startedAt = new Date().toISOString();
+          const timeoutMs = 10_000;
+          const deadlineAt = new Date(Date.now() + timeoutMs).toISOString();
+          gameRoom.roleCallState = {
+            roleId: self.selectedRoleId,
+            stage: "revealing",
+            playerId: self.id,
+            startedAt,
+            deadlineAt,
+            timeoutMs
+          };
+          gameRoom.turnTimer = {
+            phase: "ROLE_CALL",
+            playerId: self.id,
+            startedAt,
+            deadlineAt,
+            timeoutMs
+          };
         }
         if (payload.nextBuildOutcome) {
           qaNextBuildOutcomes.set(payload.roomCode, payload.nextBuildOutcome);
@@ -1039,7 +1098,10 @@ export function registerSocketHandlers(io: GameServer) {
     }
 
     const timerPlayer = gameRoom.players.find((player) => player.id === timer.playerId);
-    if (timer.phase !== "CROWN_REVEAL" && timerPlayer?.isBot) {
+    if (
+      (timer.phase === "ROLE_SELECTION" || timer.phase === "ROLE_ACTION") &&
+      timerPlayer?.isBot
+    ) {
       clearTurnDeadlineTimer(roomCode);
       return;
     }
@@ -1099,7 +1161,7 @@ export function registerSocketHandlers(io: GameServer) {
         broadcastActionEvents(createActionEventsFromLogs(
           latestGameRoom,
           newLogsSince(latestGameRoom, previousLogId),
-          { actorPlayerId: scheduledIdentity.playerId }
+          { actorPlayerId: scheduledIdentity.playerId ?? "" }
         ));
       }
       broadcastGameState(latestGameRoom);

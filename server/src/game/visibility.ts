@@ -9,6 +9,7 @@ export function visibleStateForPlayer(
     districtDeck: _districtDeck,
     districtDiscardPile: _districtDiscardPile,
     pendingDrawChoice: _pendingDrawChoice,
+    calledRoleIds: _calledRoleIds,
     ...roomWithoutPrivatePiles
   } = gameRoom;
   const canSeeAvailableRoles =
@@ -16,6 +17,7 @@ export function visibleStateForPlayer(
 
   return {
     ...roomWithoutPrivatePiles,
+    roleCallState: visibleRoleCallState(gameRoom),
     currentRoleOrder: visibleRoleOrder(gameRoom),
     gameLog: gameRoom.gameLog.slice(0, MAX_GAME_LOGS),
     availableRoles: canSeeAvailableRoles ? gameRoom.availableRoles : [],
@@ -55,6 +57,12 @@ function visibleRoleOrder(gameRoom: GameRoom) {
   if (currentPlayer?.selectedRoleId) {
     publicRoleIds.add(currentPlayer.selectedRoleId);
   }
+  if (
+    gameRoom.roleCallState &&
+    (gameRoom.roleCallState.stage === "revealing" || gameRoom.roleCallState.stage === "skipped")
+  ) {
+    publicRoleIds.add(gameRoom.roleCallState.roleId);
+  }
 
   return [...publicRoleIds]
     .map((roleId) => findRole(roleId)?.order)
@@ -75,5 +83,28 @@ function canSeeSelectedRole(gameRoom: GameRoom, player: Player, viewerPlayerId: 
     return true;
   }
 
+  if (
+    gameRoom.roleCallState?.playerId === player.id &&
+    (gameRoom.roleCallState.stage === "revealing" || gameRoom.roleCallState.stage === "skipped")
+  ) {
+    return true;
+  }
+
   return gameRoom.completedRoleIds.includes(player.selectedRoleId);
+}
+
+function visibleRoleCallState(gameRoom: GameRoom) {
+  const call = gameRoom.roleCallState;
+  if (!call) {
+    return null;
+  }
+
+  if (call.stage === "revealing" || call.stage === "skipped") {
+    return call;
+  }
+
+  return {
+    ...call,
+    playerId: null
+  };
 }

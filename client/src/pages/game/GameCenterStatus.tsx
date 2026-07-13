@@ -1,5 +1,6 @@
 import type { VisibleGameState } from "@zy/shared";
 import { phaseText, roleName, roleOrder } from "./gameText";
+import { RoleIdentityCard } from "./RoleIdentityCard";
 
 export function GameCenterStatus(props: {
   currentTurnName: string;
@@ -13,13 +14,53 @@ export function GameCenterStatus(props: {
     props.currentTurnName,
     props.roleSelectionTurnName
   );
+  const currentPlayer = props.gameState.players.find(
+    (player) => player.id === props.gameState.currentTurnPlayerId
+  ) ?? null;
+  const activeRoleId = props.gameState.phase === "ROLE_ACTION"
+    ? currentPlayer?.selectedRoleId ?? null
+    : null;
+
+  if (activeRoleId && currentPlayer) {
+    return (
+      <section
+        className="citadel-game-center citadel-game-center--active-turn"
+        aria-label={`\u5f53\u524d\u884c\u52a8\uff1a${roleName(activeRoleId)}\uff0c${currentPlayer.name}`}
+        data-current-role-id={activeRoleId}
+      >
+        <RoleIdentityCard
+          caption={"\u5f53\u524d\u8eab\u4efd"}
+          className="citadel-game-center__role-card"
+          compact
+          inspectorPlacement="bottom"
+          inspectorSize="table-small"
+          roleId={activeRoleId}
+        />
+        <div className="citadel-game-center__turn-copy">
+          <p className="citadel-game-center__callout">
+            {roleOrder(activeRoleId)}{"\u53f7"}{roleName(activeRoleId)}{" \u00b7 "}{currentPlayer.name}{"\u884c\u52a8"}
+          </p>
+          <strong>{currentPlayer.name}</strong>
+          <span>{roleName(activeRoleId)}{"\u6b63\u5728\u884c\u52a8"}</span>
+        </div>
+        {props.remainingSeconds !== null ? (
+          <b
+            className="citadel-game-center__timer"
+            aria-label={`\u5269\u4f59 ${props.remainingSeconds} \u79d2`}
+          >
+            {props.remainingSeconds}<small>{"\u79d2"}</small>
+          </b>
+        ) : null}
+      </section>
+    );
+  }
 
   return (
     <section className="citadel-game-center" aria-label={"\u5bf9\u5c40\u72b6\u6001"}>
-      <div className="citadel-game-center__mark" aria-hidden="true">♛</div>
+      <div className="citadel-game-center__mark" aria-hidden="true">{"\u2666"}</div>
       <strong>{"\u5bcc\u9976\u4e4b\u57ce"}</strong>
       <span>CITADELS</span>
-      <p>{"\u7b2c "}{props.gameState.currentRound}{" \u8f6e · "}{phase}</p>
+      <p>{"\u7b2c "}{props.gameState.currentRound}{" \u8f6e \u00b7 "}{phase}</p>
       {waitingText && <p className="citadel-game-center__callout">{waitingText}</p>}
       {props.remainingSeconds !== null && (
         <b className="citadel-game-center__timer">{props.remainingSeconds}</b>
@@ -39,14 +80,14 @@ function centerStatusText(
   if (gameState.phase === "ROLE_SELECTION") {
     return `\u7b49\u5f85 ${roleSelectionTurnName} \u9009\u62e9\u8eab\u4efd...`;
   }
+  if (gameState.phase === "ROLE_CALL") {
+    const call = gameState.roleCallState;
+    return call
+      ? `\u6b63\u5728\u53eb\u53f7\uff1a${roleOrder(call.roleId)}\u53f7${roleName(call.roleId)}`
+      : "\u57ce\u4e3b\u6b63\u5728\u51c6\u5907\u53eb\u53f7...";
+  }
   if (gameState.phase === "ROLE_ACTION") {
-    const currentPlayer = gameState.players.find(
-      (player) => player.id === gameState.currentTurnPlayerId
-    );
-    if (currentPlayer?.selectedRoleId) {
-      return `${roleOrder(currentPlayer.selectedRoleId)}\u53f7${roleName(currentPlayer.selectedRoleId)} \u00b7 ${currentTurnName}\u884c\u52a8`;
-    }
-    return currentPlayer
+    return gameState.currentTurnPlayerId
       ? `\u7b49\u5f85 ${currentTurnName} \u884c\u52a8...`
       : "\u6b63\u5728\u53eb\u53f7\uff0c\u7b49\u5f85\u5f53\u524d\u8eab\u4efd\u63ed\u6653...";
   }

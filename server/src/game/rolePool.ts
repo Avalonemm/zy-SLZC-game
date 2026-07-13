@@ -3,16 +3,8 @@ import { loadRoleCards } from "./cardData";
 import { QUEEN_ROLE_ID } from "./gameConfig";
 
 export function createRoleSelectionPool(settings: RoomSettings, playerCount: number) {
-  const enabledRoleIds = new Set(settings.enabledRoleIds);
-  if (playerCount === 8) {
-    enabledRoleIds.add(QUEEN_ROLE_ID);
-  } else {
-    enabledRoleIds.delete(QUEEN_ROLE_ID);
-  }
-  const roles = loadRoleCards().filter((role) => enabledRoleIds.has(role.id));
-  const availableRoles = [...roles];
+  const availableRoles = [...enabledRoleCards(settings, playerCount)];
   const discardedRoles: RoleCard[] = [];
-
   const discardPolicy = getRoleDiscardPolicy(playerCount, availableRoles.length);
 
   if (settings.enableFaceDownRoleDiscard && discardPolicy.canUseFaceDownDiscard) {
@@ -34,6 +26,19 @@ export function createRoleSelectionPool(settings: RoomSettings, playerCount: num
     availableRoles: availableRoles.sort((first, second) => first.order - second.order),
     discardedRoles: discardedRoles.sort((first, second) => first.order - second.order)
   };
+}
+
+export function enabledRoleCards(settings: RoomSettings, playerCount: number) {
+  const enabledRoleIds = new Set(settings.enabledRoleIds);
+  if (playerCount === 8) {
+    enabledRoleIds.add(QUEEN_ROLE_ID);
+  } else {
+    enabledRoleIds.delete(QUEEN_ROLE_ID);
+  }
+
+  return loadRoleCards()
+    .filter((role) => enabledRoleIds.has(role.id))
+    .sort((first, second) => first.order - second.order);
 }
 
 function removeRandomRole(roles: RoleCard[], predicate: (role: RoleCard) => boolean = () => true) {

@@ -11,6 +11,7 @@ import { GameCenterStatus } from "./GameCenterStatus";
 import { GameCornerDocks } from "./GameCornerDocks";
 import { GameOpponentSeat } from "./GameOpponentSeat";
 import { GameOpeningSequence } from "./GameOpeningSequence";
+import { GameRoleCallSequence } from "./GameRoleCallSequence";
 import { GameSelfArea } from "./GameSelfArea";
 import { GameSelfCity } from "./GameSelfCity";
 import { GameResultOverlay } from "../result/GameResultOverlay";
@@ -433,6 +434,8 @@ export function GameTableView(props: GameTableViewProps) {
   const resolvedAppliedTuning = resolveSafeGameUiTuning(appliedUiTuning, layoutContext);
   const displayedUiTuning = tuningPanelVisible ? resolvedDraftTuning.config : resolvedAppliedTuning.config;
   const openingVisible = props.gameState.phase === "CROWN_REVEAL";
+  const compactViewport = viewport.width <= 1100 || (viewport.width <= 1365 && viewport.height <= 640);
+  const roleCallHighlightedPlayerId = props.gameState.roleCallState?.playerId ?? null;
 
   function updateUiTuning(nextConfig: typeof uiTuning) {
     const rawConfig = clampGameUiTuning(nextConfig);
@@ -454,8 +457,10 @@ export function GameTableView(props: GameTableViewProps) {
   return (
     <section
       ref={gameShellRef}
-      className={`citadel-game-shell citadel-game-shell--players-${props.gameState.players.length} citadel-game-shell--density-${density} ${pendingConfirm ? "citadel-game-shell--confirming" : ""} ${districtEffectCard ? "citadel-game-shell--hand-choice" : ""} ${tableTargeting.source ? "citadel-game-shell--table-targeting" : ""} ${openingVisible ? "citadel-game-shell--objective-intro citadel-game-shell--opening" : ""} ${props.gameState.pendingDrawChoice ? "citadel-game-shell--draw-choice" : ""} ${tuningPanelVisible && uiTuning.showBounds ? "ui-show-bounds" : ""}`}
+      className={`citadel-game-shell citadel-game-shell--players-${props.gameState.players.length} citadel-game-shell--density-${density} ${compactViewport ? "citadel-game-shell--compact" : ""} ${pendingConfirm ? "citadel-game-shell--confirming" : ""} ${districtEffectCard ? "citadel-game-shell--hand-choice" : ""} ${tableTargeting.source ? "citadel-game-shell--table-targeting" : ""} ${openingVisible ? "citadel-game-shell--objective-intro citadel-game-shell--opening" : ""} ${props.gameState.pendingDrawChoice ? "citadel-game-shell--draw-choice" : ""} ${tuningPanelVisible && uiTuning.showBounds ? "ui-show-bounds" : ""}`}
       data-crown-player-id={props.gameState.crownPlayerId}
+      data-compact-layout={compactViewport ? "true" : "false"}
+      data-role-call-player-id={roleCallHighlightedPlayerId ?? undefined}
       aria-busy={Boolean(props.pendingCommand)}
       style={gameUiTuningStyle(displayedUiTuning)}
     >
@@ -486,40 +491,48 @@ export function GameTableView(props: GameTableViewProps) {
       <main ref={gameTableRef} className="citadel-game-table" aria-label={"\u5bf9\u5c40\u684c\u9762"}>
         <div className="citadel-game-board" aria-hidden="true" />
         <GameOpeningSequence gameState={props.gameState} tableRef={gameTableRef} />
-        {tableSeats.opponents.map((seat) => (
-          <GameOpponentSeat
-            arrivalHighlightCardIds={buildArrivalHighlightIds}
-            key={seat.player.id}
-            dense={
-              props.gameState.players.length >= 7 &&
-              (seat.position.startsWith("left-") || seat.position.startsWith("right-"))
-            }
-            hasCrown={seat.player.id === props.gameState.crownPlayerId}
-            currentTurnPlayerId={props.gameState.currentTurnPlayerId}
-            hiddenDistrictCardIds={buildAnimations.hiddenDistrictCardIds}
-            districtTargeting={Boolean(tableTargeting.source)}
-            playerTargeting={roleSkillTargeting?.kind === "magician-player"}
-            playerTargetSelected={
-              roleSkillTargeting?.kind === "magician-player" &&
-              roleSkillTargeting.selectedPlayerId === seat.player.id
-            }
-            selectedDistrictCardId={pendingConfirm?.type === "table-target" ? pendingConfirm.targetDistrictCardId : null}
-            getDistrictTargetStatus={(card) => tableTargeting.source
-              ? getDistrictTargetStatus({
-                  actorGold: getTableTargetingGold(viewModel.self),
-                  endCitySize: props.gameState.settings.endCitySize,
-                  protectedPlayerIds: props.gameState.roleEffects.protectedPlayerIds,
-                  targetDistrict: card,
-                  targetPlayer: seat.player
-                })
-              : { eligible: false, reason: "", cost: 0 }}
-            onSelectDistrictTarget={(card) => requestTableDistrictTarget(seat.player, card)}
-            onSelectPlayerTarget={() => requestMagicianPlayerTarget(seat.player)}
-            player={seat.player}
-            position={seat.position}
-            handStackDepth={displayedUiTuning.opponentHandStackDepth}
-          />
-        ))}
+        <div
+          className="citadel-opponent-rail"
+          data-opponent-count={tableSeats.opponents.length}
+          aria-label={"\u5176\u4ed6\u73a9\u5bb6"}
+        >
+          {tableSeats.opponents.map((seat) => (
+            <GameOpponentSeat
+              arrivalHighlightCardIds={buildArrivalHighlightIds}
+              key={seat.player.id}
+              dense={
+                props.gameState.players.length >= 7 &&
+                (seat.position.startsWith("left-") || seat.position.startsWith("right-"))
+              }
+              hasCrown={seat.player.id === props.gameState.crownPlayerId}
+              roleCallHighlighted={seat.player.id === roleCallHighlightedPlayerId}
+              currentTurnPlayerId={props.gameState.currentTurnPlayerId}
+              hiddenDistrictCardIds={buildAnimations.hiddenDistrictCardIds}
+              districtTargeting={Boolean(tableTargeting.source)}
+              playerTargeting={roleSkillTargeting?.kind === "magician-player"}
+              playerTargetSelected={
+                roleSkillTargeting?.kind === "magician-player" &&
+                roleSkillTargeting.selectedPlayerId === seat.player.id
+              }
+              selectedDistrictCardId={pendingConfirm?.type === "table-target" ? pendingConfirm.targetDistrictCardId : null}
+              getDistrictTargetStatus={(card) => tableTargeting.source
+                ? getDistrictTargetStatus({
+                    actorGold: getTableTargetingGold(viewModel.self),
+                    endCitySize: props.gameState.settings.endCitySize,
+                    protectedPlayerIds: props.gameState.roleEffects.protectedPlayerIds,
+                    targetDistrict: card,
+                    targetPlayer: seat.player
+                  })
+                : { eligible: false, reason: "", cost: 0 }}
+              onSelectDistrictTarget={(card) => requestTableDistrictTarget(seat.player, card)}
+              onSelectPlayerTarget={() => requestMagicianPlayerTarget(seat.player)}
+              player={seat.player}
+              position={seat.position}
+              handStackDepth={displayedUiTuning.opponentHandStackDepth}
+            />
+          ))}
+        </div>
+        <GameRoleCallSequence gameState={props.gameState} />
         <div className="citadel-center-feedback-rail">
           <GameCenterStatus
             currentTurnName={viewModel.currentTurnName}
@@ -554,6 +567,7 @@ export function GameTableView(props: GameTableViewProps) {
             pendingBuildCardIds={buildAnimations.pendingSelfCardIds}
             gameState={props.gameState}
             hasCrown={tableSeats.self.id === props.gameState.crownPlayerId}
+            roleCallHighlighted={tableSeats.self.id === roleCallHighlightedPlayerId}
             self={tableSeats.self}
             onBuildDistrict={requestBuildDistrict}
             onCancelDistrictEffect={cancelDistrictEffect}
@@ -622,6 +636,7 @@ export function GameTableView(props: GameTableViewProps) {
           actionEvents={props.actionEvents}
           chatMessages={props.chatMessages}
           gameState={props.gameState}
+          compact={compactViewport}
           onSendChatMessage={props.onSendChatMessage}
         />
         <GameSkillPresentationLayer

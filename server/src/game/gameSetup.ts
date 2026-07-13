@@ -37,6 +37,8 @@ export function initializeGameRoom(lobbyRoom: RoomState): GameRoom {
     currentTurnPlayerId: null,
     currentRoleOrder: [],
     completedRoleIds: [],
+    calledRoleIds: [],
+    roleCallState: null,
     firstCompletedCityPlayerId: null,
     turnState: null,
     turnTimer: null,

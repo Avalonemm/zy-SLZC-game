@@ -49,7 +49,7 @@ function createStartedGame() {
   return initializeGameRoom(lobbyRoom);
 }
 
-function selectRolesById(gameRoom: GameRoom, roleIds: string[]) {
+function selectRolesById(gameRoom: GameRoom, roleIds: string[], advanceToAction = true) {
   if (gameRoom.phase === "CROWN_REVEAL") {
     resolveExpiredTurn(gameRoom, gameRoom.turnTimer?.deadlineAt);
   }
@@ -63,6 +63,19 @@ function selectRolesById(gameRoom: GameRoom, roleIds: string[]) {
     });
     expect(result.ok).toBe(true);
   }
+  if (advanceToAction) {
+    advanceRoleCall(gameRoom);
+  }
+}
+
+function advanceRoleCall(gameRoom: GameRoom) {
+  let guard = 0;
+  while (gameRoom.phase === "ROLE_CALL" && guard < 24) {
+    guard += 1;
+    const result = resolveExpiredTurn(gameRoom, gameRoom.turnTimer?.deadlineAt);
+    expect(result.ok).toBe(true);
+  }
+  expect(guard).toBeLessThan(24);
 }
 
 
@@ -116,11 +129,36 @@ describe("turn timers", () => {
     expect(gameRoom.turnTimer?.deadlineAt).toBeTruthy();
   });
 
-  it("refreshes deadline metadata when entering role action", () => {
+  it("calls and reveals an identity before starting its action deadline", () => {
     const gameRoom = createStartedGame();
     const roles = [...gameRoom.availableRoles];
 
-    selectRolesById(gameRoom, [roles[0].id, roles[1].id]);
+    selectRolesById(gameRoom, [roles[0].id, roles[1].id], false);
+
+    expect(gameRoom.phase).toBe("ROLE_CALL");
+    expect(gameRoom.currentTurnPlayerId).toBeNull();
+    expect(gameRoom.roleCallState).toMatchObject({
+      roleId: roles[0].id,
+      stage: "calling",
+      playerId: null,
+      timeoutMs: 650
+    });
+    expect(gameRoom.turnTimer).toMatchObject({
+      phase: "ROLE_CALL",
+      playerId: null,
+      timeoutMs: 650
+    });
+
+    expect(resolveExpiredTurn(gameRoom, gameRoom.turnTimer?.deadlineAt).ok).toBe(true);
+    const firstRolePlayer = gameRoom.players.find((player) => player.selectedRoleId === roles[0].id);
+    expect(gameRoom.roleCallState).toMatchObject({
+      roleId: roles[0].id,
+      stage: "revealing",
+      playerId: firstRolePlayer?.id,
+      timeoutMs: 1350
+    });
+
+    expect(resolveExpiredTurn(gameRoom, gameRoom.turnTimer?.deadlineAt).ok).toBe(true);
 
     expect(gameRoom.phase).toBe("ROLE_ACTION");
     expect(gameRoom.turnTimer).toMatchObject({

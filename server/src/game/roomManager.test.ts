@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createRoomManager } from "./roomManager";
+import { createRoomSnapshotStore } from "./roomSnapshotStore";
 import { resolveExpiredTurn } from "./timers";
 
 describe("room manager", () => {
@@ -1161,6 +1165,50 @@ describe("room manager", () => {
       socketId: "socket-restored"
     });
     expect(reconnect.ok).toBe(true);
+  });
+
+  it("migrates a version-one active turn without replaying earlier role calls", () => {
+    const manager = createRoomManager();
+    const host = manager.createRoom({
+      uid: 100001,
+      socketId: "socket-a",
+      playerName: "Alice"
+    });
+    if (!host.ok) throw new Error(host.error);
+    for (let count = 0; count < 3; count += 1) {
+      expect(manager.addTestBots({ roomCode: host.room.roomCode, playerId: host.playerId }).ok).toBe(true);
+    }
+    const started = manager.startGame({ roomCode: host.room.roomCode, playerId: host.playerId });
+    if (!started.ok) throw new Error(started.error);
+
+    const roleIds = ["assassin", "thief", "magician", "king"];
+    started.gameRoom.players.forEach((player, index) => {
+      player.selectedRoleId = roleIds[index];
+    });
+    started.gameRoom.phase = "ROLE_ACTION";
+    started.gameRoom.currentTurnPlayerId = started.gameRoom.players[2].id;
+    started.gameRoom.completedRoleIds = ["assassin", "thief"];
+
+    const legacySnapshot = JSON.parse(JSON.stringify(manager.exportSnapshot()));
+    legacySnapshot.version = 1;
+    delete legacySnapshot.gameRooms[0].calledRoleIds;
+    delete legacySnapshot.gameRooms[0].roleCallState;
+
+    const directory = mkdtempSync(join(tmpdir(), "zy-role-call-snapshot-"));
+    const snapshotPath = join(directory, "active-rooms.json");
+    const previousPath = process.env.ROOM_SNAPSHOT_PATH;
+    try {
+      writeFileSync(snapshotPath, JSON.stringify(legacySnapshot), "utf8");
+      process.env.ROOM_SNAPSHOT_PATH = snapshotPath;
+      const restored = createRoomSnapshotStore().load();
+      expect(restored?.version).toBe(2);
+      expect(restored?.gameRooms[0].calledRoleIds).toEqual(["assassin", "thief", "magician"]);
+      expect(restored?.gameRooms[0].roleCallState).toBeNull();
+    } finally {
+      if (previousPath === undefined) delete process.env.ROOM_SNAPSHOT_PATH;
+      else process.env.ROOM_SNAPSHOT_PATH = previousPath;
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it("rejects reconnect attempts without the private credential", () => {

@@ -3,7 +3,7 @@ import type { Result } from "./gameEngineTypes";
 import { addLog, findPlayer, roleForPlayer, withActionOrigin } from "./gameEngineUtils";
 import { chooseDrawnDistrictCard, endTurn, takeGold } from "./actions";
 import { applyRoleSkill } from "./roleSkills";
-import { enterRoleSelectionPhase, selectRole } from "./turnFlow";
+import { enterRoleSelectionPhase, resolveRoleCallTimeout, selectRole } from "./turnFlow";
 import { isTurnTimerExpired } from "./timerState";
 import { resolveGraveyardChoice } from "./districtDestruction";
 
@@ -25,11 +25,27 @@ export function resolveExpiredTurn(
     return resolveExpiredRoleSelection(gameRoom);
   }
 
+  if (gameRoom.turnTimer?.phase === "ROLE_CALL") {
+    return resolveExpiredRoleCall(gameRoom);
+  }
+
   if (gameRoom.turnTimer?.phase === "ROLE_ACTION") {
     return resolveExpiredRoleAction(gameRoom);
   }
 
   return { ok: true, timedOut: false };
+}
+
+function resolveExpiredRoleCall(gameRoom: GameRoom): TimeoutResult {
+  if (gameRoom.phase !== "ROLE_CALL" || !gameRoom.roleCallState) {
+    return { ok: true, timedOut: false };
+  }
+
+  const result = resolveRoleCallTimeout(gameRoom);
+  if (!result.ok) {
+    return result;
+  }
+  return { ok: true, timedOut: true };
 }
 
 function resolveExpiredCrownReveal(gameRoom: GameRoom): TimeoutResult {

@@ -1,0 +1,752 @@
+/* Compact match layout: a real one-screen board for 768x600 and short desktop windows. */
+.citadel-opponent-rail {
+  display: contents;
+}
+
+.fantasy-screen--game.lightweight-ui:has(.citadel-game-shell--compact) {
+  place-items: stretch;
+  overflow: hidden;
+}
+
+.citadel-game-shell--compact {
+  width: 100vw;
+  min-width: 0;
+  height: 100svh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.citadel-game-shell--compact .citadel-game-table {
+  inset: 0;
+  border-radius: 0;
+}
+
+.citadel-game-shell--compact .citadel-game-topbar {
+  top: 6px;
+  right: 8px;
+  left: 8px;
+  gap: 8px;
+}
+
+.citadel-game-shell--compact .citadel-game-room-card {
+  width: min(226px, 34vw);
+  min-height: 54px;
+  gap: 2px;
+  padding: 6px 34px 6px 8px;
+}
+
+.citadel-game-shell--compact .citadel-game-room-card strong {
+  overflow: hidden;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citadel-game-shell--compact .citadel-game-room-card span {
+  font-size: 0.64rem;
+}
+
+.citadel-game-shell--compact .citadel-game-room-card small {
+  overflow: hidden;
+  font-size: 0.56rem;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citadel-game-shell--compact .citadel-game-room-card button {
+  right: 6px;
+  width: 24px;
+  height: 24px;
+}
+
+.citadel-game-shell--compact .citadel-game-top-actions {
+  --utility-menu-button-size: 35px;
+  gap: 7px;
+}
+
+.citadel-game-shell--compact .citadel-game-top-actions .utility-menu-button {
+  min-width: 35px;
+}
+
+.citadel-game-shell--compact .citadel-game-top-actions .utility-menu-button span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.citadel-game-shell--compact .citadel-opponent-rail {
+  position: absolute;
+  z-index: 12;
+  top: 66px;
+  right: 8px;
+  left: 8px;
+  display: grid;
+  align-items: start;
+  gap: 4px 6px;
+  pointer-events: none;
+}
+
+.citadel-game-shell--compact .citadel-opponent-rail[data-opponent-count="1"] { grid-template-columns: minmax(0, 250px); justify-content: center; }
+.citadel-game-shell--compact .citadel-opponent-rail[data-opponent-count="2"] { grid-template-columns: repeat(2, minmax(0, 250px)); justify-content: center; }
+.citadel-game-shell--compact .citadel-opponent-rail[data-opponent-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.citadel-game-shell--compact .citadel-opponent-rail[data-opponent-count="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.citadel-game-shell--compact .citadel-opponent-rail[data-opponent-count="5"] { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.citadel-game-shell--compact .citadel-opponent-rail[data-opponent-count="5"] > * { grid-column: span 2; }
+.citadel-game-shell--compact .citadel-opponent-rail[data-opponent-count="5"] > :nth-child(4) { grid-column: 2 / span 2; }
+.citadel-game-shell--compact .citadel-opponent-rail[data-opponent-count="6"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.citadel-game-shell--compact .citadel-opponent-rail[data-opponent-count="7"] { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+.citadel-game-shell--compact .citadel-opponent-rail[data-opponent-count="7"] > * { grid-column: span 2; }
+.citadel-game-shell--compact .citadel-opponent-rail[data-opponent-count="7"] > :nth-child(5) { grid-column: 2 / span 2; }
+
+.citadel-game-shell--compact .citadel-opponent-seat,
+.citadel-game-shell--compact .citadel-opponent-seat.is-dense,
+.citadel-game-shell--compact .citadel-opponent-seat:is(
+  .citadel-opponent-seat--top-left,
+  .citadel-opponent-seat--top-center,
+  .citadel-opponent-seat--top-right,
+  .citadel-opponent-seat--left-upper,
+  .citadel-opponent-seat--left-lower,
+  .citadel-opponent-seat--right-upper,
+  .citadel-opponent-seat--right-lower
+) {
+  --citadel-opponent-district-width: 32px;
+  --citadel-opponent-district-height: 48px;
+  --citadel-opponent-district-overlap: -24px;
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  display: grid;
+  grid-template-columns: minmax(0, 48%) minmax(0, 52%) !important;
+  grid-template-areas:
+    "profile profile"
+    "private city" !important;
+  gap: 4px;
+  width: 100% !important;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 7px;
+  background: rgb(3 10 15 / 34%);
+  padding: 2px;
+  transform: none !important;
+  pointer-events: auto;
+}
+
+.citadel-game-shell--compact .citadel-opponent-seat {
+  --citadel-opponent-district-width: 32px !important;
+  --citadel-opponent-district-height: 48px !important;
+  --ui-opponent-private-lane: 48%;
+  --ui-opponent-city-lane: 52%;
+}
+
+.citadel-game-shell--compact.citadel-game-shell .citadel-opponent-rail > .citadel-opponent-seat,
+.citadel-game-shell--compact.citadel-game-shell .citadel-opponent-rail > .citadel-opponent-seat.is-dense {
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  transform: none !important;
+}
+
+.citadel-game-shell--compact .citadel-opponent-seat:is(
+  .citadel-opponent-seat--right-upper,
+  .citadel-opponent-seat--right-lower
+) {
+  grid-template-areas:
+    "profile profile"
+    "city private" !important;
+}
+
+.citadel-game-shell--compact .citadel-opponent-seat:is(
+  .citadel-opponent-seat--right-upper,
+  .citadel-opponent-seat--right-lower
+) .citadel-mini-city-row {
+  justify-content: flex-end;
+}
+
+.citadel-game-shell--compact .citadel-opponent-seat > .citadel-player-mini,
+.citadel-game-shell--compact .citadel-opponent-seat.is-dense > .citadel-player-mini {
+  position: relative;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  width: 100% !important;
+  height: 33px !important;
+  min-width: 0;
+  min-height: 30px !important;
+  gap: 4px;
+  border-radius: 7px;
+  padding: 2px 5px 2px 2px;
+}
+
+.citadel-game-shell--compact .citadel-opponent-seat .citadel-player-mini__avatar,
+.citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-player-mini__avatar {
+  width: 27px;
+  height: 27px;
+  font-size: 0.58rem;
+}
+
+.citadel-game-shell--compact .citadel-opponent-seat .citadel-player-mini__copy strong,
+.citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-player-mini__copy strong {
+  font-size: 0.66rem;
+}
+
+.citadel-game-shell--compact .citadel-opponent-seat .citadel-player-mini__copy small {
+  display: none;
+}
+
+.citadel-game-shell--compact .citadel-player-mini__resources {
+  display: flex;
+  gap: 3px;
+}
+
+.citadel-game-shell--compact .citadel-opponent-seat .citadel-player-mini__stat,
+.citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-player-mini__stat {
+  min-width: 0;
+  font-size: 0.58rem;
+}
+
+.citadel-game-shell--compact .citadel-opponent-seat .citadel-player-mini__stat::before {
+  width: 6px;
+  height: 6px;
+  margin-right: 1px;
+}
+
+.citadel-game-shell--compact .citadel-player-mini__turn-badge {
+  position: absolute;
+  top: -4px;
+  right: 4px;
+  font-size: 0.48rem;
+}
+
+.citadel-game-shell--compact .citadel-opponent-card-line,
+.citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-opponent-card-line {
+  display: grid !important;
+  grid-template-columns: 28px minmax(0, 1fr) !important;
+  grid-template-areas: "role hand" !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 48px !important;
+  gap: 4px !important;
+  overflow: visible;
+}
+
+.citadel-game-shell--compact .citadel-opponent-seat:is(
+  .citadel-opponent-seat--right-upper,
+  .citadel-opponent-seat--right-lower
+) .citadel-opponent-card-line {
+  grid-template-columns: minmax(0, 1fr) 28px !important;
+  grid-template-areas: "hand role" !important;
+}
+
+.citadel-game-shell--compact .citadel-opponent-card-line .citadel-role-card--compact,
+.citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-role-card--compact {
+  width: 28px !important;
+  height: 42px !important;
+  padding: 2px;
+}
+
+.citadel-game-shell--compact .citadel-opponent-card-line .citadel-role-card--compact strong,
+.citadel-game-shell--compact .citadel-opponent-card-line .citadel-role-card--compact small {
+  display: none;
+}
+
+.citadel-game-shell--compact .citadel-opponent-card-line .citadel-role-card__order {
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  font-size: 0.45rem;
+}
+
+.citadel-game-shell--compact .citadel-opponent-card-line .citadel-mini-card-row,
+.citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-mini-card-row {
+  min-width: 0;
+  min-height: 36px;
+}
+
+.citadel-game-shell--compact .citadel-opponent-card-line .citadel-mini-card,
+.citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-mini-card {
+  width: 23px !important;
+  height: 35px !important;
+}
+
+.citadel-game-shell--compact .citadel-mini-card-count {
+  min-width: 16px;
+  height: 16px;
+  margin-left: -5px;
+  font-size: 0.5rem;
+}
+
+.citadel-game-shell--compact .citadel-mini-city-row,
+.citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-mini-city-row {
+  min-width: 0;
+  min-height: 48px !important;
+  overflow: visible;
+}
+
+.citadel-game-shell--compact .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(4)) {
+  --citadel-opponent-district-overlap: -14px !important;
+}
+
+.citadel-game-shell--compact .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(5)) {
+  --citadel-opponent-district-overlap: -18px !important;
+}
+
+.citadel-game-shell--compact .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(6)) {
+  --citadel-opponent-district-overlap: -21px !important;
+}
+
+.citadel-game-shell--compact .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(7)) {
+  --citadel-opponent-district-overlap: -23px !important;
+}
+
+.citadel-game-shell--compact .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(8)) {
+  --citadel-opponent-district-overlap: -25px !important;
+}
+
+.citadel-game-shell--compact .citadel-mini-city-card__name {
+  display: none;
+}
+
+.citadel-game-shell--compact .citadel-mini-city-card__cost {
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  font-size: 7px;
+}
+
+.citadel-game-shell--compact .citadel-center-feedback-rail {
+  top: 48%;
+  width: min(360px, 50vw);
+  gap: 4px;
+}
+
+.citadel-game-shell--compact .citadel-game-center {
+  top: 48%;
+  width: min(300px, 44vw);
+}
+
+.citadel-game-shell--compact .citadel-game-center:not(.citadel-game-center--active-turn) > strong,
+.citadel-game-shell--compact .citadel-game-center:not(.citadel-game-center--active-turn) > span {
+  display: none;
+}
+
+.citadel-game-shell--compact .citadel-game-center p {
+  margin: 0;
+  font-size: 0.62rem;
+  line-height: 1.15;
+}
+
+.citadel-game-shell--compact .citadel-game-center--active-turn {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  width: min(290px, 48vw);
+  min-height: 54px;
+  gap: 7px;
+  padding: 5px 8px;
+}
+
+.citadel-game-shell--compact .citadel-center-feedback-rail .citadel-game-center--active-turn {
+  width: min(290px, 48vw);
+}
+
+.citadel-game-shell--compact .citadel-game-center__role-card.citadel-role-card {
+  width: 30px;
+  height: 45px;
+}
+
+.citadel-game-shell--compact .citadel-game-center--active-turn .citadel-game-center__timer {
+  min-width: 34px;
+  font-size: 1.12rem;
+}
+
+.citadel-game-shell--compact .citadel-role-call {
+  --role-call-card-width: 72px;
+  top: 53%;
+  gap: 3px;
+  width: min(220px, calc(100vw - 24px));
+}
+
+.citadel-game-shell--compact .citadel-role-call__eyebrow,
+.citadel-game-shell--compact .citadel-role-call__response {
+  font-size: 0.6rem;
+}
+
+.citadel-game-shell--compact .citadel-role-call__role-name {
+  font-size: 0.82rem;
+}
+
+.citadel-game-shell--compact .citadel-role-call__progress {
+  width: 120px;
+}
+
+.citadel-game-shell--compact .citadel-self-city {
+  top: 54%;
+  width: min(68%, 520px);
+  gap: 1px;
+}
+
+.citadel-game-shell--compact .citadel-self-city__cards {
+  min-height: 66px;
+  padding: 0 8px;
+}
+
+.citadel-game-shell--compact .citadel-built-card {
+  width: 44px;
+  height: 64px;
+  padding: 4px;
+}
+
+.citadel-game-shell--compact .citadel-built-card + .citadel-built-card {
+  margin-left: -9px;
+}
+
+.citadel-game-shell--compact .citadel-built-card span {
+  top: 3px;
+  left: 3px;
+  width: 15px;
+  height: 15px;
+  font-size: 0.54rem;
+}
+
+.citadel-game-shell--compact .citadel-built-card strong {
+  font-size: 0.55rem;
+}
+
+.citadel-game-shell--compact .citadel-self-city > span {
+  font-size: 0.56rem;
+}
+
+.citadel-game-shell--compact .citadel-action-layer .citadel-action-dock {
+  top: 72%;
+  width: min(620px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  gap: 5px;
+}
+
+.citadel-game-shell--compact .citadel-action-guidance {
+  overflow: hidden;
+  margin-bottom: 0;
+  font-size: 0.6rem;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citadel-game-shell--compact .citadel-action-button {
+  min-width: 70px;
+  min-height: 30px;
+  padding: 0 8px;
+  font-size: 0.64rem;
+}
+
+.citadel-game-shell--compact .citadel-action-button--skill-income small {
+  font-size: 0.46rem;
+}
+
+.citadel-game-shell--compact .citadel-self-area {
+  right: 7px;
+  bottom: 4px;
+  left: 7px;
+  grid-template-columns: minmax(0, 205px) minmax(0, 1fr) minmax(0, 205px);
+  grid-template-areas: "identity hand discard";
+  column-gap: 6px;
+  row-gap: 0;
+  align-items: end;
+}
+
+.citadel-game-shell--compact .citadel-self-identity-cluster {
+  grid-template-columns: 34px minmax(130px, 1fr) 30px;
+  grid-template-rows: 58px auto;
+  column-gap: 5px;
+  width: 100%;
+}
+
+.citadel-game-shell--compact .citadel-self-profile .citadel-player-mini {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  width: 100% !important;
+  min-height: 36px !important;
+  gap: 4px;
+  padding: 3px;
+}
+
+.citadel-game-shell--compact .citadel-self-profile .citadel-player-mini__avatar {
+  width: 30px;
+  height: 30px;
+}
+
+.citadel-game-shell--compact .citadel-self-profile .citadel-player-mini__copy strong {
+  font-size: 0.68rem;
+}
+
+.citadel-game-shell--compact .citadel-self-profile .citadel-player-mini__copy small {
+  display: none;
+}
+
+.citadel-game-shell--compact .citadel-self-profile .citadel-player-mini__stat {
+  min-width: 0;
+  font-size: 0.58rem;
+}
+
+.citadel-game-shell--compact .citadel-self-profile .citadel-player-mini__stat::before {
+  width: 6px;
+  height: 6px;
+  margin-right: 1px;
+}
+
+.citadel-game-shell--compact .citadel-self-role-card .citadel-role-card {
+  width: 30px;
+  height: 45px;
+  padding: 2px;
+}
+
+.citadel-game-shell--compact .citadel-self-role-card .citadel-role-card strong,
+.citadel-game-shell--compact .citadel-self-role-card .citadel-role-card small {
+  display: none;
+}
+
+.citadel-game-shell--compact .citadel-self-area .citadel-deck-stack {
+  grid-template-rows: 54px auto;
+  gap: 2px;
+}
+
+.citadel-game-shell--compact .citadel-self-area .citadel-card-back {
+  width: 32px;
+  height: 48px;
+}
+
+.citadel-game-shell--compact .citadel-self-area .citadel-deck-stack b {
+  font-size: 0.72rem;
+}
+
+.citadel-game-shell--compact .citadel-self-area .citadel-deck-stack small {
+  font-size: 0.5rem;
+}
+
+.citadel-game-shell--compact .citadel-self-hand-column {
+  grid-template-rows: 62px auto;
+}
+
+.citadel-game-shell--compact .citadel-hand-zone {
+  width: 100%;
+  min-height: 62px;
+  overflow: visible;
+  padding: 0 2px;
+}
+
+.citadel-game-shell--compact .citadel-hand-card {
+  width: 40px;
+  height: 60px;
+  padding: 4px;
+}
+
+.citadel-game-shell--compact .citadel-self-hand-column > .citadel-hand-zone .citadel-hand-card + .citadel-hand-card {
+  margin-left: -6px !important;
+}
+
+.citadel-game-shell--compact .citadel-self-hand-column > .citadel-hand-zone:has(.citadel-hand-card:nth-child(9)) .citadel-hand-card + .citadel-hand-card { margin-left: -10px !important; }
+.citadel-game-shell--compact .citadel-self-hand-column > .citadel-hand-zone:has(.citadel-hand-card:nth-child(12)) .citadel-hand-card + .citadel-hand-card { margin-left: -14px !important; }
+.citadel-game-shell--compact .citadel-self-hand-column > .citadel-hand-zone:has(.citadel-hand-card:nth-child(15)) .citadel-hand-card + .citadel-hand-card { margin-left: -22px !important; }
+
+.citadel-game-shell--compact .citadel-hand-card strong {
+  font-size: 0.52rem;
+}
+
+.citadel-game-shell--compact .citadel-hand-card span {
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  font-size: 0.5rem;
+}
+
+.citadel-game-shell--compact .citadel-hand-caption {
+  margin-top: 2px;
+  font-size: 0.54rem;
+}
+
+.citadel-game-shell--compact .citadel-self-hand-side {
+  gap: 3px;
+  justify-self: stretch;
+}
+
+.citadel-game-shell--compact .citadel-role-selection-dock {
+  bottom: 88px;
+  max-width: calc(100vw - 24px);
+  gap: 7px;
+  padding: 7px 8px;
+}
+
+.citadel-game-shell--compact .citadel-role-selection-dock__header {
+  min-height: 17px;
+  padding-inline: 42px;
+}
+
+.citadel-game-shell--compact .citadel-role-selection-dock__header > strong {
+  font-size: 0.7rem;
+}
+
+.citadel-game-shell--compact .citadel-role-selection-dock__timer {
+  font-size: 1rem;
+}
+
+.citadel-game-shell--compact .citadel-role-selection-dock__viewport {
+  overflow: visible;
+}
+
+.citadel-game-shell--compact .citadel-role-selection-dock__cards {
+  gap: 4px;
+  overflow: visible;
+  padding: 1px;
+}
+
+.citadel-game-shell--compact .citadel-role-selection-dock .citadel-role-selection-dock__card.citadel-role-card {
+  width: 42px;
+  height: 63px;
+}
+
+.citadel-game-shell--compact .citadel-role-selection-dock .citadel-role-selection-dock__card.citadel-role-card strong {
+  font-size: 0.56rem;
+}
+
+.citadel-game-shell--compact .citadel-role-selection-dock .citadel-role-selection-dock__card.citadel-role-card small {
+  font-size: 0.44rem;
+}
+
+.citadel-game-shell--compact .citadel-selection-layer > .citadel-selection-panel.citadel-action-dock--skill-role-row {
+  top: 54%;
+  grid-template-columns: minmax(110px, 132px) max-content 90px;
+  gap: 8px;
+  max-width: calc(100vw - 20px);
+  padding: 8px;
+}
+
+.citadel-game-shell--compact .citadel-action-dock--skill-role-row .citadel-selection-panel__header {
+  padding: 0 32px 0 0;
+}
+
+.citadel-game-shell--compact .citadel-action-dock--skill-role-row .citadel-selection-panel__header > strong {
+  font-size: 0.7rem;
+}
+
+.citadel-game-shell--compact .citadel-action-dock--skill-role-row .citadel-selection-panel__header > span {
+  font-size: 0.52rem;
+}
+
+.citadel-game-shell--compact .citadel-action-dock--skill-role-row .citadel-role-choice-grid {
+  gap: 4px;
+}
+
+.citadel-game-shell--compact .citadel-action-dock--skill-role-row .citadel-role-choice.citadel-role-card {
+  width: 42px;
+}
+
+.citadel-game-shell--compact .citadel-action-dock--skill-role-row .citadel-selection-panel__controls .citadel-action-button {
+  width: 90px;
+  min-width: 90px;
+  min-height: 30px;
+}
+
+.citadel-game-shell--compact .citadel-corner-dock {
+  z-index: 32;
+  bottom: 92px;
+  width: 68px;
+  min-width: 68px;
+  height: 28px;
+  gap: 3px;
+  border-radius: 6px;
+  padding: 0 5px;
+  font-size: 0.56rem;
+}
+
+.citadel-game-shell--compact .citadel-corner-dock--log { left: 2px; }
+.citadel-game-shell--compact .citadel-corner-dock--chat { right: 2px; }
+.citadel-game-shell--compact .citadel-corner-dock > span { display: none; }
+
+.citadel-drawer-backdrop {
+  position: fixed;
+  z-index: 120;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 58%);
+  backdrop-filter: blur(2px);
+}
+
+.citadel-game-shell--compact .citadel-pop-dock--drawer {
+  position: relative;
+  inset: auto;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(480px, calc(100vh - 36px));
+  transform: none;
+}
+
+.citadel-pop-dock__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 38px;
+  border-bottom: 1px solid rgb(232 189 103 / 22%);
+  padding: 6px 9px 6px 14px;
+}
+
+.citadel-pop-dock__header h2 {
+  margin: 0;
+  color: #f1c978;
+  font-size: 0.86rem;
+}
+
+.citadel-pop-dock__header button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgb(232 189 103 / 34%);
+  border-radius: 50%;
+  background: rgb(2 8 13 / 72%);
+  color: #ffe2a5;
+  font-size: 1rem;
+}
+
+.citadel-game-shell--compact .citadel-pop-dock--drawer > :not(.citadel-pop-dock__header) {
+  min-height: 0;
+}
+
+.citadel-game-shell--compact .citadel-card-inspector {
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+}
+
+@media (max-height: 600px) {
+  .citadel-game-shell--compact .citadel-opponent-rail { top: 62px; }
+  .citadel-game-shell--compact .citadel-self-city { top: 54%; }
+  .citadel-game-shell--compact .citadel-action-layer .citadel-action-dock { top: 71%; }
+  .citadel-game-shell--compact .citadel-role-selection-dock { bottom: 82px; }
+}
+
+@media (max-width: 767px), (max-height: 599px) {
+  .citadel-game-shell--compact::after {
+    content: "\7a97\53e3\8f83\5c0f\ff0c\5efa\8bae\653e\5927\540e\7ee7\7eed\6e38\620f";
+    position: absolute;
+    z-index: 130;
+    top: 5px;
+    left: 50%;
+    border: 1px solid rgb(232 189 103 / 38%);
+    border-radius: 999px;
+    background: rgb(3 9 14 / 90%);
+    color: #f5cf85;
+    padding: 4px 9px;
+    font-size: 0.58rem;
+    pointer-events: none;
+    transform: translateX(-50%);
+  }
+}

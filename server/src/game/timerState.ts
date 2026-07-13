@@ -46,6 +46,17 @@ export function startRoleActionTimer(
   }
 }
 
+export function startRoleCallTimer(
+  gameRoom: GameRoom,
+  timeoutMs: number,
+  playerId: string | null = null,
+  now = new Date()
+) {
+  const timer = createTurnTimer("ROLE_CALL", playerId, timeoutMs, now);
+  gameRoom.turnTimer = timer;
+  return timer;
+}
+
 function getTurnTimeoutMsForPlayer(
   gameRoom: GameRoom,
   playerId: string | null,
@@ -85,7 +96,7 @@ export function isTurnTimerExpired(timer: TurnTimer | null, nowInput: string | D
 
 function createTurnTimer(
   phase: TurnTimer["phase"],
-  playerId: string,
+  playerId: string | null,
   timeoutMs: number,
   now: Date
 ): TurnTimer {

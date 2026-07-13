@@ -91,6 +91,11 @@ describe("4-8 player full game flow", () => {
     let guard = 0;
     while (gameRoom.phase !== "ENDED" && guard < 40) {
       guard += 1;
+      if (gameRoom.phase === "ROLE_CALL") {
+        const called = resolveExpiredTurn(gameRoom, gameRoom.turnTimer?.deadlineAt);
+        expect(called.ok).toBe(true);
+        continue;
+      }
       expect(gameRoom.phase).toBe("ROLE_ACTION");
       const currentPlayer = gameRoom.players.find((player) => player.id === gameRoom.currentTurnPlayerId);
       expect(currentPlayer).toBeDefined();

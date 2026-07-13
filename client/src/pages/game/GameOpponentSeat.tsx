@@ -12,6 +12,7 @@ import { CardArtwork, cardFaceAttributes } from "../../config/cardArt";
 export function GameOpponentSeat(props: {
   dense: boolean;
   hasCrown: boolean;
+  roleCallHighlighted: boolean;
   currentTurnPlayerId: string | null;
   hiddenDistrictCardIds: Set<string>;
   arrivalHighlightCardIds: Set<string>;
@@ -29,7 +30,7 @@ export function GameOpponentSeat(props: {
   const isCurrent = props.player.id === props.currentTurnPlayerId;
   return (
     <article
-      className={`citadel-opponent-seat citadel-opponent-seat--${props.position} ${props.dense ? "is-dense" : ""} ${isCurrent ? "is-current" : ""}`}
+      className={`citadel-opponent-seat citadel-opponent-seat--${props.position} ${props.dense ? "is-dense" : ""} ${isCurrent ? "is-current" : ""} ${props.roleCallHighlighted ? "is-role-revealing" : ""}`}
       data-player-id={props.player.id}
       data-city-count={props.player.city.length}
       data-seat-position={props.position}

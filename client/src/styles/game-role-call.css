@@ -1,0 +1,319 @@
+/* Server-timed role call, reveal, and persistent active-role feedback. */
+.citadel-role-call {
+  --role-call-card-width: clamp(104px, 8.4vw, 132px);
+  position: absolute;
+  z-index: 58;
+  top: 47%;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: min(300px, calc(100vw - 32px));
+  color: #ffe8b4;
+  text-align: center;
+  text-shadow: 0 2px 10px rgb(0 0 0 / 82%);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: citadel-role-call-enter 220ms ease both;
+}
+
+.citadel-role-call__eyebrow {
+  color: rgb(242 197 108 / 84%);
+  font-size: clamp(0.66rem, 0.72vw, 0.8rem);
+  font-weight: 900;
+  letter-spacing: 0.16em;
+}
+
+.citadel-role-call__card {
+  position: relative;
+  width: var(--role-call-card-width);
+  aspect-ratio: 2 / 3;
+  perspective: 900px;
+  filter: drop-shadow(0 18px 24px rgb(0 0 0 / 58%));
+}
+
+.citadel-role-call__card-inner {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 720ms cubic-bezier(0.2, 0.74, 0.2, 1);
+}
+
+.citadel-role-call__card.is-revealed .citadel-role-call__card-inner {
+  transform: rotateY(180deg);
+}
+
+.citadel-role-call__card-back,
+.citadel-role-call__card-front {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border: 1px solid rgb(241 201 119 / 78%);
+  border-radius: 10px;
+  backface-visibility: hidden;
+}
+
+.citadel-role-call__card-back {
+  display: grid;
+  place-content: center;
+  gap: 7px;
+  background:
+    radial-gradient(circle at 50% 42%, rgb(233 190 101 / 23%), transparent 34%),
+    repeating-linear-gradient(45deg, rgb(255 255 255 / 3%) 0 3px, transparent 3px 7px),
+    linear-gradient(150deg, #183d68, #071b31 58%, #030b15);
+  box-shadow: inset 0 0 0 4px rgb(2 8 14 / 48%), inset 0 0 28px rgb(0 0 0 / 48%);
+}
+
+.citadel-role-call__card-back::before {
+  content: "";
+  position: absolute;
+  inset: 10%;
+  border: 1px solid rgb(239 196 105 / 46%);
+  border-radius: 50%;
+}
+
+.citadel-role-call__card-back span {
+  position: relative;
+  z-index: 1;
+  color: #ffd57d;
+  font-family: var(--font-fantasy);
+  font-size: clamp(2rem, 3vw, 3.4rem);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.citadel-role-call__card-back strong {
+  position: relative;
+  z-index: 1;
+  color: rgb(255 229 174 / 82%);
+  font-size: clamp(0.7rem, 0.84vw, 0.92rem);
+}
+
+.citadel-role-call__card-front {
+  transform: rotateY(180deg);
+}
+
+.citadel-role-call__identity-card.citadel-role-card {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 9px;
+}
+
+.citadel-role-call__role-name {
+  color: #ffda89;
+  font-family: var(--font-fantasy);
+  font-size: clamp(1rem, 1.24vw, 1.35rem);
+}
+
+.citadel-role-call__response {
+  overflow: hidden;
+  max-width: 100%;
+  color: rgb(255 236 196 / 88%);
+  font-size: clamp(0.72rem, 0.82vw, 0.9rem);
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citadel-role-call__progress {
+  display: block;
+  width: min(180px, 70%);
+  height: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 12%);
+}
+
+.citadel-role-call__progress::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #a87734, #ffe49b);
+  transform-origin: left;
+  animation: citadel-role-call-progress var(--role-call-duration) linear both;
+  animation-delay: var(--role-call-delay);
+}
+
+.citadel-role-call--unanswered .citadel-role-call__card {
+  filter: grayscale(0.9) brightness(0.62) drop-shadow(0 16px 22px rgb(0 0 0 / 62%));
+}
+
+.citadel-role-call__stamp {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: 50%;
+  width: max-content;
+  border: 3px double rgb(229 218 192 / 84%);
+  border-radius: 5px;
+  color: #eee0c3;
+  padding: 5px 8px;
+  font-size: clamp(0.78rem, 0.9vw, 1rem);
+  letter-spacing: 0.08em;
+  transform: translate(-50%, -50%) rotate(-9deg);
+}
+
+.citadel-role-call--skipped {
+  color: #ffd7cb;
+}
+
+.citadel-role-call--skipped .citadel-role-call__card {
+  filter: drop-shadow(0 0 24px rgb(188 30 23 / 48%)) brightness(0.75);
+}
+
+.citadel-role-call__slash {
+  position: absolute;
+  z-index: 4;
+  top: 48%;
+  left: -13%;
+  width: 126%;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, #ff9f83 14%, #c51f1b 52%, #ffb095 86%, transparent);
+  box-shadow: 0 0 18px rgb(222 40 28 / 86%);
+  transform: rotate(-24deg) scaleX(0);
+  transform-origin: left;
+  animation: citadel-role-call-slash 380ms 520ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.citadel-opponent-seat.is-role-revealing > .citadel-player-mini,
+.citadel-self-area.is-role-revealing .citadel-self-profile > .citadel-player-mini {
+  border-color: rgb(255 214 126 / 88%);
+  box-shadow: 0 0 0 4px rgb(226 178 77 / 18%), 0 0 28px rgb(255 204 96 / 50%);
+  animation: citadel-role-seat-pulse 1.25s ease-in-out infinite;
+}
+
+.citadel-game-shell:has(.citadel-role-call) .citadel-game-center,
+.citadel-game-shell:has(.citadel-role-call) .citadel-action-notices {
+  opacity: 0.12;
+}
+
+.citadel-game-center--active-turn {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  justify-items: stretch;
+  align-items: center;
+  gap: 10px;
+  width: min(360px, calc(100vw - 32px));
+  min-height: 72px;
+  border: 1px solid rgb(232 189 103 / 44%);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgb(7 17 24 / 92%), rgb(3 9 14 / 86%));
+  padding: 8px 12px;
+  box-shadow: 0 14px 30px rgb(0 0 0 / 42%), inset 0 1px 0 rgb(255 255 255 / 5%);
+  text-align: left;
+}
+
+.citadel-game-center__role-card.citadel-role-card {
+  width: 42px;
+  height: 63px;
+  padding: 4px;
+}
+
+.citadel-game-center__turn-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.citadel-game-center--active-turn .citadel-game-center__turn-copy .citadel-game-center__callout {
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  color: #e8bd67;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citadel-game-center--active-turn .citadel-game-center__turn-copy strong {
+  overflow: hidden;
+  color: #fff0c9;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citadel-game-center--active-turn .citadel-game-center__turn-copy span {
+  color: rgb(241 224 188 / 72%);
+  font-family: inherit;
+  font-size: 0.68rem;
+  letter-spacing: 0;
+}
+
+.citadel-game-center--active-turn .citadel-game-center__timer {
+  display: grid;
+  justify-items: center;
+  min-width: 42px;
+  margin: 0;
+  color: #ffd67d;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.citadel-game-center--active-turn .citadel-game-center__timer small {
+  margin-top: 3px;
+  color: rgb(255 222 156 / 62%);
+  font-size: 0.54rem;
+}
+
+@keyframes citadel-role-call-enter {
+  from { opacity: 0; transform: translate(-50%, -46%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes citadel-role-call-progress {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+@keyframes citadel-role-call-slash {
+  to { transform: rotate(-24deg) scaleX(1); }
+}
+
+@keyframes citadel-role-seat-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.18); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .citadel-role-call,
+  .citadel-role-call__progress::before,
+  .citadel-opponent-seat.is-role-revealing > .citadel-player-mini,
+  .citadel-self-area.is-role-revealing .citadel-self-profile > .citadel-player-mini {
+    animation: none;
+  }
+
+  .citadel-role-call__card-inner {
+    transition: none;
+  }
+
+  .citadel-role-call__slash {
+    animation: none;
+    transform: rotate(-24deg) scaleX(1);
+  }
+}
+
+@media (min-width: 1101px) and (max-width: 1365px) and (max-height: 720px) {
+  .citadel-center-feedback-rail {
+    top: calc(var(--ui-center-top) + 8px);
+  }
+
+  .citadel-center-feedback-rail .citadel-game-center--active-turn {
+    width: 340px;
+    min-height: 66px;
+    padding-block: 5px;
+  }
+
+  .citadel-game-center__role-card.citadel-role-card {
+    width: 38px;
+    height: 57px;
+  }
+}

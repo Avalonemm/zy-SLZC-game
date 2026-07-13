@@ -20,6 +20,7 @@ export function phaseText(phase: VisibleGameState["phase"]) {
     GAME_START: "\u6e38\u620f\u5f00\u59cb",
     CROWN_REVEAL: "\u7687\u51a0\u968f\u673a",
     ROLE_SELECTION: "\u89d2\u8272\u9009\u62e9",
+    ROLE_CALL: "\u8eab\u4efd\u53eb\u53f7",
     ROLE_ACTION: "\u89d2\u8272\u884c\u52a8",
     ROUND_END: "\u56de\u5408\u7ed3\u675f",
     SCORING: "\u7ed3\u7b97",

@@ -17,6 +17,7 @@ export function GameSelfArea(props: {
   pendingBuildCardIds: Set<string>;
   gameState: VisibleGameState;
   hasCrown: boolean;
+  roleCallHighlighted: boolean;
   self: GamePlayer | null;
   onBuildDistrict: (card: BuildableDistrictCard) => void;
   onCancelDistrictEffect: () => void;
@@ -33,7 +34,7 @@ export function GameSelfArea(props: {
 
   return (
     <section
-      className="citadel-self-area"
+      className={`citadel-self-area ${props.roleCallHighlighted ? "is-role-revealing" : ""}`}
       data-player-id={props.self?.id}
       aria-label={"\u4f60\u7684\u533a\u57df"}
     >

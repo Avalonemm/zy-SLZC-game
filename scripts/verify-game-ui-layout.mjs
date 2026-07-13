@@ -195,6 +195,119 @@ async function configureQaGame(setup, options) {
   return ackPromise;
 }
 
+async function freezeQaTimer(setup, deadlineMs = 60000) {
+  await configureQaGame(setup, { deadlineMs });
+  await delay(30);
+  setup.gameState = setup.socket.__qaLatestGameState ?? setup.gameState;
+  return setup.gameState;
+}
+
+async function reclaimQaSocket(setup) {
+  const reconnected = waitFor(
+    setup.socket,
+    "reconnected_room",
+    (payload) => payload.roomCode === setup.created.roomCode,
+    12000,
+    "QA control socket reconnect"
+  );
+  const gameState = waitFor(
+    setup.socket,
+    "game_state",
+    (state) => state.roomId === setup.created.roomCode,
+    12000,
+    "game state after QA control reconnect"
+  );
+  setup.socket.emit("reconnect_room", setup.created);
+  await reconnected;
+  setup.gameState = await gameState;
+  return setup.gameState;
+}
+
+async function reachRoleCall(setup) {
+  let gameState = setup.gameState;
+  const deadline = Date.now() + 30000;
+  while (gameState.phase === "ROLE_SELECTION") {
+    if (Date.now() > deadline) {
+      fail(`Timed out reaching role call. Last phase: ${gameState.phase}`);
+    }
+    if (gameState.roleSelectionTurnPlayerId === setup.created.playerId) {
+      const roleId = gameState.availableRoles.at(-1)?.id;
+      if (!roleId) {
+        fail("No role available for the role-call QA player.");
+      }
+      const nextState = waitFor(
+        setup.socket,
+        "game_state",
+        (state) => state.roomId === setup.created.roomCode && (
+          state.phase !== gameState.phase ||
+          state.roleSelectionTurnPlayerId !== gameState.roleSelectionTurnPlayerId
+        ),
+        12000,
+        "role call after human role selection"
+      );
+      setup.socket.emit("select_role", {
+        roomCode: setup.created.roomCode,
+        playerId: setup.created.playerId,
+        roleId
+      });
+      gameState = await nextState;
+    } else {
+      gameState = await waitFor(
+        setup.socket,
+        "game_state",
+        (state) => state.roomId === setup.created.roomCode && state !== gameState,
+        12000,
+        "bot role selection before role call"
+      );
+    }
+  }
+  if (gameState.phase !== "ROLE_CALL" || !gameState.roleCallState) {
+    fail(`Expected ROLE_CALL, received ${gameState.phase}`);
+  }
+  setup.gameState = gameState;
+  await freezeQaTimer(setup);
+  return setup.gameState;
+}
+
+async function advanceQaRoleCall(setup) {
+  const previous = setup.gameState;
+  const previousCall = previous.roleCallState;
+  const nextState = waitFor(
+    setup.socket,
+    "game_state",
+    (state) => state.roomId === setup.created.roomCode && (
+      state.phase !== previous.phase ||
+      state.roleCallState?.stage !== previousCall?.stage ||
+      state.roleCallState?.roleId !== previousCall?.roleId
+    ),
+    12000,
+    "advanced role-call stage"
+  );
+  await configureQaGame(setup, { deadlineMs: 80 });
+  setup.gameState = await nextState;
+  return setup.gameState;
+}
+
+async function advanceQaTimedPhase(setup) {
+  const previous = setup.socket.__qaLatestGameState ?? setup.gameState;
+  const previousCall = previous.roleCallState;
+  const nextState = waitFor(
+    setup.socket,
+    "game_state",
+    (state) => state.roomId === setup.created.roomCode && (
+      state.phase !== previous.phase ||
+      state.currentTurnPlayerId !== previous.currentTurnPlayerId ||
+      state.roleCallState?.stage !== previousCall?.stage ||
+      state.roleCallState?.roleId !== previousCall?.roleId
+    ),
+    12000,
+    "advanced timed QA phase"
+  );
+  await configureQaGame(setup, { deadlineMs: 80 });
+  setup.gameState = await nextState;
+  return setup.gameState;
+}
+
 async function setupPreferredRoleGame(playerCount, roleId, maxAttempts = 24) {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const setup = await setupGame(playerCount, {
@@ -585,7 +698,9 @@ async function preparePage(cdp, sessionId, session, viewport, options = {}) {
       settleScreenshot
     };
   }
-  await waitForSelector(cdp, sessionId, ".citadel-action-dock", 20000);
+  if (options.waitForActionDock !== false) {
+    await waitForSelector(cdp, sessionId, ".citadel-action-dock", 20000);
+  }
   await waitForPageText(cdp, sessionId, session.roomCode, 20000);
   await delay(500);
   return { objectiveIntro, objectiveScreenshot, openingSequence };
@@ -1015,6 +1130,113 @@ async function closeCardInspector(cdp, sessionId) {
   await delay(80);
   return evaluate(cdp, sessionId, `!document.querySelector(".citadel-card-inspector")`);
 }
+
+async function collectRoleCallPresentation(cdp, sessionId) {
+  return evaluate(cdp, sessionId, `
+    (() => {
+      const rect = (element) => {
+        if (!element) return null;
+        const box = element.getBoundingClientRect();
+        return {
+          left: box.left,
+          top: box.top,
+          right: box.right,
+          bottom: box.bottom,
+          width: box.width,
+          height: box.height
+        };
+      };
+      const shell = document.querySelector('.citadel-game-shell');
+      const roleCall = document.querySelector('.citadel-role-call');
+      const cardInner = document.querySelector('.citadel-role-call__card-inner');
+      const activeCenter = document.querySelector('.citadel-game-center--active-turn');
+      const highlightedPlayers = [...document.querySelectorAll('.is-role-revealing [data-player-id], .citadel-opponent-seat.is-role-revealing')]
+        .map((element) => element.getAttribute('data-player-id') || element.closest('[data-player-id]')?.getAttribute('data-player-id'))
+        .filter(Boolean);
+      return {
+        viewport: { width: innerWidth, height: innerHeight },
+        shellCompact: shell?.getAttribute('data-compact-layout') === 'true',
+        pageScrolls: document.documentElement.scrollWidth > innerWidth + 1 || document.documentElement.scrollHeight > innerHeight + 1,
+        roleCall: roleCall ? {
+          rect: rect(roleCall),
+          cardRect: rect(document.querySelector('.citadel-role-call__card')),
+          roleId: roleCall.getAttribute('data-role-call-role-id'),
+          stage: roleCall.getAttribute('data-role-call-stage'),
+          playerId: roleCall.getAttribute('data-role-call-player-id'),
+          pointerEvents: getComputedStyle(roleCall).pointerEvents,
+          text: roleCall.innerText.trim(),
+          transform: cardInner ? getComputedStyle(cardInner).transform : null,
+          transitionDuration: cardInner ? getComputedStyle(cardInner).transitionDuration : null
+        } : null,
+        highlightedPlayers: [...new Set(highlightedPlayers)],
+        activeCenter: activeCenter ? {
+          rect: rect(activeCenter),
+          roleId: activeCenter.getAttribute('data-current-role-id'),
+          ariaLabel: activeCenter.getAttribute('aria-label'),
+          cardRect: rect(activeCenter.querySelector('.citadel-game-center__role-card')),
+          timerRect: rect(activeCenter.querySelector('.citadel-game-center__timer')),
+          text: activeCenter.innerText.trim()
+        } : null
+      };
+    })()
+  `);
+}
+
+function checkRoleCallPresentation(label, state, expectedStage, options = {}) {
+  const checks = [];
+  const addCheck = (name, pass, details = undefined) => checks.push({ name, pass: Boolean(pass), details });
+  const expectedCompact = state.viewport.width <= 1100 || (
+    state.viewport.width <= 1365 && state.viewport.height <= 640
+  );
+  addCheck("role-call overlay is visible", Boolean(state.roleCall), state);
+  addCheck("role-call stage matches the server", state.roleCall?.stage === expectedStage, state.roleCall);
+  addCheck("role-call presentation never captures pointer input", state.roleCall?.pointerEvents === "none", state.roleCall);
+  addCheck("role-call card stays inside the real viewport", insideViewport(state.roleCall?.cardRect, state.viewport, 4), state.roleCall);
+  addCheck("compact layout activates only at the supported threshold", state.shellCompact === expectedCompact, state);
+  addCheck("role-call page has no outer scrollbar", !state.pageScrolls, state);
+
+  if (expectedStage === "calling") {
+    addCheck("calling does not reveal the player", !state.roleCall?.playerId && state.highlightedPlayers.length === 0, state);
+    addCheck("calling names the numbered public identity", Boolean(
+      state.roleCall?.text.includes("\u53f7") && state.roleCall.text.includes("\u8bf7\u8be5\u8eab\u4efd\u5e94\u7b54")
+    ), state.roleCall);
+  } else if (expectedStage === "unanswered") {
+    addCheck("unanswered keeps the player hidden", !state.roleCall?.playerId && state.highlightedPlayers.length === 0, state);
+    addCheck("unanswered stamp is explicit", state.roleCall?.text.includes("\u65e0\u4eba\u5e94\u7b54"), state.roleCall);
+  } else if (expectedStage === "revealing") {
+    addCheck("reveal publishes exactly one responding player", Boolean(
+      state.roleCall?.playerId &&
+      state.highlightedPlayers.length === 1 &&
+      state.highlightedPlayers[0] === state.roleCall.playerId
+    ), state);
+    addCheck("revealed identity card is face-up", Boolean(
+      state.roleCall?.transform && state.roleCall.transform !== "none"
+    ), state.roleCall);
+    if (options.reducedMotion) {
+      addCheck("reduced motion removes the flip transition", state.roleCall?.transitionDuration === "0s", state.roleCall);
+    }
+  }
+
+  const failures = checks.filter((check) => !check.pass);
+  return { label, pass: failures.length === 0, failures, checks };
+}
+
+function checkActiveRoleStatus(label, state, roleId) {
+  const checks = [];
+  const addCheck = (name, pass, details = undefined) => checks.push({ name, pass: Boolean(pass), details });
+  addCheck("role-call overlay closes before action", !state.roleCall, state);
+  addCheck("active role status remains visible", Boolean(state.activeCenter), state);
+  addCheck("active status keeps the revealed role", state.activeCenter?.roleId === roleId, state.activeCenter);
+  addCheck("active status includes role card, player, and countdown", Boolean(
+    state.activeCenter?.cardRect && state.activeCenter.timerRect &&
+    state.activeCenter.ariaLabel?.includes("\u5f53\u524d\u884c\u52a8")
+  ), state.activeCenter);
+  addCheck("active status stays inside the real viewport", insideViewport(state.activeCenter?.rect, state.viewport, 4), state.activeCenter);
+  addCheck("action page has no outer scrollbar", !state.pageScrolls, state);
+  const failures = checks.filter((check) => !check.pass);
+  return { label, pass: failures.length === 0, failures, checks };
+}
+
 function intersects(a, b, gap = 0) {
   if (!a || !b) return false;
   return !(
@@ -2580,7 +2802,20 @@ async function setupQueenPresentationFlow(cdp, sessionId, viewport, setups, scre
     setup.gameState = selection.state;
     await configureQaGame(setup, { ensureSelectedRoleId: "king" });
     await preparePage(cdp, sessionId, setup.created, viewport);
-    await waitForSelector(cdp, sessionId, ".citadel-skill-presentation--queen_income", 45_000);
+    await reclaimQaSocket(setup);
+    for (let step = 0; step < 48; step += 1) {
+      const visible = await evaluate(
+        cdp,
+        sessionId,
+        `Boolean(document.querySelector('.citadel-skill-presentation--queen_income'))`
+      );
+      if (visible) break;
+      const state = setup.socket.__qaLatestGameState ?? setup.gameState;
+      if (!state || !["ROLE_CALL", "ROLE_ACTION"].includes(state.phase)) break;
+      await advanceQaTimedPhase(setup);
+      await delay(60);
+    }
+    await waitForSelector(cdp, sessionId, ".citadel-skill-presentation--queen_income", 5_000);
     const presentation = await collectSkillPresentation(cdp, sessionId);
     const screenshot = await captureScreenshot(cdp, sessionId, `${screenshotName}-queen_income`);
     return { selected: true, presentation, screenshot, attempt };
@@ -2602,6 +2837,7 @@ async function setupForcedRoleGame(roleId, setups) {
 
     const actionDeadline = Date.now() + 60_000;
     let state = selection.state;
+    setup.gameState = state;
     while (Date.now() <= actionDeadline) {
       const latest = setup.socket.__qaLatestGameState;
       if (latest?.roomId === setup.created.roomCode) state = latest;
@@ -2609,7 +2845,12 @@ async function setupForcedRoleGame(roleId, setups) {
         setup.gameState = state;
         return setup;
       }
-      await delay(60);
+      if (["ROLE_CALL", "ROLE_ACTION"].includes(state.phase)) {
+        setup.gameState = state;
+        state = await advanceQaTimedPhase(setup);
+      } else {
+        await delay(60);
+      }
     }
     throw new Error(`Timed out waiting for the forced ${roleId} action turn.`);
   }
@@ -3023,6 +3264,7 @@ async function main() {
   let uiTuningCrossSetup = null;
   let actionFeedbackSetup = null;
   let roleTimeoutSetup = null;
+  let roleCallSetup = null;
   const extremeSetups = [];
   const opponentSetups = [];
   const openingSetups = [];
@@ -3098,6 +3340,116 @@ async function main() {
         media: "screen",
         features: [{ name: "prefers-reduced-motion", value: "no-preference" }]
       }, browser.sessionId);
+    }
+
+    if (qaMode === "role-call") {
+      roleCallSetup = await setupGame(4, {
+        fastOpeningForQa: true,
+        stopAtRoleSelection: true
+      });
+      await reachRoleCall(roleCallSetup);
+      const selfRoleId = roleCallSetup.gameState.players.find(
+        (player) => player.id === roleCallSetup.created.playerId
+      )?.selectedRoleId;
+      if (!selfRoleId) {
+        fail("Role-call QA player has no selected role.");
+      }
+
+      const captureStage = async (stage, suffix) => {
+        for (const [viewportIndex, viewport] of viewports.entries()) {
+          const reducedMotion = stage === "revealing" && viewportIndex === viewports.length - 1;
+          await freezeQaTimer(roleCallSetup);
+          await browser.cdp.send("Emulation.setEmulatedMedia", {
+            media: "screen",
+            features: [{ name: "prefers-reduced-motion", value: reducedMotion ? "reduce" : "no-preference" }]
+          }, browser.sessionId);
+          const label = `${viewport.width}x${viewport.height}`;
+          await preparePage(browser.cdp, browser.sessionId, roleCallSetup.created, viewport, {
+            waitForActionDock: false
+          });
+          await delay(120);
+          const state = await collectRoleCallPresentation(browser.cdp, browser.sessionId);
+          screenshots.push(await captureScreenshot(browser.cdp, browser.sessionId, `${label}-role-call-${suffix}`));
+          results.push(checkRoleCallPresentation(
+            `${label} role-call-${suffix}${reducedMotion ? "-reduced" : ""}`,
+            state,
+            stage,
+            { reducedMotion }
+          ));
+
+          if (stage === "revealing" && viewportIndex === 0) {
+            const roleIdBeforeReconnect = state.roleCall?.roleId;
+            await freezeQaTimer(roleCallSetup);
+            await preparePage(browser.cdp, browser.sessionId, roleCallSetup.created, viewport, {
+              extraQuery: `role-call-reconnect=${Date.now()}`,
+              waitForActionDock: false
+            });
+            const reconnected = await collectRoleCallPresentation(browser.cdp, browser.sessionId);
+            const reconnectCheck = checkRoleCallPresentation(
+              `${label} role-call-reconnect`,
+              reconnected,
+              "revealing"
+            );
+            reconnectCheck.checks.push({
+              name: "reconnect resumes the same revealed role",
+              pass: reconnected.roleCall?.roleId === roleIdBeforeReconnect,
+              details: { roleIdBeforeReconnect, reconnectedRoleId: reconnected.roleCall?.roleId }
+            });
+            reconnectCheck.failures = reconnectCheck.checks.filter((check) => !check.pass);
+            reconnectCheck.pass = reconnectCheck.failures.length === 0;
+            results.push(reconnectCheck);
+          }
+        }
+        await browser.cdp.send("Emulation.setEmulatedMedia", {
+          media: "screen",
+          features: [{ name: "prefers-reduced-motion", value: "no-preference" }]
+        }, browser.sessionId);
+        await reclaimQaSocket(roleCallSetup);
+      };
+
+      await captureStage("calling", "calling");
+      await configureQaGame(roleCallSetup, { forceSelfRoleCallReveal: true });
+      await delay(50);
+      roleCallSetup.gameState = roleCallSetup.socket.__qaLatestGameState ?? roleCallSetup.gameState;
+      if (
+        roleCallSetup.gameState.phase !== "ROLE_CALL" ||
+        roleCallSetup.gameState.roleCallState?.roleId !== selfRoleId ||
+        roleCallSetup.gameState.roleCallState.stage !== "revealing"
+      ) {
+        fail(`Role-call QA did not create the human reveal stage: ${JSON.stringify({
+          selfRoleId,
+          phase: roleCallSetup.gameState.phase,
+          call: roleCallSetup.gameState.roleCallState
+        })}`);
+      }
+      await captureStage("revealing", "revealing");
+
+      const actionState = await advanceQaRoleCall(roleCallSetup);
+      if (
+        actionState.phase !== "ROLE_ACTION" ||
+        actionState.currentTurnPlayerId !== roleCallSetup.created.playerId
+      ) {
+        fail("Human action did not begin after the reveal.");
+      }
+      for (const viewport of viewports) {
+        await freezeQaTimer(roleCallSetup);
+        const label = `${viewport.width}x${viewport.height}`;
+        await preparePage(browser.cdp, browser.sessionId, roleCallSetup.created, viewport);
+        const activeState = await collectRoleCallPresentation(browser.cdp, browser.sessionId);
+        screenshots.push(await captureScreenshot(browser.cdp, browser.sessionId, `${label}-role-call-active`));
+        results.push(checkActiveRoleStatus(`${label} role-call-active`, activeState, selfRoleId));
+      }
+
+      roleCallSetup.socket.disconnect();
+      roleCallSetup = await setupGame(4, {
+        fastOpeningForQa: true,
+        stopAtRoleSelection: true
+      });
+      await reachRoleCall(roleCallSetup);
+      await configureQaGame(roleCallSetup, { forceUnansweredRoleCall: true });
+      await delay(50);
+      roleCallSetup.gameState = roleCallSetup.socket.__qaLatestGameState ?? roleCallSetup.gameState;
+      await captureStage("unanswered", "unanswered");
     }
 
     if (qaMode === "roles" && roleSetup) {
@@ -3951,6 +4303,7 @@ async function main() {
     uiTuningCrossSetup?.socket.disconnect();
     actionFeedbackSetup?.socket.disconnect();
     roleTimeoutSetup?.socket.disconnect();
+    roleCallSetup?.socket.disconnect();
     for (const openingSetup of openingSetups) openingSetup.socket.disconnect();
     for (const extremeSetup of extremeSetups) extremeSetup.socket.disconnect();
     for (const opponentSetup of opponentSetups) opponentSetup.socket.disconnect();

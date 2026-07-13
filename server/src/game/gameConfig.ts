@@ -31,6 +31,10 @@ export const MAX_TURN_TIMEOUT_SECONDS = 180;
 export const BOT_THINK_DELAY_MS = 2_000;
 
 export const ROLE_SELECTION_TIMEOUT_MS = 60_000;
+export const ROLE_CALL_ANNOUNCE_MS = 650;
+export const ROLE_CALL_UNANSWERED_MS = 550;
+export const ROLE_CALL_REVEAL_MS = 1_350;
+export const ROLE_CALL_SKIPPED_MS = 2_400;
 export const ROLE_ACTION_TIMEOUT_MS = 60_000;
 
 export function currentPlayerRangeText(maxPlayers = MAX_PLAYERS) {

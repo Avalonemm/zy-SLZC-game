@@ -44,19 +44,20 @@ function createDefaultSettings(overrides: Partial<RoomSettings> = {}): RoomSetti
   };
 }
 
-function createStartedGame() {
+function createStartedGame(playerCount = 4) {
+  const playerNames = ["Alice", "Bob", "Cici", "Dan", "Eve", "Finn", "Gina", "Hank"];
   const lobbyRoom: RoomState = {
     roomCode: "ROOM44",
     hostPlayerId: "player-1",
     status: "STARTED",
     minPlayers: 2,
-    maxPlayers: 4,
+    maxPlayers: Math.max(4, playerCount),
     futureMaxPlayers: 8,
     settings: createDefaultSettings(),
     startCountdown: null,
     createdAt: "2026-06-28T00:00:00.000Z",
     chatMessages: [],
-    players: ["Alice", "Bob", "Cici", "Dan"].map((name, index) => ({
+    players: playerNames.slice(0, playerCount).map((name, index) => ({
       id: `player-${index + 1}`,
       uid: 100001 + index,
       socketId: `socket-${index + 1}`,
@@ -85,6 +86,17 @@ function selectRolesById(gameRoom: GameRoom, roleIds: string[]) {
     });
     expect(result.ok).toBe(true);
   }
+  advanceRoleCall(gameRoom);
+}
+
+function advanceRoleCall(gameRoom: GameRoom) {
+  let guard = 0;
+  while (gameRoom.phase === "ROLE_CALL" && guard < 24) {
+    guard += 1;
+    const result = resolveExpiredTurn(gameRoom, gameRoom.turnTimer?.deadlineAt);
+    expect(result.ok).toBe(true);
+  }
+  expect(guard).toBeLessThan(24);
 }
 
 function forceRoleActionTurn(gameRoom: GameRoom, playerId: string, roleId: string) {
@@ -134,20 +146,88 @@ describe("game engine", () => {
       expect(result.ok).toBe(true);
     }
 
+    expect(gameRoom.phase).toBe("ROLE_CALL");
+    expect(gameRoom.roleCallState).toMatchObject({
+      roleId: roles[0].id,
+      stage: "calling",
+      playerId: null
+    });
+    expect(gameRoom.currentTurnPlayerId).toBeNull();
+    advanceRoleCall(gameRoom);
     expect(gameRoom.phase).toBe("ROLE_ACTION");
     expect(gameRoom.currentTurnPlayerId).toBe("player-1");
     expect(gameRoom.currentRoleOrder).toEqual([1, 2, 3, 4]);
   });
 
-  it("lets the current player take gold, draw cards, build, and end turns", () => {
+  it("calls every enabled role in order for four through eight players", () => {
+    for (let playerCount = 4; playerCount <= 8; playerCount += 1) {
+      const gameRoom = createStartedGame(playerCount);
+      const expectedRoleIds = gameRoom.availableRoles.map((role) => role.id);
+      const selectedRoleIds = expectedRoleIds.slice(0, playerCount);
+
+      for (const [index, player] of gameRoom.players.entries()) {
+        expect(selectRole(gameRoom, {
+          playerId: player.id,
+          roleId: selectedRoleIds[index]
+        }).ok).toBe(true);
+      }
+
+      const calledRoleIds: string[] = [];
+      let guard = 0;
+      while (gameRoom.currentRound === 1 && guard < 80) {
+        guard += 1;
+        if (gameRoom.phase === "ROLE_CALL") {
+          if (gameRoom.roleCallState?.stage === "calling") {
+            calledRoleIds.push(gameRoom.roleCallState.roleId);
+          }
+          expect(resolveExpiredTurn(gameRoom, gameRoom.turnTimer?.deadlineAt).ok).toBe(true);
+          continue;
+        }
+        if (gameRoom.phase === "ROLE_ACTION" && gameRoom.currentTurnPlayerId) {
+          expect(endTurn(gameRoom, { playerId: gameRoom.currentTurnPlayerId }).ok).toBe(true);
+          continue;
+        }
+        throw new Error(`Unexpected phase while collecting role calls: ${gameRoom.phase}`);
+      }
+
+      expect(guard).toBeLessThan(80);
+      expect(calledRoleIds).toEqual(expectedRoleIds);
+      expect(calledRoleIds.includes("queen")).toBe(playerCount === 8);
+    }
+  });
+
+  it("keeps the called player secret until the reveal stage", () => {
     const gameRoom = createStartedGame();
     const roles = [...gameRoom.availableRoles];
     for (const [index, player] of gameRoom.players.entries()) {
-      selectRole(gameRoom, {
-        playerId: player.id,
-        roleId: roles[index].id
-      });
+      expect(selectRole(gameRoom, { playerId: player.id, roleId: roles[index].id }).ok).toBe(true);
     }
+
+    const viewerId = gameRoom.players[1].id;
+    const firstPlayer = gameRoom.players[0];
+    const callingState = visibleStateForPlayer(gameRoom, viewerId);
+    expect(callingState.roleCallState).toMatchObject({
+      roleId: roles[0].id,
+      stage: "calling",
+      playerId: null
+    });
+    expect(callingState.players.find((player) => player.id === firstPlayer.id)?.selectedRoleId).toBeNull();
+
+    expect(resolveExpiredTurn(gameRoom, gameRoom.turnTimer?.deadlineAt).ok).toBe(true);
+    const revealingState = visibleStateForPlayer(gameRoom, viewerId);
+    expect(revealingState.roleCallState).toMatchObject({
+      roleId: roles[0].id,
+      stage: "revealing",
+      playerId: firstPlayer.id
+    });
+    expect(revealingState.players.find((player) => player.id === firstPlayer.id)?.selectedRoleId).toBe(roles[0].id);
+    expect(revealingState.players.find((player) => player.id === gameRoom.players[2].id)?.selectedRoleId).toBeNull();
+  });
+
+  it("lets the current player take gold, draw cards, build, and end turns", () => {
+    const gameRoom = createStartedGame();
+    const roles = [...gameRoom.availableRoles];
+    selectRolesById(gameRoom, roles.map((role) => role.id));
 
     const firstPlayer = gameRoom.players[0];
     firstPlayer.hand[0] = { ...firstPlayer.hand[0], cost: 1 };
@@ -183,6 +263,7 @@ describe("game engine", () => {
 
     const endResult = endTurn(gameRoom, { playerId: firstPlayer.id });
     expect(endResult.ok).toBe(true);
+    advanceRoleCall(gameRoom);
     expect(gameRoom.currentTurnPlayerId).toBe("player-2");
 
     const drawResult = drawDistrictCards(gameRoom, { playerId: "player-2" });
@@ -204,15 +285,11 @@ describe("game engine", () => {
   it("starts a new round after all selected roles act", () => {
     const gameRoom = createStartedGame();
     const roles = [...gameRoom.availableRoles];
-    for (const [index, player] of gameRoom.players.entries()) {
-      selectRole(gameRoom, {
-        playerId: player.id,
-        roleId: roles[index].id
-      });
-    }
+    selectRolesById(gameRoom, roles.map((role) => role.id));
 
     for (const player of gameRoom.players) {
-      endTurn(gameRoom, { playerId: player.id });
+      expect(endTurn(gameRoom, { playerId: player.id }).ok).toBe(true);
+      advanceRoleCall(gameRoom);
     }
 
     expect(gameRoom.phase).toBe("ROLE_SELECTION");
@@ -225,12 +302,7 @@ describe("game engine", () => {
     const gameRoom = createStartedGame();
     gameRoom.settings.endCitySize = 4;
     const roles = [...gameRoom.availableRoles];
-    for (const [index, player] of gameRoom.players.entries()) {
-      selectRole(gameRoom, {
-        playerId: player.id,
-        roleId: roles[index].id
-      });
-    }
+    selectRolesById(gameRoom, roles.map((role) => role.id));
 
     const firstPlayer = gameRoom.players[0];
     firstPlayer.city = firstPlayer.hand.slice(0, 4);
@@ -238,11 +310,13 @@ describe("game engine", () => {
 
     const endResult = endTurn(gameRoom, { playerId: firstPlayer.id });
     expect(endResult.ok).toBe(true);
+    advanceRoleCall(gameRoom);
     expect(gameRoom.phase).toBe("ROLE_ACTION");
 
     for (const player of gameRoom.players.slice(1)) {
       const remainingEndResult = endTurn(gameRoom, { playerId: player.id });
       expect(remainingEndResult.ok).toBe(true);
+      advanceRoleCall(gameRoom);
     }
 
     expect(gameRoom.phase).toBe("ENDED");
@@ -254,6 +328,7 @@ describe("game engine", () => {
     const gameRoom = createStartedGame();
     selectRolesById(gameRoom, ["assassin", "thief", "magician", "king"]);
     endTurn(gameRoom, { playerId: "player-1" });
+    advanceRoleCall(gameRoom);
 
     const player = gameRoom.players[1];
     const [drawA, drawB, nextCard] = gameRoom.districtDeck;
@@ -283,6 +358,7 @@ describe("game engine", () => {
     const gameRoom = createStartedGame();
     selectRolesById(gameRoom, ["assassin", "thief", "magician", "king"]);
     endTurn(gameRoom, { playerId: "player-1" });
+    advanceRoleCall(gameRoom);
 
     const player = gameRoom.players[1];
     const [drawA, drawB] = gameRoom.districtDeck;
@@ -364,6 +440,7 @@ describe("game engine", () => {
     const gameRoom = createStartedGame();
     selectRolesById(gameRoom, ["assassin", "thief", "magician", "king"]);
     endTurn(gameRoom, { playerId: "player-1" });
+    advanceRoleCall(gameRoom);
 
     const player = gameRoom.players[1];
     const onlyCard = gameRoom.districtDeck[0];
@@ -417,6 +494,7 @@ describe("game engine", () => {
     const gameRoom = createStartedGame();
     selectRolesById(gameRoom, ["assassin", "thief", "magician", "king"]);
     endTurn(gameRoom, { playerId: "player-1" });
+    advanceRoleCall(gameRoom);
 
     const player = gameRoom.players[1];
     gameRoom.districtDeck = [];
@@ -470,6 +548,7 @@ describe("game engine", () => {
     const gameRoom = createStartedGame();
     selectRolesById(gameRoom, ["assassin", "thief", "magician", "king"]);
     endTurn(gameRoom, { playerId: "player-1" });
+    advanceRoleCall(gameRoom);
 
     const drawResult = drawDistrictCards(gameRoom, { playerId: "player-2" });
     expect(drawResult.ok).toBe(true);
@@ -572,6 +651,23 @@ describe("game engine", () => {
       roleId: roles[3].id
     });
 
+    const callingVisibleToBob = visibleStateForPlayer(gameRoom, "player-2");
+    expect(callingVisibleToBob.roleCallState).toMatchObject({
+      roleId: roles[0].id,
+      stage: "calling",
+      playerId: null
+    });
+    expect(callingVisibleToBob.players.find((player) => player.id === "player-1")?.selectedRoleId).toBeNull();
+
+    expect(resolveExpiredTurn(gameRoom, gameRoom.turnTimer?.deadlineAt).ok).toBe(true);
+    const revealingVisibleToBob = visibleStateForPlayer(gameRoom, "player-2");
+    expect(revealingVisibleToBob.roleCallState).toMatchObject({
+      roleId: roles[0].id,
+      stage: "revealing",
+      playerId: "player-1"
+    });
+
+    advanceRoleCall(gameRoom);
     const actionVisibleToBob = visibleStateForPlayer(gameRoom, "player-2");
     const aliceCurrentTurn = actionVisibleToBob.players.find(
       (player) => player.id === "player-1"
@@ -626,6 +722,8 @@ describe("game engine", () => {
     const secondProgress = runBotTurns(gameRoom);
 
     expect(secondProgress.ok).toBe(true);
+    expect(gameRoom.phase).toBe("ROLE_CALL");
+    advanceRoleCall(gameRoom);
     expect(gameRoom.phase).toBe("ROLE_ACTION");
     expect(gameRoom.currentTurnPlayerId).toBe("player-1");
   });
@@ -687,6 +785,7 @@ describe("game engine", () => {
     const skipResult = skipOfflineCurrentPlayer(gameRoom, "player-1");
 
     expect(skipResult.ok).toBe(true);
+    advanceRoleCall(gameRoom);
     expect(gameRoom.players).toHaveLength(4);
     expect(currentPlayer.connected).toBe(false);
     expect(gameRoom.currentTurnPlayerId).toBe("player-2");
@@ -717,6 +816,7 @@ describe("game engine", () => {
     for (const player of gameRoom.players) {
       const endResult = endTurn(gameRoom, { playerId: player.id });
       expect(endResult.ok).toBe(true);
+      advanceRoleCall(gameRoom);
     }
 
     expect(gameRoom.phase).toBe("ROLE_SELECTION");
@@ -748,6 +848,7 @@ describe("game engine", () => {
 
     const endResult = endTurn(gameRoom, { playerId: "player-1" });
     expect(endResult.ok).toBe(true);
+    advanceRoleCall(gameRoom);
     expect(gameRoom.currentTurnPlayerId).toBe("player-3");
     expect(gameRoom.completedRoleIds).toContain(roles[1].id);
     expect(gameRoom.gameLog.find((log) => log.type === "role_skipped")?.presentation).toEqual({
@@ -775,6 +876,7 @@ describe("game engine", () => {
 
     const endResult = endTurn(gameRoom, { playerId: thief.id });
     expect(endResult.ok).toBe(true);
+    advanceRoleCall(gameRoom);
     expect(gameRoom.currentTurnPlayerId).toBe(target.id);
     expect(target.gold).toBe(0);
     expect(thief.gold).toBe(8);
@@ -799,6 +901,7 @@ describe("game engine", () => {
       targetRoleId: roles[2].id
     }).ok).toBe(true);
     expect(endTurn(gameRoom, { playerId: thief.id }).ok).toBe(true);
+    advanceRoleCall(gameRoom);
     expect(gameRoom.gameLog.find((log) => log.type === "skill_steal_resolved")?.presentation).toMatchObject({
       kind: "thief_steal",
       actorPlayerId: thief.id,
@@ -1158,8 +1261,11 @@ describe("game engine", () => {
 
     expect(gameRoom.crownPlayerId).toBe("player-1");
     expect(endTurn(gameRoom, { playerId: "player-1" }).ok).toBe(true);
+    advanceRoleCall(gameRoom);
     expect(endTurn(gameRoom, { playerId: "player-2" }).ok).toBe(true);
+    advanceRoleCall(gameRoom);
     expect(endTurn(gameRoom, { playerId: "player-3" }).ok).toBe(true);
+    advanceRoleCall(gameRoom);
 
     expect(gameRoom.currentTurnPlayerId).toBe("player-4");
     expect(gameRoom.crownPlayerId).toBe("player-4");
@@ -1176,11 +1282,14 @@ describe("game engine", () => {
     });
     expect(skipResult.ok).toBe(true);
     expect(endTurn(gameRoom, { playerId: "player-1" }).ok).toBe(true);
+    advanceRoleCall(gameRoom);
     expect(gameRoom.currentTurnPlayerId).toBe("player-3");
     expect(gameRoom.crownPlayerId).toBe("player-1");
 
     expect(endTurn(gameRoom, { playerId: "player-3" }).ok).toBe(true);
+    advanceRoleCall(gameRoom);
     expect(endTurn(gameRoom, { playerId: "player-4" }).ok).toBe(true);
+    advanceRoleCall(gameRoom);
 
     expect(gameRoom.phase).toBe("ROLE_SELECTION");
     expect(gameRoom.crownPlayerId).toBe("player-2");
@@ -1373,12 +1482,14 @@ describe("game engine", () => {
 
     const firstEndResult = endTurn(gameRoom, { playerId: firstPlayer.id });
     expect(firstEndResult.ok).toBe(true);
+    advanceRoleCall(gameRoom);
     expect(gameRoom.phase).toBe("ROLE_ACTION");
     expect(gameRoom.currentTurnPlayerId).toBe("player-2");
 
     for (const player of gameRoom.players.slice(1)) {
       const endResult = endTurn(gameRoom, { playerId: player.id });
       expect(endResult.ok).toBe(true);
+      advanceRoleCall(gameRoom);
     }
 
     expect(gameRoom.phase).toBe("ENDED");
@@ -1420,6 +1531,7 @@ describe("game engine", () => {
     for (const player of gameRoom.players) {
       const endResult = endTurn(gameRoom, { playerId: player.id });
       expect(endResult.ok).toBe(true);
+      advanceRoleCall(gameRoom);
     }
 
     const firstScore = gameRoom.scoringResults.find((result) => result.playerId === firstPlayer.id);

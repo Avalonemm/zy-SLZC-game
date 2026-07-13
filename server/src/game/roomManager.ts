@@ -603,7 +603,7 @@ export function createRoomManager(initialSnapshot?: RoomManagerSnapshot) {
 
   function exportSnapshot(): RoomManagerSnapshot {
     return {
-      version: 1,
+      version: 2,
       savedAt: new Date().toISOString(),
       rooms: [...rooms.values()],
       gameRooms: [...gameRooms.values()],

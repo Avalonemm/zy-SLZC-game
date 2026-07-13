@@ -1,4 +1,4 @@
-import type { GameRoom, Player, RoleCard } from "@zy/shared";
+import type { GameRoom, Player, RoleCallStage } from "@zy/shared";
 import type { Result } from "./gameEngineTypes";
 import {
   addLog,
@@ -9,10 +9,20 @@ import {
   roleForPlayer,
   withActionOrigin
 } from "./gameEngineUtils";
+import {
+  ROLE_CALL_ANNOUNCE_MS,
+  ROLE_CALL_REVEAL_MS,
+  ROLE_CALL_SKIPPED_MS,
+  ROLE_CALL_UNANSWERED_MS
+} from "./gameConfig";
 import { applyStealEffectBeforeTurn } from "./roleSkills";
-import { createRoleSelectionPool } from "./rolePool";
+import { createRoleSelectionPool, enabledRoleCards } from "./rolePool";
 import { scoreGame } from "./scoring";
-import { startRoleActionTimer, startRoleSelectionTimer } from "./timerState";
+import {
+  startRoleActionTimer,
+  startRoleCallTimer,
+  startRoleSelectionTimer
+} from "./timerState";
 import { resolveDeferredQueenIncome, resolveQueenIncome } from "./queenRule";
 
 export function selectRole(
@@ -20,11 +30,11 @@ export function selectRole(
   input: { playerId: string; roleId: string }
 ): Result {
   if (gameRoom.phase !== "ROLE_SELECTION") {
-    return { ok: false, error: "当前不是角色选择阶段。" };
+    return { ok: false, error: "当前不是身份选择阶段。" };
   }
 
   if (gameRoom.roleSelectionTurnPlayerId !== input.playerId) {
-    return { ok: false, error: "还没有轮到你选择角色。" };
+    return { ok: false, error: "还没有轮到你选择身份。" };
   }
 
   const player = findPlayer(gameRoom, input.playerId);
@@ -34,12 +44,12 @@ export function selectRole(
 
   const roleIndex = gameRoom.availableRoles.findIndex((role) => role.id === input.roleId);
   if (roleIndex === -1) {
-    return { ok: false, error: "角色不可选。" };
+    return { ok: false, error: "该身份当前不可选择。" };
   }
 
   const [role] = gameRoom.availableRoles.splice(roleIndex, 1);
   player.selectedRoleId = role.id;
-  addLog(gameRoom, "role_selected", `${player.name} 已选择角色。`, {
+  addLog(gameRoom, "role_selected", `${player.name} 已选择身份。`, {
     kind: "role_lock",
     actorPlayerId: player.id
   });
@@ -49,7 +59,7 @@ export function selectRole(
   startRoleSelectionTimer(gameRoom, nextPlayerId);
 
   if (!nextPlayerId) {
-    enterRoleActionPhase(gameRoom);
+    enterRoleCallPhase(gameRoom);
   }
 
   return { ok: true };
@@ -74,7 +84,7 @@ export function advanceOfflinePlayers(gameRoom: GameRoom): Result {
 
     const role = gameRoom.availableRoles[0];
     if (!role) {
-      return { ok: false, error: "没有可选角色。" };
+      return { ok: false, error: "没有可选身份。" };
     }
 
     const result = withActionOrigin(
@@ -92,7 +102,7 @@ export function advanceOfflinePlayers(gameRoom: GameRoom): Result {
     addLog(
       gameRoom,
       "offline_role_auto_selected",
-      `${currentChooser.name} 已离线，系统自动为其选择角色。`,
+      `${currentChooser.name} 已离线，系统自动为其选择身份。`,
       undefined,
       { origin: "offline", autoReason: "offline_progress" }
     );
@@ -102,28 +112,112 @@ export function advanceOfflinePlayers(gameRoom: GameRoom): Result {
 }
 
 export function advanceToNextTurn(gameRoom: GameRoom) {
-  let nextEntry = nextPendingRoleEntry(gameRoom);
+  startNextRoleCall(gameRoom);
+}
 
-  while (nextEntry && gameRoom.roleEffects.skippedRoleIds.includes(nextEntry.role.id)) {
-    gameRoom.completedRoleIds.push(nextEntry.role.id);
-    addLog(
-      gameRoom,
-      "role_skipped",
-      `${nextEntry.role.name} 被刺客跳过了行动。`,
-      {
-        kind: "assassin_skip",
-        targetRoleId: nextEntry.role.id,
-        targetPlayerId: nextEntry.player.id
-      }
-    );
-    nextEntry = nextPendingRoleEntry(gameRoom);
+export function resolveRoleCallTimeout(gameRoom: GameRoom): Result {
+  const call = gameRoom.roleCallState;
+  if (gameRoom.phase !== "ROLE_CALL" || gameRoom.turnTimer?.phase !== "ROLE_CALL" || !call) {
+    return { ok: true };
   }
 
-  if (nextEntry) {
-    prepareTurn(gameRoom, nextEntry.player);
+  if (call.stage === "calling") {
+    const player = gameRoom.players.find((candidate) => candidate.selectedRoleId === call.roleId);
+    markRoleCalled(gameRoom, call.roleId);
+
+    if (!player) {
+      setRoleCallStage(gameRoom, call.roleId, "unanswered", null, ROLE_CALL_UNANSWERED_MS);
+      return { ok: true };
+    }
+
+    if (gameRoom.roleEffects.skippedRoleIds.includes(call.roleId)) {
+      markRoleCompleted(gameRoom, call.roleId);
+      addLog(
+        gameRoom,
+        "role_skipped",
+        `${player.name} 被刺杀，本轮行动跳过。`,
+        {
+          kind: "assassin_skip",
+          targetRoleId: call.roleId,
+          targetPlayerId: player.id
+        }
+      );
+      setRoleCallStage(gameRoom, call.roleId, "skipped", player.id, ROLE_CALL_SKIPPED_MS);
+      return { ok: true };
+    }
+
+    setRoleCallStage(gameRoom, call.roleId, "revealing", player.id, ROLE_CALL_REVEAL_MS);
+    return { ok: true };
+  }
+
+  if (call.stage === "revealing") {
+    const player = findPlayer(gameRoom, call.playerId ?? "");
+    if (!player || player.selectedRoleId !== call.roleId) {
+      return { ok: false, error: "身份揭示状态与当前玩家不一致。" };
+    }
+
+    gameRoom.phase = "ROLE_ACTION";
+    gameRoom.roleCallState = null;
+    prepareTurn(gameRoom, player);
+    return { ok: true };
+  }
+
+  gameRoom.roleCallState = null;
+  startNextRoleCall(gameRoom);
+  return { ok: true };
+}
+
+export function enterRoleSelectionPhase(gameRoom: GameRoom, logMessage?: string) {
+  gameRoom.phase = "ROLE_SELECTION";
+  gameRoom.roleSelectionOrder = createPlayerOrder(gameRoom.players, gameRoom.crownPlayerId);
+  gameRoom.roleSelectionTurnPlayerId = gameRoom.roleSelectionOrder[0] ?? null;
+  gameRoom.currentTurnPlayerId = null;
+  gameRoom.turnState = null;
+  gameRoom.roleCallState = null;
+  gameRoom.calledRoleIds = [];
+  startRoleSelectionTimer(gameRoom, gameRoom.roleSelectionTurnPlayerId);
+  addLog(
+    gameRoom,
+    "role_selection_start",
+    logMessage ?? `第 ${gameRoom.currentRound} 轮开始，进入身份选择阶段。`
+  );
+}
+
+function enterRoleCallPhase(gameRoom: GameRoom) {
+  const selectedRoleOrders = gameRoom.players
+    .map((player) => roleForPlayer(gameRoom, player)?.order)
+    .filter((order): order is number => typeof order === "number")
+    .sort((first, second) => first - second);
+
+  gameRoom.phase = "ROLE_CALL";
+  gameRoom.roleSelectionTurnPlayerId = null;
+  gameRoom.currentRoleOrder = selectedRoleOrders;
+  gameRoom.completedRoleIds = [];
+  gameRoom.calledRoleIds = [];
+  gameRoom.currentTurnPlayerId = null;
+  gameRoom.turnState = null;
+  gameRoom.roleCallState = null;
+  addLog(gameRoom, "role_action_start", "身份行动阶段开始，城主依次叫号。");
+  startNextRoleCall(gameRoom);
+}
+
+function startNextRoleCall(gameRoom: GameRoom) {
+  const nextRole = enabledRoleCards(gameRoom.settings, gameRoom.players.length)
+    .find((role) => !gameRoom.calledRoleIds.includes(role.id));
+
+  if (!nextRole) {
+    finishRoleSequence(gameRoom);
     return;
   }
 
+  gameRoom.phase = "ROLE_CALL";
+  gameRoom.currentTurnPlayerId = null;
+  gameRoom.turnState = null;
+  setRoleCallStage(gameRoom, nextRole.id, "calling", null, ROLE_CALL_ANNOUNCE_MS);
+}
+
+function finishRoleSequence(gameRoom: GameRoom) {
+  gameRoom.roleCallState = null;
   if (gameRoom.firstCompletedCityPlayerId) {
     resolveDeferredQueenIncome(gameRoom);
     scoreGame(gameRoom);
@@ -132,36 +226,6 @@ export function advanceToNextTurn(gameRoom: GameRoom) {
 
   resolveDeferredQueenIncome(gameRoom);
   startNextRound(gameRoom);
-}
-
-export function enterRoleSelectionPhase(gameRoom: GameRoom, logMessage?: string) {
-  gameRoom.phase = "ROLE_SELECTION";
-  gameRoom.roleSelectionOrder = createPlayerOrder(gameRoom.players, gameRoom.crownPlayerId);
-  gameRoom.roleSelectionTurnPlayerId = gameRoom.roleSelectionOrder[0] ?? null;
-  startRoleSelectionTimer(gameRoom, gameRoom.roleSelectionTurnPlayerId);
-  addLog(
-    gameRoom,
-    "role_selection_start",
-    logMessage ?? `第 ${gameRoom.currentRound} 轮开始，进入角色选择阶段。`
-  );
-}
-
-function enterRoleActionPhase(gameRoom: GameRoom) {
-  const selectedRoles = gameRoom.players
-    .map((player) => {
-      const role = roleForPlayer(gameRoom, player);
-      return role ? { player, role } : null;
-    })
-    .filter((entry): entry is { player: Player; role: RoleCard } => Boolean(entry))
-    .sort((a, b) => a.role.order - b.role.order);
-
-  gameRoom.phase = "ROLE_ACTION";
-  gameRoom.currentRoleOrder = selectedRoles.map((entry) => entry.role.order);
-  gameRoom.completedRoleIds = [];
-
-  const firstPlayer = selectedRoles[0]?.player ?? null;
-  prepareTurn(gameRoom, firstPlayer);
-  addLog(gameRoom, "role_action_start", "角色行动阶段开始。");
 }
 
 function startNextRound(gameRoom: GameRoom) {
@@ -173,6 +237,8 @@ function startNextRound(gameRoom: GameRoom) {
   gameRoom.discardedRoles = rolePool.discardedRoles;
   gameRoom.currentRoleOrder = [];
   gameRoom.completedRoleIds = [];
+  gameRoom.calledRoleIds = [];
+  gameRoom.roleCallState = null;
   gameRoom.currentTurnPlayerId = null;
   gameRoom.turnState = null;
   gameRoom.roleEffects = createEmptyRoleEffects();
@@ -182,35 +248,61 @@ function startNextRound(gameRoom: GameRoom) {
   enterRoleSelectionPhase(gameRoom);
 }
 
-function prepareTurn(gameRoom: GameRoom, player: Player | null) {
-  gameRoom.currentTurnPlayerId = player?.id ?? null;
-  gameRoom.turnState = player
-    ? {
-        playerId: player.id,
-        resourceActionTaken: false,
-        actionStep: "RESOURCE",
-        buildsUsed: 0,
-        maxBuilds: 1,
-        usedDistrictEffectIds: []
-      }
-    : null;
-  startRoleActionTimer(gameRoom, player?.id ?? null);
+function prepareTurn(gameRoom: GameRoom, player: Player) {
+  gameRoom.currentTurnPlayerId = player.id;
+  gameRoom.turnState = {
+    playerId: player.id,
+    resourceActionTaken: false,
+    actionStep: "RESOURCE",
+    buildsUsed: 0,
+    maxBuilds: 1,
+    usedDistrictEffectIds: []
+  };
+  startRoleActionTimer(gameRoom, player.id);
 
-  if (player) {
-    const role = roleForPlayer(gameRoom, player);
-    if (role?.id === "king") {
-      transferCrownToPlayer(gameRoom, player);
-    }
-    if (role?.id === "queen") {
-      resolveQueenIncome(gameRoom, player, { atRoundEnd: false });
-    }
-    applyStealEffectBeforeTurn(gameRoom, player, role);
-    addLog(
-      gameRoom,
-      "turn_start",
-      `轮到 ${player.name} 行动${role ? `（${role.name}）` : ""}。`,
-      { kind: "turn_start", actorPlayerId: player.id }
-    );
+  const role = roleForPlayer(gameRoom, player);
+  if (role?.id === "king") {
+    transferCrownToPlayer(gameRoom, player);
+  }
+  if (role?.id === "queen") {
+    resolveQueenIncome(gameRoom, player, { atRoundEnd: false });
+  }
+  applyStealEffectBeforeTurn(gameRoom, player, role);
+  addLog(
+    gameRoom,
+    "turn_start",
+    `轮到 ${player.name} 行动${role ? `（${role.name}）` : ""}。`,
+    { kind: "turn_start", actorPlayerId: player.id, roleId: role?.id }
+  );
+}
+
+function setRoleCallStage(
+  gameRoom: GameRoom,
+  roleId: string,
+  stage: RoleCallStage,
+  playerId: string | null,
+  timeoutMs: number
+) {
+  const timer = startRoleCallTimer(gameRoom, timeoutMs, playerId);
+  gameRoom.roleCallState = {
+    roleId,
+    stage,
+    playerId,
+    startedAt: timer.startedAt,
+    deadlineAt: timer.deadlineAt,
+    timeoutMs: timer.timeoutMs
+  };
+}
+
+function markRoleCalled(gameRoom: GameRoom, roleId: string) {
+  if (!gameRoom.calledRoleIds.includes(roleId)) {
+    gameRoom.calledRoleIds.push(roleId);
+  }
+}
+
+function markRoleCompleted(gameRoom: GameRoom, roleId: string) {
+  if (!gameRoom.completedRoleIds.includes(roleId)) {
+    gameRoom.completedRoleIds.push(roleId);
   }
 }
 
@@ -226,19 +318,8 @@ function transferCrownToPlayer(gameRoom: GameRoom, player: Player) {
     return;
   }
   gameRoom.crownPlayerId = player.id;
-  addLog(gameRoom, "crown_transferred", `${player.name} \u83b7\u5f97\u4e86\u738b\u51a0\u3002`, {
+  addLog(gameRoom, "crown_transferred", `${player.name} 获得了王冠。`, {
     kind: "crown_transfer",
     targetPlayerId: player.id
   });
-}
-
-function nextPendingRoleEntry(gameRoom: GameRoom) {
-  return gameRoom.players
-    .map((player) => {
-      const role = roleForPlayer(gameRoom, player);
-      return role ? { player, role } : null;
-    })
-    .filter((entry): entry is { player: Player; role: RoleCard } => Boolean(entry))
-    .sort((a, b) => a.role.order - b.role.order)
-    .find((entry) => !gameRoom.completedRoleIds.includes(entry.role.id));
 }

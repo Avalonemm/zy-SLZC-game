@@ -100,6 +100,7 @@ export type GamePhase =
   | "GAME_START"
   | "CROWN_REVEAL"
   | "ROLE_SELECTION"
+  | "ROLE_CALL"
   | "ROLE_ACTION"
   | "ROUND_END"
   | "SCORING"
@@ -210,8 +211,19 @@ export type TurnState = {
 };
 
 export type TurnTimer = {
-  phase: "CROWN_REVEAL" | "ROLE_SELECTION" | "ROLE_ACTION";
-  playerId: string;
+  phase: "CROWN_REVEAL" | "ROLE_SELECTION" | "ROLE_CALL" | "ROLE_ACTION";
+  playerId: string | null;
+  startedAt: string;
+  deadlineAt: string;
+  timeoutMs: number;
+};
+
+export type RoleCallStage = "calling" | "revealing" | "unanswered" | "skipped";
+
+export type RoleCallState = {
+  roleId: string;
+  stage: RoleCallStage;
+  playerId: string | null;
   startedAt: string;
   deadlineAt: string;
   timeoutMs: number;
@@ -287,6 +299,8 @@ export type GameRoom = {
   currentTurnPlayerId: string | null;
   currentRoleOrder: number[];
   completedRoleIds: string[];
+  calledRoleIds: string[];
+  roleCallState: RoleCallState | null;
   firstCompletedCityPlayerId: string | null;
   turnState: TurnState | null;
   turnTimer: TurnTimer | null;
@@ -308,7 +322,7 @@ export type VisiblePlayer = Omit<Player, "hand"> & {
 
 export type VisibleGameState = Omit<
   GameRoom,
-  "players" | "districtDeck" | "districtDiscardPile" | "pendingDrawChoice"
+  "players" | "districtDeck" | "districtDiscardPile" | "pendingDrawChoice" | "calledRoleIds"
 > & {
   players: VisiblePlayer[];
   pendingDrawChoice: PendingDrawChoice | null;

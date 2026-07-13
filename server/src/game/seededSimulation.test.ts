@@ -27,7 +27,7 @@ function runSeededGame(playerCount: number, seed: number) {
     let steps = 0;
     while (gameRoom.phase !== "ENDED" && steps < 1_500) {
       steps += 1;
-      if (gameRoom.phase === "CROWN_REVEAL") {
+      if (gameRoom.phase === "CROWN_REVEAL" || gameRoom.phase === "ROLE_CALL") {
         const timeoutResult = resolveExpiredTurn(gameRoom, gameRoom.turnTimer?.deadlineAt);
         expect(timeoutResult.ok).toBe(true);
       } else {
