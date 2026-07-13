@@ -1,4 +1,4 @@
-import { gameUiTuningBounds, type GameUiDensity, type GameUiTuningConfig } from "./gameUiTuning";
+import { gameUiTuningBounds, type GameUiTuningConfig } from "./gameUiTuning";
 
 type NumericKey = Exclude<keyof GameUiTuningConfig, "showBounds">;
 
@@ -12,13 +12,20 @@ const labels: Record<NumericKey, string> = {
   resourceIconSize: "资源图标大小",
   resourceFontSize: "资源数字大小",
   resourceGap: "资源间距",
+  opponentPlayerPlateWidth: "对手名片宽度",
+  opponentPlayerPlateHeight: "对手名片高度",
+  opponentAvatarSize: "对手头像大小",
+  opponentResourceIconSize: "对手资源图标",
+  opponentResourceFontSize: "对手资源数字",
+  opponentResourceGap: "对手资源间距",
   opponentRoleWidth: "对手身份牌",
   opponentHandWidth: "对手手牌牌背",
   opponentHandStackDepth: "对手牌堆厚度",
   opponentDistrictWidth: "对手建筑牌",
   actionDockWidth: "操作台宽度",
-  actionDockRight: "操作台右边距",
+  actionDockRight: "操作台向左位置",
   actionDockBottom: "操作台底边距",
+  cardPreviewScale: "卡牌预览大小",
   centerTop: "中央信息高度",
   cityTop: "自己的建筑高度",
   actionTop: "窄屏操作区高度",
@@ -29,9 +36,11 @@ const quickKeys: NumericKey[] = [
   "selfCardWidth",
   "handMaxWidth",
   "playerPlateWidth",
+  "opponentPlayerPlateWidth",
   "opponentHandWidth",
   "opponentDistrictWidth",
-  "actionDockWidth"
+  "actionDockWidth",
+  "cardPreviewScale"
 ];
 
 const advancedKeys = (Object.keys(gameUiTuningBounds) as NumericKey[])
@@ -39,9 +48,11 @@ const advancedKeys = (Object.keys(gameUiTuningBounds) as NumericKey[])
 
 export function GameUiTuningPanel(props: {
   config: GameUiTuningConfig;
-  density: GameUiDensity;
+  dirty: boolean;
+  hasApplied: boolean;
   safetyMessages: string[];
   onChange: (config: GameUiTuningConfig) => void;
+  onApply: () => void;
   onReset: () => void;
 }) {
   async function copyConfig() {
@@ -51,9 +62,12 @@ export function GameUiTuningPanel(props: {
   return (
     <aside className="game-ui-tuning-panel" aria-label="UI 比例调音台">
       <header>
-        <strong>UI 比例调音台 V2</strong>
-        <small>当前密度：{props.density}</small>
+        <strong>UI 比例调音台 V4</strong>
+        <small>全局布局，适用于 4–8 人</small>
       </header>
+      <div className={`game-ui-tuning-panel__status ${props.dirty ? "is-dirty" : "is-applied"}`}>
+        {props.dirty ? "存在未保存修改" : props.hasApplied ? "全局配置已应用" : "当前使用安全默认值"}
+      </div>
       <section className="game-ui-tuning-panel__group">
         <b>快速调整</b>
         <div className="game-ui-tuning-panel__fields">
@@ -81,7 +95,8 @@ export function GameUiTuningPanel(props: {
         显示区域边界
       </label>
       <footer>
-        <button type="button" onClick={props.onReset}>恢复当前人数安全预设</button>
+        <button className="is-primary" disabled={!props.dirty} type="button" onClick={props.onApply}>保存并应用到 4–8 人</button>
+        <button type="button" onClick={props.onReset}>恢复安全预设</button>
         <button type="button" onClick={copyConfig}>复制安全配置</button>
       </footer>
     </aside>

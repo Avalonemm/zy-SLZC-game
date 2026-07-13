@@ -6,6 +6,9 @@ import { DistrictChoiceCard } from "./DistrictChoiceCard";
 import { RoleIdentityCard } from "./RoleIdentityCard";
 import type { RoleSkillTargeting } from "./roleSkillTargeting";
 import { roleTargetPrompt } from "./roleSkillTargeting";
+import { GameSelectionOverlay } from "./GameSelectionOverlay";
+import { GameRoleSelectionDock } from "./GameRoleSelectionDock";
+import { roleIncomeSummary } from "./roleIncome";
 
 export function GameActionDock(props: {
   canBuild: boolean;
@@ -57,25 +60,12 @@ export function GameActionDock(props: {
 
   if (props.gameState.phase === "ROLE_SELECTION") {
     return props.isSelectingRole ? (
-      <section className="citadel-selection-layer citadel-selection-layer--roles" aria-label={"\u89d2\u8272\u9009\u62e9"}>
-        <div className="citadel-selection-layer__backdrop" aria-hidden="true" />
-        <section className="citadel-action-dock citadel-action-dock--roles">
-          <header className="citadel-selection-header">
-            <strong>选择你的身份</strong>
-            {props.remainingSeconds !== null && <b>{props.remainingSeconds} 秒</b>}
-          </header>
-          {props.gameState.availableRoles.map((role) => (
-            <RoleIdentityCard
-              caption={"\u9009\u62e9\u8eab\u4efd"}
-              className="citadel-role-choice"
-              disabled={commandPending}
-              key={role.id}
-              roleId={role.id}
-              onClick={() => props.onSelectRole(role.id)}
-            />
-          ))}
-        </section>
-      </section>
+      <GameRoleSelectionDock
+        pending={commandPending}
+        remainingSeconds={props.remainingSeconds}
+        roles={props.gameState.availableRoles}
+        onSelectRole={props.onSelectRole}
+      />
     ) : null;
   }
 
@@ -83,12 +73,21 @@ export function GameActionDock(props: {
     return null;
   }
 
+  const self = props.players.find((player) => player.id === props.selfPlayerId) ?? null;
+  const incomeSummary = roleIncomeSummary(self?.selectedRoleId ?? null, self?.city ?? []);
+  const skillUsed = Boolean(
+    props.selfPlayerId && props.gameState.roleEffects.usedSkillPlayerIds.includes(props.selfPlayerId)
+  );
+
   if (props.tableTargeting) {
     return (
       <section className="citadel-action-layer citadel-action-layer--table-targeting" aria-label={"选择牌桌目标"}>
         <div className="citadel-action-dock citadel-action-dock--table-targeting">
           <p className="citadel-action-guidance">
-            <span>{props.tableTargeting.sourceName}</span>
+            <span>
+              {props.tableTargeting.sourceName}
+              {incomeSummary ? ` · 职业收入预计 +${incomeSummary.amount}` : ""}
+            </span>
             {"请选择一座高亮的其他玩家建筑"}
           </p>
           {props.tableTargeting.canSkip && (
@@ -97,7 +96,7 @@ export function GameActionDock(props: {
               type="button"
               onClick={props.onSkipTableTargeting}
             >
-              {"只领取收入"}
+              {incomeSummary ? `只领取收入（+${incomeSummary.amount}）` : "只领取收入"}
             </button>
           )}
           <button
@@ -115,15 +114,24 @@ export function GameActionDock(props: {
   if (props.roleSkillTargeting?.kind === "role") {
     const selectedRoleId = props.roleSkillTargeting.selectedRoleId;
     return (
-      <section className="citadel-action-layer citadel-selection-layer citadel-action-layer--skill-targeting" aria-label="选择身份目标">
-        <div className="citadel-selection-layer__backdrop" aria-hidden="true" />
-        <div className="citadel-action-dock citadel-action-dock--roles citadel-action-dock--skill-roles">
-          <header className="citadel-skill-target-header">
-            <strong>{props.roleSkillTargeting.sourceRoleId === "assassin" ? "刺客选择目标" : "盗贼选择目标"}</strong>
-            <span>{roleTargetPrompt(props.roleSkillTargeting.sourceRoleId)}</span>
-            {props.remainingSeconds !== null && <b>{props.remainingSeconds} 秒</b>}
-          </header>
-          <div className="citadel-skill-role-options">
+      <GameSelectionOverlay
+        ariaLabel="选择身份目标"
+        className="citadel-action-dock--roles citadel-action-dock--skill-roles citadel-action-dock--skill-role-row"
+        remainingSeconds={props.remainingSeconds}
+        subtitle={`通过身份牌指定目标，暂不公开玩家身份。${roleTargetPrompt(props.roleSkillTargeting.sourceRoleId)}`}
+        title={props.roleSkillTargeting.sourceRoleId === "assassin" ? "选择一名玩家刺杀" : "选择一名玩家偷窃"}
+        controls={(
+          <>
+            <button className="citadel-action-button citadel-action-button--gold" disabled={!selectedRoleId} type="button" onClick={props.onConfirmRoleTarget}>
+              确认目标
+            </button>
+            <button className="citadel-action-button" type="button" onClick={props.onCancelRoleSkillTargeting}>
+              取消选择
+            </button>
+          </>
+        )}
+      >
+          <div className="citadel-role-choice-grid citadel-skill-role-options">
             {props.legalRoleTargets.map((role) => (
               <RoleIdentityCard
                 caption={selectedRoleId === role.id ? "已选中" : "选择该身份"}
@@ -134,16 +142,7 @@ export function GameActionDock(props: {
               />
             ))}
           </div>
-          <div className="citadel-skill-target-controls">
-            <button className="citadel-action-button citadel-action-button--gold" disabled={!selectedRoleId} type="button" onClick={props.onConfirmRoleTarget}>
-              确认目标
-            </button>
-            <button className="citadel-action-button" type="button" onClick={props.onCancelRoleSkillTargeting}>
-              取消选择
-            </button>
-          </div>
-        </div>
-      </section>
+      </GameSelectionOverlay>
     );
   }
 
@@ -180,9 +179,10 @@ export function GameActionDock(props: {
     );
   }
 
+  const incomeTooltip = incomeSummary ? `\n${incomeSummary.detail}` : "";
   const skillTooltip = props.skillBlockedReason
-    ? `${props.skillHint}\n${props.skillBlockedReason}`
-    : props.skillHint;
+    ? `${props.skillHint}${incomeTooltip}\n${props.skillBlockedReason}`
+    : `${props.skillHint}${incomeTooltip}`;
   const resourceTooltip = !props.isMyTurn
     ? `等待 ${props.currentTurnName} 完成行动。`
     : !props.canTakeResource
@@ -220,14 +220,19 @@ export function GameActionDock(props: {
           {props.pendingCommand === "draw" ? "处理中…" : "\u62bd\u5361"}
         </button>
         <button
-          className="citadel-action-button citadel-action-button--skill citadel-has-tooltip"
+          className={`citadel-action-button citadel-action-button--skill citadel-has-tooltip ${incomeSummary ? "citadel-action-button--skill-income" : ""}`}
           data-tooltip={skillTooltip}
+          data-role-income-amount={incomeSummary?.amount}
+          data-role-income-detail={incomeSummary?.detail}
           title={skillTooltip}
           disabled={!props.canUseSkill || commandPending}
           type="button"
           onClick={() => props.onUseSkill({})}
         >
-          {props.pendingCommand === "role-skill" ? "处理中…" : "\u4f7f\u7528\u6280\u80fd"}
+          <span>{props.pendingCommand === "role-skill" ? "处理中…" : "\u4f7f\u7528\u6280\u80fd"}</span>
+          {incomeSummary ? (
+            <small>{skillUsed ? "职业收入已结算" : `职业收入预计 +${incomeSummary.amount}`}</small>
+          ) : null}
         </button>
         <button
           className="citadel-action-button citadel-has-tooltip"
@@ -275,14 +280,13 @@ function DrawChoiceDock(props: {
   onChooseDrawnCard: (districtCardId: string) => void;
 }) {
   return (
-    <section className="citadel-selection-layer citadel-selection-layer--draw" aria-label={"\u62bd\u5361\u9009\u62e9"}>
-      <div className="citadel-selection-layer__backdrop" aria-hidden="true" />
-      <section className="citadel-action-dock citadel-action-dock--draw-choice">
-        <header>
-          <strong>{"\u9009\u62e9 1 \u5f20\u5efa\u7b51\u724c"}</strong>
-          <span>{"\u9009\u4e2d\u7684\u724c\u52a0\u5165\u624b\u724c\uff0c\u5176\u4f59\u653e\u56de\u724c\u5806\u5e95\u90e8"}</span>
-          {props.remainingSeconds !== null && props.remainingSeconds !== undefined && <b>{props.remainingSeconds} 秒</b>}
-        </header>
+    <GameSelectionOverlay
+      ariaLabel={"\u62bd\u5361\u9009\u62e9"}
+      className="citadel-action-dock--draw-choice"
+      remainingSeconds={props.remainingSeconds}
+      subtitle={"\u9009\u4e2d\u7684\u724c\u52a0\u5165\u624b\u724c\uff0c\u5176\u4f59\u653e\u56de\u724c\u5806\u5e95\u90e8"}
+      title={"\u9009\u62e9 1 \u5f20\u5efa\u7b51\u724c"}
+    >
         <div className="citadel-draw-choice-cards">
           {props.pendingDrawChoice.drawnCards.map((card) => (
             <DistrictChoiceCard
@@ -293,8 +297,7 @@ function DrawChoiceDock(props: {
             />
           ))}
         </div>
-      </section>
-    </section>
+    </GameSelectionOverlay>
   );
 }
 

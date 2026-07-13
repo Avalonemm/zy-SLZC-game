@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 
 const root = resolve(import.meta.dirname, "..");
 const mode = process.argv.includes("--release") ? "release" : "quick";
+const browserOnly = process.argv.includes("--browser-only");
 const uiModeArgument = process.argv.find((argument) => argument.startsWith("--ui="))?.slice(5);
 const timestamp = new Date().toISOString().replaceAll(":", "-").replaceAll(".", "-");
 const outputDir = join(root, "output", "regression", timestamp);
@@ -20,22 +21,28 @@ let launchedChrome = null;
 mkdirSync(screenshotDir, { recursive: true });
 
 try {
-  run("server tests", "npm.cmd", ["test", "--workspace", "server"]);
-  run("production build", "npm.cmd", ["run", "build"]);
-  const art = run("art assets", "npm.cmd", ["run", "verify:art", "--", "--strict"], { allowFailure: true });
-  if (mode === "release") {
+  if (!browserOnly) {
+    run("server tests", "npm.cmd", ["test", "--workspace", "server"]);
+    run("production build", "npm.cmd", ["run", "build"]);
+  }
+  const art = browserOnly
+    ? { ok: false }
+    : run("art assets", "npm.cmd", ["run", "verify:art", "--", "--strict"], { allowFailure: true });
+  if (mode === "release" && !browserOnly) {
     run("server restart recovery", "npm.cmd", ["run", "smoke:restart"], { timeoutMs: 120_000 });
   }
 
   await startQaServices();
-  run("formal four-player flow", "node", ["scripts/smoke-local-game-flow.mjs"], {
-    timeoutMs: 90_000,
-    env: { SERVER_URL: serverUrl }
-  });
+  if (!browserOnly) {
+    run("formal four-player flow", "node", ["scripts/smoke-local-game-flow.mjs"], {
+      timeoutMs: 90_000,
+      env: { SERVER_URL: serverUrl }
+    });
+  }
   await ensureHeadlessChrome();
 
   const defaultUiModes = mode === "release"
-    ? ["full", "roles", "opponents", "targeting", "skills", "skill-thief", "card-inspector", "utility-menu", "ui-tuning", "action-feedback", "extreme-layout"]
+    ? ["full", "opening", "build-animation", "roles", "opponents", "targeting", "skills", "skill-thief", "role-effects", "card-inspector", "utility-menu", "ui-tuning", "action-feedback", "extreme-layout"]
     : ["dense", "action-feedback", "extreme-layout"];
   const uiModes = uiModeArgument || process.env.ZY_REGRESSION_UI_MODES
     ? (uiModeArgument ?? process.env.ZY_REGRESSION_UI_MODES).split(",").map((value) => value.trim()).filter(Boolean)
@@ -44,12 +51,16 @@ try {
   for (const uiMode of uiModes) {
     const viewports = uiMode === "utility-menu"
       ? "1296x776,1893x881"
-      : mode === "release" && ["roles", "targeting", "skills", "skill-thief"].includes(uiMode)
+      : ["roles", "opponents", "opening", "extreme-layout", "build-animation"].includes(uiMode)
+        ? "1893x881,1365x668,1262x827"
+      : mode === "release" && ["roles", "targeting", "skills", "skill-thief", "role-effects"].includes(uiMode)
         ? "1262x827"
         : "1893x881,1365x668";
     run(`browser ${uiMode}`, "node", ["scripts/verify-game-ui-layout.mjs"], {
       allowFailure: true,
-      timeoutMs: mode === "release" ? 300_000 : 180_000,
+      timeoutMs: mode === "release" || ["opening", "opponents", "extreme-layout", "role-effects"].includes(uiMode)
+        ? 300_000
+        : 180_000,
       env: {
         APP_URL: appUrl,
         SERVER_URL: serverUrl,
@@ -136,7 +147,7 @@ async function startQaServices() {
     shell: process.platform === "win32",
     stdio: ["ignore", "pipe", "pipe"]
   });
-  const client = spawn("npm.cmd", ["run", "dev", "--workspace", "client", "--", "--port", "5174", "--strictPort"], {
+  const client = spawn("npm.cmd", ["run", "dev", "--workspace", "client", "--", "--port", "5174", "--strictPort", "--force"], {
     cwd: root,
     env: { ...commonEnv, VITE_SERVER_URL: serverUrl },
     windowsHide: true,

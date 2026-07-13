@@ -24,7 +24,7 @@ export const FUTURE_MAX_PLAYERS = 8;
 export const TEST_BOT_UID_BASE = 900000;
 
 export const START_COUNTDOWN_SECONDS = 10;
-export const CROWN_REVEAL_TIMEOUT_MS = 5_000;
+export const CROWN_REVEAL_TIMEOUT_MS = 7_000;
 export const DEFAULT_TURN_TIMEOUT_SECONDS = 45;
 export const MIN_TURN_TIMEOUT_SECONDS = 10;
 export const MAX_TURN_TIMEOUT_SECONDS = 180;

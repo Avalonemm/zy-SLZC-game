@@ -14,6 +14,7 @@ import { RulebookHelp } from "../components/help/RulebookHelp";
 import type { InfoModalId } from "../components/ui/infoModalTypes";
 import { FirstTimeGuide, getCurrentGuideStep } from "../components/ui/FirstTimeGuide";
 import { GameTableView } from "./game/GameTableView";
+import { GameUiTuningSettingsEntry } from "./game/GameUiTuningSettingsEntry";
 import { useGameCommandFeedback } from "./game/useGameCommandFeedback";
 import {
   defaultHelpDocuments,
@@ -419,9 +420,9 @@ export function ConnectionPage() {
           onDismissCommandFeedback={dismissGameFeedback}
           onBuildDistrict={(districtCardId) => {
             if (!playerId) {
-              return;
+              return false;
             }
-            runCommand("build", "建造", (ack) =>
+            return runCommand("build", "建造", (ack) =>
               socket.emit("build_district", {
                 roomCode: gameState.roomId,
                 playerId,
@@ -486,17 +487,6 @@ export function ConnectionPage() {
           }}
           onOpenInfoModal={setModal}
           onSendChatMessage={sendChatMessage}
-          onResolveTurnTimeout={() => {
-            if (!playerId) {
-              return;
-            }
-            runCommand("resolve-timeout", "处理超时", (ack) =>
-              socket.emit("resolve_turn_timeout", {
-                roomCode: gameState.roomId,
-                playerId
-              }, ack)
-            );
-          }}
           onResolveGraveyardChoice={(buyBack) => {
             if (!playerId) {
               return;
@@ -626,7 +616,10 @@ export function ConnectionPage() {
       {modal && (
         <InfoModal title={getLobbyInfoModalTitle(modal)} onClose={() => setModal(null)}>
           {modal === "settings" && (
-            <p>这里后续会填充完整玩法规则、职业说明和基础设置。</p>
+            <>
+              <p>这里后续会填充完整玩法规则、职业说明和基础设置。</p>
+              {gameState && <GameUiTuningSettingsEntry />}
+            </>
           )}
           {modal === "announcements" && <pre>{announcementText}</pre>}
           {modal === "help" && (

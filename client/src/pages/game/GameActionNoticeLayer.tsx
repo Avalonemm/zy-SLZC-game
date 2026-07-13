@@ -1,97 +1,199 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import type { ActionEventPayload, GameActionOrigin } from "@zy/shared";
+import type { ActionEventPayload, VisibleGameState } from "@zy/shared";
+import { roleName } from "./gameText";
 import { presentationTiming } from "./presentationTiming";
 
 type NoticeItem = {
   event: ActionEventPayload;
+  text: string;
   duration: number;
-  timeoutId: number;
+  critical: boolean;
+  group: string;
 };
 
-export function GameActionNoticeLayer(props: { actionEvents: ActionEventPayload[] }) {
-  const [items, setItems] = useState<NoticeItem[]>([]);
+const hiddenEventTypes = new Set([
+  "end_turn",
+  "turn_start",
+  "role_action_start",
+  "role_selection_start",
+  "role_selected"
+]);
+
+export function GameActionNoticeLayer(props: {
+  actionEvents: ActionEventPayload[];
+  gameState: VisibleGameState;
+}) {
+  const [queue, setQueue] = useState<NoticeItem[]>([]);
   const seenIds = useRef(new Set<string>());
-  const timers = useRef(new Set<number>());
+  const recentGroups = useRef(new Map<string, number>());
+  const active = queue[0] ?? null;
 
   useEffect(() => {
     const incoming = [...props.actionEvents]
       .reverse()
       .filter((event) => !seenIds.current.has(event.id));
+    const additions: NoticeItem[] = [];
 
     for (const event of incoming) {
       seenIds.current.add(event.id);
-      const duration = presentationTiming(event.presentation?.kind).noticeMs;
-      const timeoutId = window.setTimeout(() => {
-        timers.current.delete(timeoutId);
-        setItems((current) => current.filter((item) => item.event.id !== event.id));
-      }, duration);
-      timers.current.add(timeoutId);
-      setItems((current) => {
-        const eventKey = `${event.type}:${event.actorPlayerId ?? "system"}`;
-        const withoutDuplicate = current.filter((item) =>
-          `${item.event.type}:${item.event.actorPlayerId ?? "system"}` !== eventKey
-        );
-        return [...withoutDuplicate, { event, timeoutId, duration }].slice(-2);
-      });
+      const item = createNoticeItem(event, props.gameState);
+      if (!item) continue;
+      const lastShownAt = recentGroups.current.get(item.group) ?? 0;
+      if (!item.critical && Date.now() - lastShownAt < 2_800) continue;
+      recentGroups.current.set(item.group, Date.now());
+      additions.push(item);
     }
-  }, [props.actionEvents]);
 
-  useEffect(() => () => {
-    for (const timer of timers.current) window.clearTimeout(timer);
-    timers.current.clear();
-  }, []);
+    if (additions.length === 0) return;
+    setQueue((current) => {
+      let next = [...current];
+      for (const item of additions) {
+        if (item.critical) {
+          if (next[0] && !next[0].critical) next = [];
+          next.push(item);
+          continue;
+        }
+        if (next.some((entry) => entry.critical)) continue;
+        next = [item];
+      }
+      return next.slice(0, 6);
+    });
+  }, [props.actionEvents, props.gameState]);
 
-  if (items.length === 0) return null;
+  useEffect(() => {
+    if (!active) return;
+    const timeoutId = window.setTimeout(() => {
+      setQueue((current) => current.filter((item) => item.event.id !== active.event.id));
+    }, active.duration);
+    return () => window.clearTimeout(timeoutId);
+  }, [active]);
+
+  if (!active) return null;
 
   return (
-    <aside className="citadel-action-notices" aria-live="polite" aria-label="最近行动结果">
-      {items.map(({ event, duration }) => {
-        const originLabel = automaticOriginLabel(event.origin);
-        return (
-          <article
-            key={event.id}
-            className={originLabel ? "is-automatic" : ""}
-            style={{ "--action-notice-duration": `${duration}ms` } as CSSProperties}
-          >
-            <small>
-              {event.presentation ? presentationLabel(event.presentation.kind) : "行动结果"}
-              {originLabel && <b>{originLabel}</b>}
-            </small>
-            <strong>{event.message}</strong>
-          </article>
-        );
-      })}
+    <aside
+      className="citadel-action-notices"
+      aria-live={active.critical ? "assertive" : "polite"}
+      aria-label="最近行动结果"
+    >
+      <article
+        className={`${active.critical ? "is-critical" : ""} ${active.event.origin && active.event.origin !== "player" ? "is-automatic" : ""}`}
+        style={{ "--action-notice-duration": `${active.duration}ms` } as CSSProperties}
+      >
+        <strong>{active.text}</strong>
+      </article>
     </aside>
   );
 }
 
-function automaticOriginLabel(origin?: GameActionOrigin) {
-  if (origin === "timeout") return "系统·超时";
-  if (origin === "offline") return "系统·离线";
-  if (origin === "rule") return "系统·规则";
-  if (origin === "bot") return "人机";
-  return "";
+function createNoticeItem(
+  event: ActionEventPayload,
+  gameState: VisibleGameState
+): NoticeItem | null {
+  if (hiddenEventTypes.has(event.type)) return null;
+  const presentation = event.presentation;
+  const actorName = playerName(gameState, presentation?.actorPlayerId ?? event.actorPlayerId);
+  const targetName = playerName(gameState, presentation?.targetPlayerId ?? event.targetPlayerId);
+  const kind = presentation?.kind;
+  const group = kind === "draw_cards" || kind === "draw_resolved"
+    ? `draw:${presentation?.actorPlayerId ?? event.actorPlayerId ?? "system"}`
+    : `${kind ?? event.type}:${event.actorPlayerId ?? "system"}`;
+  const critical = isCriticalEvent(event);
+  let text: string | null = null;
+
+  switch (kind) {
+    case "assassin_mark":
+      text = `刺客锁定了${roleName(presentation?.targetRoleId ?? null)}`;
+      break;
+    case "assassin_skip":
+      text = `${targetName}被刺杀，本轮跳过`;
+      break;
+    case "thief_mark":
+      text = `盗贼锁定了${roleName(presentation?.targetRoleId ?? null)}`;
+      break;
+    case "thief_steal":
+      text = (presentation?.amount ?? 0) > 0
+        ? `盗贼偷走了${targetName}的${presentation?.amount}枚金币`
+        : `盗贼没有从${targetName}身上偷到金币`;
+      break;
+    case "magician_swap":
+      text = `魔术师与${targetName}交换了手牌`;
+      break;
+    case "magician_redraw":
+      text = `魔术师重新抽取了${presentation?.cardCount ?? 0}张牌`;
+      break;
+    case "role_income":
+      text = `${actorName}获得${presentation?.amount ?? 0}枚职业收入`;
+      break;
+    case "architect_bonus":
+      text = `${actorName}抽取额外卡牌，本轮可建造${presentation?.maxBuilds ?? 3}次`;
+      break;
+    case "bishop_guard":
+      text = `${actorName}的城市受到主教保护`;
+      break;
+    case "queen_income":
+      text = `${actorName}与国王相邻，获得${presentation?.amount ?? 3}枚金币`;
+      break;
+    case "warlord_destroy":
+      text = `${actorName}破坏了${presentation?.districtName ?? "一座建筑"}`;
+      break;
+    case "take_gold":
+      text = `${actorName}获得了金币`;
+      break;
+    case "draw_cards":
+    case "draw_resolved":
+      text = `${actorName}抽取了卡牌`;
+      break;
+    case "build_district":
+      text = `${actorName}建造了${presentation?.districtName ?? "建筑"}`;
+      break;
+    case "crown_transfer":
+      text = `王冠转移至${targetName}`;
+      break;
+    case "final_round":
+      text = `${actorName}完成城市，进入最后结算轮`;
+      break;
+    case "game_ended":
+      text = "本局结束，正在结算";
+      break;
+  }
+
+  if (!text && event.origin === "timeout") {
+    text = `${actorName}超时，系统已自动处理`;
+  } else if (!text && event.origin === "offline") {
+    text = "已自动跳过离线玩家";
+  }
+  if (!text) return null;
+
+  return {
+    event,
+    text,
+    duration: Math.max(critical ? 2_200 : 1_800, presentationTiming(kind).noticeMs),
+    critical,
+    group
+  };
 }
 
-function presentationLabel(kind: NonNullable<ActionEventPayload["presentation"]>["kind"]) {
-  const labels: Record<typeof kind, string> = {
-    assassin_mark: "刺客出手",
-    assassin_skip: "刺杀生效",
-    thief_mark: "盗贼锁定",
-    thief_steal: "金币被盗",
-    magician_swap: "交换手牌",
-    magician_redraw: "弃牌重抽",
-    warlord_destroy: "军阀破坏",
-    role_lock: "身份锁定",
-    take_gold: "获取金币",
-    draw_cards: "抽取建筑牌",
-    draw_resolved: "抽牌完成",
-    build_district: "建造完成",
-    turn_start: "回合开始",
-    crown_transfer: "王冠转移",
-    final_round: "最后一轮",
-    game_ended: "本局结束"
-  };
-  return labels[kind];
+function playerName(gameState: VisibleGameState, playerId?: string) {
+  return gameState.players.find((player) => player.id === playerId)?.name ?? "玩家";
+}
+
+function isCriticalEvent(event: ActionEventPayload) {
+  if (event.origin === "timeout" || event.origin === "offline") return true;
+  return [
+    "assassin_mark",
+    "assassin_skip",
+    "thief_mark",
+    "thief_steal",
+    "magician_swap",
+    "magician_redraw",
+    "role_income",
+    "architect_bonus",
+    "bishop_guard",
+    "queen_income",
+    "warlord_destroy",
+    "final_round",
+    "game_ended"
+  ].includes(event.presentation?.kind ?? "");
 }

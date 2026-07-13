@@ -3,6 +3,44 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $projectRoot
 $processes = @()
+$frontendUrl = "http://localhost:5173"
+$backendHealthUrl = "http://localhost:3000/health"
+$launcherMutexName = "Local\ZYBoardGameDevLauncher"
+
+function Test-HttpEndpoint {
+  param([string]$Url)
+
+  try {
+    $response = Invoke-WebRequest -UseBasicParsing -Uri $Url -TimeoutSec 2
+    return $response.StatusCode -ge 200 -and $response.StatusCode -lt 400
+  }
+  catch {
+    return $false
+  }
+}
+
+function Test-DevServersReady {
+  return (Test-HttpEndpoint -Url $script:frontendUrl) -and
+    (Test-HttpEndpoint -Url $script:backendHealthUrl)
+}
+
+function Wait-ForDevServers {
+  param([int]$TimeoutSeconds = 45)
+
+  $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+  while ([DateTime]::UtcNow -lt $deadline) {
+    if (Test-DevServersReady) {
+      return $true
+    }
+    Start-Sleep -Milliseconds 300
+  }
+
+  return $false
+}
+
+function Open-GamePage {
+  Start-Process -FilePath $script:frontendUrl
+}
 
 function Stop-ChildProcessTree {
   param([int]$ProcessId)
@@ -78,51 +116,89 @@ Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action {
   }
 } | Out-Null
 
-Write-Host ""
-Write-Host "Starting Web board game prototype..." -ForegroundColor Cyan
-Write-Host "Project: $projectRoot"
-Write-Host ""
+function Start-DevEnvironment {
+  Write-Host ""
+  Write-Host "Starting Web board game prototype..." -ForegroundColor Cyan
+  Write-Host "Project: $projectRoot"
+  Write-Host ""
 
-if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
-  Write-Host "npm was not found. Please install Node.js first: https://nodejs.org/" -ForegroundColor Red
-  exit 1
-}
+  if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+    Write-Host "npm was not found. Please install Node.js first: https://nodejs.org/" -ForegroundColor Red
+    throw "npm was not found."
+  }
 
-if (-not (Test-Path -LiteralPath (Join-Path $projectRoot "node_modules"))) {
-  Write-Host "Dependencies are missing. Running npm install..." -ForegroundColor Yellow
-  npm install
-}
+  if (-not (Test-Path -LiteralPath (Join-Path $projectRoot "node_modules"))) {
+    Write-Host "Dependencies are missing. Running npm install..." -ForegroundColor Yellow
+    npm install
+    if ($LASTEXITCODE -ne 0) {
+      throw "npm install failed with exit code $LASTEXITCODE."
+    }
+  }
 
-Write-Host "Checking for stale project dev servers..." -ForegroundColor Yellow
-Stop-ExistingProjectDevServers
+  Write-Host "Checking for stale project dev servers..." -ForegroundColor Yellow
+  Stop-ExistingProjectDevServers
 
-Write-Host ""
-Write-Host "Frontend will open at: http://localhost:5173" -ForegroundColor Green
-Write-Host "Backend will run at:   http://localhost:3000" -ForegroundColor Green
-Write-Host "Press Ctrl+C in this window to stop both services." -ForegroundColor Yellow
-Write-Host ""
+  Write-Host ""
+  Write-Host "Frontend will open at: $frontendUrl" -ForegroundColor Green
+  Write-Host "Backend will run at:   http://localhost:3000" -ForegroundColor Green
+  Write-Host "Press Ctrl+C in this window to stop both services." -ForegroundColor Yellow
+  Write-Host "Double-click the launcher again to reopen the game page." -ForegroundColor Yellow
+  Write-Host ""
 
-try {
-  $server = Start-Process -FilePath "npm.cmd" -ArgumentList @("run", "dev:server") -WorkingDirectory $projectRoot -PassThru -NoNewWindow
-  $client = Start-Process -FilePath "npm.cmd" -ArgumentList @("run", "dev:client") -WorkingDirectory $projectRoot -PassThru -NoNewWindow
-  $script:processes = @($server, $client)
+  try {
+    $server = Start-Process -FilePath "npm.cmd" -ArgumentList @("run", "dev:server") -WorkingDirectory $projectRoot -PassThru -NoNewWindow
+    $client = Start-Process -FilePath "npm.cmd" -ArgumentList @("run", "dev:client") -WorkingDirectory $projectRoot -PassThru -NoNewWindow
+    $script:processes = @($server, $client)
 
-  Start-Process powershell -WindowStyle Hidden -ArgumentList @(
-    "-NoProfile",
-    "-Command",
-    "Start-Sleep -Seconds 5; Start-Process 'http://localhost:5173'"
-  )
+    if (Wait-ForDevServers) {
+      Open-GamePage
+    }
+    else {
+      Write-Host "Services are still starting. Open $frontendUrl manually when ready." -ForegroundColor Yellow
+    }
 
-  while ($true) {
-    Start-Sleep -Seconds 1
-    foreach ($process in $script:processes) {
-      if ($process.HasExited) {
-        Write-Host "A dev server exited. Shutting down the rest..." -ForegroundColor Yellow
-        return
+    while ($true) {
+      Start-Sleep -Seconds 1
+      foreach ($process in $script:processes) {
+        if ($process.HasExited) {
+          Write-Host "A dev server exited. Shutting down the rest..." -ForegroundColor Yellow
+          return
+        }
       }
     }
   }
+  finally {
+    Stop-DevServers
+  }
+}
+
+$launcherMutex = [System.Threading.Mutex]::new($false, $launcherMutexName)
+$ownsLauncherMutex = $false
+
+try {
+  try {
+    $ownsLauncherMutex = $launcherMutex.WaitOne(0, $false)
+  }
+  catch [System.Threading.AbandonedMutexException] {
+    $ownsLauncherMutex = $true
+  }
+
+  if (-not $ownsLauncherMutex) {
+    if (Test-DevServersReady) {
+      Write-Host "The game is already running. Reopening $frontendUrl..." -ForegroundColor Green
+      Open-GamePage
+    }
+    else {
+      Write-Host "The game is already starting. Its page will open automatically when ready." -ForegroundColor Yellow
+    }
+    exit 0
+  }
+
+  Start-DevEnvironment
 }
 finally {
-  Stop-DevServers
+  if ($ownsLauncherMutex) {
+    $launcherMutex.ReleaseMutex()
+  }
+  $launcherMutex.Dispose()
 }

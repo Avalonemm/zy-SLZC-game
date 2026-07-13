@@ -165,6 +165,10 @@ export type ActionEventPresentationKind =
   | "thief_steal"
   | "magician_swap"
   | "magician_redraw"
+  | "role_income"
+  | "architect_bonus"
+  | "bishop_guard"
+  | "queen_income"
   | "warlord_destroy"
   | "role_lock"
   | "take_gold"
@@ -181,8 +185,10 @@ export type ActionEventPresentation = {
   actorPlayerId?: string;
   targetPlayerId?: string;
   targetRoleId?: string;
+  roleId?: string;
   amount?: number;
   cardCount?: number;
+  maxBuilds?: number;
   actorHandCount?: number;
   targetHandCount?: number;
   districtCardId?: string;
@@ -394,6 +400,10 @@ export type ClientToServerEvents = {
     opponentHandCount?: number;
     cityCount?: number;
     ensureSelectedRoleId?: string;
+    distributionMode?: "drain-deck-round-robin";
+    forceSelfRoleSelectionTurn?: boolean;
+    deadlineMs?: number;
+    nextBuildOutcome?: "reject" | "timeout";
   }, ack?: GameCommandAck) => void;
   send_chat_message: (payload: { roomCode: string; playerId: string; message: string }) => void;
 };

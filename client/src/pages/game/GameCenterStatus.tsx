@@ -1,5 +1,5 @@
 import type { VisibleGameState } from "@zy/shared";
-import { phaseText, playerName, roleName, roleOrder } from "./gameText";
+import { phaseText, roleName, roleOrder } from "./gameText";
 
 export function GameCenterStatus(props: {
   currentTurnName: string;
@@ -20,7 +20,7 @@ export function GameCenterStatus(props: {
       <strong>{"\u5bcc\u9976\u4e4b\u57ce"}</strong>
       <span>CITADELS</span>
       <p>{"\u7b2c "}{props.gameState.currentRound}{" \u8f6e · "}{phase}</p>
-      <p className="citadel-game-center__callout">{waitingText}</p>
+      {waitingText && <p className="citadel-game-center__callout">{waitingText}</p>}
       {props.remainingSeconds !== null && (
         <b className="citadel-game-center__timer">{props.remainingSeconds}</b>
       )}
@@ -34,7 +34,7 @@ function centerStatusText(
   roleSelectionTurnName: string
 ) {
   if (gameState.phase === "CROWN_REVEAL") {
-    return `${playerName(gameState, gameState.crownPlayerId)} \u83b7\u5f97\u738b\u51a0`;
+    return "";
   }
   if (gameState.phase === "ROLE_SELECTION") {
     return `\u7b49\u5f85 ${roleSelectionTurnName} \u9009\u62e9\u8eab\u4efd...`;

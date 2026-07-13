@@ -14,6 +14,7 @@ export function GameSelfArea(props: {
   districtEffectDiscardCardId: string | null;
   magicianDiscardSelection: boolean;
   magicianDiscardCardIds: string[];
+  pendingBuildCardIds: Set<string>;
   gameState: VisibleGameState;
   hasCrown: boolean;
   self: GamePlayer | null;
@@ -31,7 +32,11 @@ export function GameSelfArea(props: {
   const builtNames = new Set(props.self?.city.map((district) => district.name) ?? []);
 
   return (
-    <section className="citadel-self-area" aria-label={"\u4f60\u7684\u533a\u57df"}>
+    <section
+      className="citadel-self-area"
+      data-player-id={props.self?.id}
+      aria-label={"\u4f60\u7684\u533a\u57df"}
+    >
       <div className="citadel-self-identity-cluster">
         <DeckStack label={"\u5efa\u7b51\u724c\u5806"} count={props.gameState.districtDeckCount} />
         <div className="citadel-self-profile">
@@ -59,22 +64,17 @@ export function GameSelfArea(props: {
           </p>
         )}
         <div
-          className={`citadel-hand-zone ${hand.length > 10 ? "citadel-hand-zone--scrollable" : ""}`}
+          className="citadel-hand-zone"
           data-hand-count={hand.length}
-          tabIndex={hand.length > 10 ? 0 : undefined}
           aria-label={selectionMode ? "\u9009\u62e9\u8981\u5f03\u7f6e\u7684\u624b\u724c" : "\u4f60\u7684\u624b\u724c"}
-          onWheel={(event) => {
-            if (hand.length <= 10 || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
-            event.currentTarget.scrollLeft += event.deltaY;
-            event.preventDefault();
-          }}
         >
           {hand.length > 0 ? (
             hand.map((card) => (
               <HandCard
                 key={card.id}
                 card={card}
-                disabled={selectionMode ? false : !props.canBuild || card.cost > availableGold || builtNames.has(card.name)}
+                buildPending={props.pendingBuildCardIds.has(card.id)}
+                disabled={props.pendingBuildCardIds.has(card.id) || (selectionMode ? false : !props.canBuild || card.cost > availableGold || builtNames.has(card.name))}
                 disabledReason={selectionMode
                   ? ""
                   : !props.canBuild
@@ -151,6 +151,7 @@ function DeckStack(props: { count: number; label: string; muted?: boolean }) {
 }
 
 function HandCard(props: {
+  buildPending: boolean;
   card: BuildableDistrictCard;
   disabled: boolean;
   disabledReason: string;
@@ -163,8 +164,9 @@ function HandCard(props: {
       aria-pressed={props.selectionMode ? props.selected : undefined}
       aria-disabled={props.disabled}
       aria-label={`${props.card.name}，费用 ${props.card.cost}，${props.card.score} 分。${props.card.description}`}
+      data-hand-card-id={props.card.id}
       title={props.disabledReason || props.card.description}
-      className={`citadel-hand-card citadel-hand-card--${props.card.color} ${props.selectionMode ? "is-targetable" : ""} ${props.selected ? "is-selected" : ""}`}
+      className={`citadel-hand-card citadel-hand-card--${props.card.color} ${props.selectionMode ? "is-targetable" : ""} ${props.selected ? "is-selected" : ""} ${props.buildPending ? "is-build-pending" : ""}`}
       {...cardFaceAttributes()}
       type="button"
       onClick={() => {

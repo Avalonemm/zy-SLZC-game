@@ -33,7 +33,7 @@
         "id":  "king",
         "order":  4,
         "name":  "国王",
-        "description":  "获得下轮先手权。",
+        "description":  "获得下轮皇冠与先手权。职业收入：每座黄色建筑获得 1 枚金币；魔法学校也计为黄色建筑。",
         "effectType":  "take_crown",
         "effectParams":  {
 
@@ -43,7 +43,7 @@
         "id":  "bishop",
         "order":  5,
         "name":  "主教",
-        "description":  "自己的建筑本轮受到保护。",
+        "description":  "自己的建筑本轮受到保护。职业收入：每座蓝色建筑获得 1 枚金币；魔法学校也计为蓝色建筑。",
         "effectType":  "protect_city",
         "effectParams":  {
 
@@ -53,7 +53,7 @@
         "id":  "merchant",
         "order":  6,
         "name":  "商人",
-        "description":  "根据绿色建筑数量获得额外金币。",
+        "description":  "职业收入：每座绿色建筑获得 1 枚金币，并固定获得 1 枚金币；魔法学校也计为绿色建筑。",
         "effectType":  "income_by_color",
         "effectParams":  {
                              "color":  "green"
@@ -73,7 +73,7 @@
         "id":  "warlord",
         "order":  8,
         "name":  "军阀",
-        "description":  "可以花费金币破坏其他玩家一座建筑。",
+        "description":  "可以领取收入，或花费目标建筑费用 -1 的金币破坏其他玩家一座建筑；破坏成功后才结算收入。职业收入：每座红色建筑获得 1 枚金币；魔法学校也计为红色建筑。",
         "effectType":  "destroy_district",
         "effectParams":  {
 

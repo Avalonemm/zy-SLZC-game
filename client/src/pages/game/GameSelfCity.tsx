@@ -8,6 +8,9 @@ export function GameSelfCity(props: {
   activeDistrictCardId: string | null;
   canUseDistrictEffects: boolean;
   city: BuildableDistrictCard[];
+  hiddenDistrictCardIds: Set<string>;
+  pendingBuildCards: BuildableDistrictCard[];
+  arrivalHighlightCardIds: Set<string>;
   usedDistrictEffectIds: string[];
   onSelectDistrictEffect: (card: BuildableDistrictCard) => void;
 }) {
@@ -21,6 +24,8 @@ export function GameSelfCity(props: {
           return (
             <BuiltDistrictCard
               active={props.activeDistrictCardId === card.id}
+              arriving={props.hiddenDistrictCardIds.has(card.id)}
+              arrived={props.arrivalHighlightCardIds.has(card.id)}
               canActivate={canActivate}
               effectUsed={effectUsed}
               key={card.id}
@@ -29,6 +34,15 @@ export function GameSelfCity(props: {
             />
           );
         })}
+        {props.pendingBuildCards
+          .filter((card) => !props.city.some((builtCard) => builtCard.id === card.id))
+          .map((card) => (
+            <span
+              className="citadel-built-card citadel-build-target-slot"
+              data-build-target-id={card.id}
+              key={`build-target-${card.id}`}
+            />
+          ))}
       </div>
       {props.city.length > 0 && (
         <span>{"\u5df2\u5efa\u5efa\u7b51 "}{props.city.length}</span>
@@ -39,6 +53,8 @@ export function GameSelfCity(props: {
 
 function BuiltDistrictCard(props: {
   active: boolean;
+  arriving: boolean;
+  arrived: boolean;
   canActivate: boolean;
   card: BuildableDistrictCard;
   effectUsed: boolean;
@@ -53,7 +69,7 @@ function BuiltDistrictCard(props: {
     <button
       aria-pressed={props.active}
       aria-disabled={!props.canActivate}
-      className={`citadel-built-card citadel-built-card--${props.card.color} ${props.canActivate ? "is-activatable" : ""} ${props.active ? "is-selected" : ""} ${props.effectUsed ? "is-used" : ""}`}
+      className={`citadel-built-card citadel-built-card--${props.card.color} ${props.canActivate ? "is-activatable" : ""} ${props.active ? "is-selected" : ""} ${props.effectUsed ? "is-used" : ""} ${props.arriving ? "is-build-arriving" : ""} ${props.arrived ? "is-build-arrived" : ""}`}
       data-district-card-id={props.card.id}
       data-tooltip={effectHint}
       {...cardFaceAttributes()}

@@ -83,7 +83,7 @@ describe("turn timers", () => {
     vi.restoreAllMocks();
   });
 
-  it("enters role selection from crown reveal after the five second timer expires", () => {
+  it("enters role selection from crown reveal after the seven second timer expires", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.5);
     const gameRoom = createStartedGame();
     const deadlineAt = gameRoom.turnTimer?.deadlineAt;
@@ -132,9 +132,10 @@ describe("turn timers", () => {
   });
 
   it("auto-selects a legal role when role selection expires", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
     const gameRoom = createStartedGame();
     resolveExpiredTurn(gameRoom, gameRoom.turnTimer?.deadlineAt);
-    const firstRoleId = gameRoom.availableRoles[0].id;
+    const expectedRoleId = gameRoom.availableRoles[Math.floor(gameRoom.availableRoles.length * 0.5)].id;
     const chooserId = gameRoom.roleSelectionTurnPlayerId;
 
     const result = resolveExpiredTurn(gameRoom, new Date(Date.now() + 120_000).toISOString());
@@ -145,7 +146,7 @@ describe("turn timers", () => {
     }
     expect(result.timedOut).toBe(true);
     expect(gameRoom.players.find((player) => player.id === chooserId)?.selectedRoleId).toBe(
-      firstRoleId
+      expectedRoleId
     );
     expect(gameRoom.roleSelectionTurnPlayerId).not.toBe(chooserId);
     expect(gameRoom.gameLog.map((log) => log.type)).toContain("turn_timeout_role_selected");

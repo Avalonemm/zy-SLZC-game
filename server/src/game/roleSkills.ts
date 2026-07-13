@@ -27,7 +27,12 @@ export function applyRoleSkill(
       if (!gameRoom.roleEffects.protectedPlayerIds.includes(player.id)) {
         gameRoom.roleEffects.protectedPlayerIds.push(player.id);
       }
-      addLog(gameRoom, "skill_protect_city", `${player.name} 的城市本轮受到保护。`);
+      addLog(gameRoom, "skill_protect_city", `${player.name} 的城市本轮受到保护。`, {
+        kind: "bishop_guard",
+        actorPlayerId: player.id,
+        roleId: role.id,
+        districtColor: "blue"
+      });
       return { ok: true };
     case "income_by_color":
       return applyIncomeByColor(gameRoom, player, role);
@@ -36,8 +41,14 @@ export function applyRoleSkill(
         return { ok: false, error: "当前回合状态不存在。" };
       }
       gameRoom.turnState.maxBuilds = Math.max(gameRoom.turnState.maxBuilds, 3);
-      drawCardsToHand(gameRoom, player, 2);
-      addLog(gameRoom, "skill_extra_build", `${player.name} 抽了 2 张建筑牌，本回合最多可以建造 3 次。`);
+      const drawnCards = drawCardsToHand(gameRoom, player, 2);
+      addLog(gameRoom, "skill_extra_build", `${player.name} 抽了 ${drawnCards.length} 张建筑牌，本回合最多可以建造 3 次。`, {
+        kind: "architect_bonus",
+        actorPlayerId: player.id,
+        roleId: role.id,
+        cardCount: drawnCards.length,
+        maxBuilds: 3
+      });
       return { ok: true };
     case "destroy_district":
       if (!input.targetPlayerId && !input.targetDistrictCardId) {
@@ -58,7 +69,7 @@ export function applyRoleSkill(
         }
       );
       if (destroyResult.ok) {
-        logStandardRoleColorIncome(gameRoom, player, income);
+        logStandardRoleColorIncome(gameRoom, player, role, income);
       }
       return destroyResult;
     case "queen_adjacent_income":
@@ -78,7 +89,7 @@ export function applyStealEffectBeforeTurn(
   }
 
   const thiefPlayerId = gameRoom.roleEffects.stealTargets[role.id];
-  if (!thiefPlayerId || thiefPlayerId === player.id || player.gold <= 0) {
+  if (!thiefPlayerId || thiefPlayerId === player.id) {
     return;
   }
 
@@ -87,7 +98,7 @@ export function applyStealEffectBeforeTurn(
     return;
   }
 
-  const stolenGold = player.gold;
+  const stolenGold = Math.max(0, player.gold);
   player.gold = 0;
   thief.gold += stolenGold;
   addLog(
@@ -241,14 +252,20 @@ function applyIncomeByColor(gameRoom: GameRoom, player: Player, role: RoleCard):
     countRoleColorDistricts(player, color as DistrictCard["color"]) +
     (role.id === "merchant" ? 1 : 0);
   player.gold += income;
-  addLog(gameRoom, "skill_extra_gold", `${player.name} 通过角色技能获得 ${income} 枚金币。`);
+  addLog(gameRoom, "skill_extra_gold", `${player.name} 通过角色技能获得 ${income} 枚金币。`, {
+    kind: "role_income",
+    actorPlayerId: player.id,
+    roleId: role.id,
+    districtColor: color as DistrictCard["color"],
+    amount: income
+  });
   return { ok: true };
 }
 
 function applyStandardRoleColorIncome(gameRoom: GameRoom, player: Player, role: RoleCard) {
   const income = standardRoleColorIncome(player, role);
   player.gold += income;
-  logStandardRoleColorIncome(gameRoom, player, income);
+  logStandardRoleColorIncome(gameRoom, player, role, income);
 }
 
 function standardRoleColorIncome(player: Player, role: RoleCard) {
@@ -272,13 +289,30 @@ function countRoleColorDistricts(player: Player, color: DistrictCard["color"]) {
   ).length;
 }
 
-function logStandardRoleColorIncome(gameRoom: GameRoom, player: Player, income: number) {
+function logStandardRoleColorIncome(
+  gameRoom: GameRoom,
+  player: Player,
+  role: RoleCard,
+  income: number
+) {
+  const districtColor: DistrictCard["color"] = role.id === "king"
+    ? "yellow"
+    : role.id === "bishop"
+      ? "blue"
+      : "red";
+  const presentation = {
+    kind: "role_income" as const,
+    actorPlayerId: player.id,
+    roleId: role.id,
+    districtColor,
+    amount: income
+  };
   if (income <= 0) {
-    addLog(gameRoom, "skill_color_income", `${player.name} 没有获得额外颜色收入。`);
+    addLog(gameRoom, "skill_color_income", `${player.name} 没有获得额外颜色收入。`, presentation);
     return;
   }
 
-  addLog(gameRoom, "skill_color_income", `${player.name} 获得 ${income} 枚颜色建筑收入。`);
+  addLog(gameRoom, "skill_color_income", `${player.name} 获得 ${income} 枚颜色建筑收入。`, presentation);
 }
 
 function drawCardsToHand(gameRoom: GameRoom, player: Player, count: number) {

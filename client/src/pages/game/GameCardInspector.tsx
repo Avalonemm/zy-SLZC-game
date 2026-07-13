@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { roleName, roleOrder, skillHint } from "./gameText";
 import type { CardInspectorPlacement, CardInspectorSize } from "./cardInspectorData";
 
@@ -33,9 +33,16 @@ type InspectorState = {
   card: RolePreview | DistrictPreview;
 };
 
-export function GameCardInspector(props: { rootRef: RefObject<HTMLElement | null> }) {
+type InspectorSize = {
+  width: number;
+  height: number;
+};
+
+export function GameCardInspector(props: { previewScale: number; rootRef: RefObject<HTMLElement | null> }) {
   const [inspector, setInspector] = useState<InspectorState | null>(null);
+  const [measuredSize, setMeasuredSize] = useState<InspectorSize | null>(null);
   const activeElementRef = useRef<HTMLElement | null>(null);
+  const inspectorRef = useRef<HTMLElement | null>(null);
   const openTimerRef = useRef<number | null>(null);
   const closeTimerRef = useRef<number | null>(null);
 
@@ -69,6 +76,7 @@ export function GameCardInspector(props: { rootRef: RefObject<HTMLElement | null
         if (!card || activeElementRef.current !== element) {
           return;
         }
+        setMeasuredSize(null);
         setInspector({
           card,
           anchor: {
@@ -93,6 +101,7 @@ export function GameCardInspector(props: { rootRef: RefObject<HTMLElement | null
       clearCloseTimer();
       closeTimerRef.current = window.setTimeout(() => {
         activeElementRef.current = null;
+        setMeasuredSize(null);
         setInspector(null);
       }, CLOSE_DELAY_MS);
     };
@@ -134,6 +143,7 @@ export function GameCardInspector(props: { rootRef: RefObject<HTMLElement | null
       clearOpenTimer();
       clearCloseTimer();
       activeElementRef.current = null;
+      setMeasuredSize(null);
       setInspector(null);
     };
 
@@ -155,9 +165,23 @@ export function GameCardInspector(props: { rootRef: RefObject<HTMLElement | null
     };
   }, [inspector, props.rootRef]);
 
+  useLayoutEffect(() => {
+    const element = inspectorRef.current;
+    if (!inspector || !element) {
+      return;
+    }
+    const nextSize = { width: element.offsetWidth, height: element.offsetHeight };
+    setMeasuredSize((current) => current &&
+      Math.abs(current.width - nextSize.width) < 0.5 &&
+      Math.abs(current.height - nextSize.height) < 0.5
+        ? current
+        : nextSize
+    );
+  }, [inspector, props.previewScale]);
+
   const position = useMemo(
-    () => inspector ? getInspectorPosition(inspector.anchor, inspector.card) : null,
-    [inspector]
+    () => inspector ? getInspectorPosition(inspector.anchor, inspector.card, props.previewScale, measuredSize) : null,
+    [inspector, measuredSize, props.previewScale]
   );
 
   if (!inspector || !position) {
@@ -170,6 +194,7 @@ export function GameCardInspector(props: { rootRef: RefObject<HTMLElement | null
 
   return (
     <aside
+      ref={inspectorRef}
       aria-label="卡牌详情"
       className={`citadel-card-inspector citadel-card-inspector--${inspector.card.kind} ${sizeClass} ${isHandPreview ? `citadel-card-inspector--hand is-${position.side ?? "left"}` : ""}`}
       role="status"
@@ -279,25 +304,26 @@ function readSize(element: HTMLElement): CardInspectorSize {
   return element.dataset.inspectorSize === "table-small" ? "table-small" : "standard";
 }
 
-function getInspectorPosition(anchor: Anchor, card: RolePreview | DistrictPreview) {
+function getInspectorPosition(
+  anchor: Anchor,
+  card: RolePreview | DistrictPreview,
+  previewScale: number,
+  measuredSize: InspectorSize | null
+) {
   const kind = card.kind;
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
   const compact = viewportHeight <= 720 || viewportWidth <= 1100;
-  const tableSmall = anchor.size === "table-small";
-  const width = tableSmall
-    ? compact ? (kind === "role" ? 91 : 94) : (kind === "role" ? 98 : 100)
-    : compact ? (kind === "role" ? 116 : 120) : (kind === "role" ? 128 : 132);
-  const height = tableSmall
-    ? compact ? (kind === "role" ? 198 : 202) : (kind === "role" ? 214 : 217)
-    : compact ? (kind === "role" ? 238 : 246) : (kind === "role" ? 268 : 276);
+  const scale = clamp(previewScale, 0.8, 1.4);
+  const width = measuredSize?.width ?? (compact ? 94 : 104) * scale;
+  const height = measuredSize?.height ?? (compact ? 205 : 232) * scale;
   const clampLeft = (value: number) => clamp(value, VIEWPORT_GAP, viewportWidth - width - VIEWPORT_GAP);
   const clampTop = (value: number) => clamp(value, VIEWPORT_GAP, viewportHeight - height - VIEWPORT_GAP);
 
   if (anchor.placement === "hand") {
     const handWidth = card.kind === "district"
-      ? handInspectorWidth(card.description, compact)
-      : compact ? 116 : 128;
+      ? handInspectorWidth(card.description, compact) * scale
+      : (compact ? 116 : 128) * scale;
     const handGap = compact ? 10 : 12;
     const left = anchor.rect.left - handWidth - handGap;
     const right = anchor.rect.right + handGap;

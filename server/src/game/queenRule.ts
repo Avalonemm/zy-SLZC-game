@@ -34,7 +34,14 @@ export function resolveQueenIncome(
   addLog(
     gameRoom,
     "queen_adjacent_income",
-    `${queenPlayer.name} 与国王相邻，获得 ${QUEEN_INCOME} 枚金币。`
+    `${queenPlayer.name} 与国王相邻，获得 ${QUEEN_INCOME} 枚金币。`,
+    {
+      kind: "queen_income",
+      actorPlayerId: queenPlayer.id,
+      targetPlayerId: kingPlayer.id,
+      roleId: QUEEN_ROLE_ID,
+      amount: QUEEN_INCOME
+    }
   );
   return true;
 }

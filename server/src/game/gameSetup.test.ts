@@ -100,6 +100,16 @@ describe("game setup", () => {
       effectType: "skip_role"
     });
     expect(roles[8]).toMatchObject({ id: "queen", name: "王后", effectType: "queen_adjacent_income" });
+    const incomeDescriptions = Object.fromEntries(
+      roles.map((role) => [role.id, role.description])
+    );
+    expect(incomeDescriptions.king).toContain("每座黄色建筑");
+    expect(incomeDescriptions.bishop).toContain("每座蓝色建筑");
+    expect(incomeDescriptions.merchant).toContain("固定获得 1 枚金币");
+    expect(incomeDescriptions.warlord).toContain("每座红色建筑");
+    expect(["assassin", "thief", "magician", "architect", "queen"].every(
+      (roleId) => !incomeDescriptions[roleId].includes("职业收入")
+    )).toBe(true);
 
     expect(districts.length).toBeGreaterThanOrEqual(65);
     expect(districts[0]).toEqual(
@@ -127,7 +137,7 @@ describe("game setup", () => {
     expect(gameRoom.turnTimer).toMatchObject({
       phase: "CROWN_REVEAL",
       playerId: "player-c",
-      timeoutMs: 5_000
+      timeoutMs: 7_000
     });
     expect(gameRoom.availableRoles).toHaveLength(5);
     expect(gameRoom.discardedRoles).toHaveLength(2);

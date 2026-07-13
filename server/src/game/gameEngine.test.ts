@@ -786,6 +786,27 @@ describe("game engine", () => {
     });
   });
 
+  it("still emits a resolved theft presentation when the target has no gold", () => {
+    const gameRoom = createStartedGame();
+    const roles = [...gameRoom.availableRoles];
+    selectRolesById(gameRoom, [roles[1].id, roles[2].id, roles[3].id, roles[4].id]);
+    const thief = gameRoom.players[0];
+    const target = gameRoom.players[1];
+    target.gold = 0;
+
+    expect(useRoleSkill(gameRoom, {
+      playerId: thief.id,
+      targetRoleId: roles[2].id
+    }).ok).toBe(true);
+    expect(endTurn(gameRoom, { playerId: thief.id }).ok).toBe(true);
+    expect(gameRoom.gameLog.find((log) => log.type === "skill_steal_resolved")?.presentation).toMatchObject({
+      kind: "thief_steal",
+      actorPlayerId: thief.id,
+      targetPlayerId: target.id,
+      amount: 0
+    });
+  });
+
   it("lets the magician discard selected hand cards and draw the same amount", () => {
     const gameRoom = createStartedGame();
     const magician = gameRoom.players[0];
@@ -873,6 +894,13 @@ describe("game engine", () => {
 
     expect(skillResult.ok).toBe(true);
     expect(merchant.gold).toBe(6);
+    expect(gameRoom.gameLog[0].presentation).toMatchObject({
+      kind: "role_income",
+      actorPlayerId: merchant.id,
+      roleId: "merchant",
+      districtColor: "green",
+      amount: 4
+    });
   });
 
   it("lets standard color roles gain income for their district color", () => {
@@ -898,6 +926,13 @@ describe("game engine", () => {
 
       expect(skillResult.ok).toBe(true);
       expect(player.gold).toBe(3);
+      expect(gameRoom.gameLog.find((log) => log.presentation?.kind === "role_income")?.presentation).toMatchObject({
+        kind: "role_income",
+        actorPlayerId: player.id,
+        roleId: testCase.roleId,
+        districtColor: testCase.color,
+        amount: 2
+      });
     }
   });
 
@@ -1091,6 +1126,23 @@ describe("game engine", () => {
       const skillResult = useRoleSkill(gameRoom, { playerId: "player-1" });
       expect(skillResult.ok).toBe(true);
       testCase.assert(gameRoom);
+
+      if (testCase.roleId === "bishop") {
+        expect(gameRoom.gameLog.find((log) => log.presentation?.kind === "bishop_guard")?.presentation).toMatchObject({
+          kind: "bishop_guard",
+          actorPlayerId: "player-1",
+          roleId: "bishop"
+        });
+      }
+      if (testCase.roleId === "architect") {
+        expect(gameRoom.gameLog.find((log) => log.presentation?.kind === "architect_bonus")?.presentation).toMatchObject({
+          kind: "architect_bonus",
+          actorPlayerId: "player-1",
+          roleId: "architect",
+          cardCount: 2,
+          maxBuilds: 3
+        });
+      }
 
       const secondUse = useRoleSkill(gameRoom, { playerId: "player-1" });
       expect(secondUse).toEqual({

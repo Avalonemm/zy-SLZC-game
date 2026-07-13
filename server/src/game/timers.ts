@@ -51,7 +51,7 @@ function resolveExpiredRoleSelection(gameRoom: GameRoom): TimeoutResult {
   }
 
   const player = findPlayer(gameRoom, gameRoom.roleSelectionTurnPlayerId);
-  const role = gameRoom.availableRoles[0];
+  const role = pickRandomAvailableRole(gameRoom);
   if (!player || !role) {
     return { ok: false, error: "无法处理角色选择超时。" };
   }
@@ -76,6 +76,14 @@ function resolveExpiredRoleSelection(gameRoom: GameRoom): TimeoutResult {
     { origin: "timeout", autoReason: "role_selection_timeout" }
   );
   return { ok: true, timedOut: true };
+}
+
+function pickRandomAvailableRole(gameRoom: GameRoom) {
+  if (gameRoom.availableRoles.length === 0) {
+    return undefined;
+  }
+  const index = Math.floor(Math.random() * gameRoom.availableRoles.length);
+  return gameRoom.availableRoles[index];
 }
 
 function resolveExpiredRoleAction(gameRoom: GameRoom): TimeoutResult {

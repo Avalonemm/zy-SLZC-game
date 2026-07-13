@@ -51,6 +51,7 @@ export function GamePlayerMiniStatus(props: {
       <button
         className={className}
         data-player-id={props.player.id}
+        data-player-gold={props.player.gold}
         type="button"
         onClick={props.onClick}
         aria-label={`选择 ${props.player.name} 交换手牌`}
@@ -64,6 +65,7 @@ export function GamePlayerMiniStatus(props: {
     <div
       className={className}
       data-player-id={props.player.id}
+      data-player-gold={props.player.gold}
     >
       {body}
     </div>

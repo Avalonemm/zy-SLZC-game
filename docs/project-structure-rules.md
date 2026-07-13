@@ -44,7 +44,10 @@
 - `GameActionNoticeLayer.tsx`：与移动动画解耦的文字结果层，最多显示两条并按表现配置保留阅读时间。
 - `presentationTiming.ts`：金币 / 抽卡、普通行动、技能和阶段提示共用的唯一时长配置；CSS 动画必须读取这里下发的变量。
 - `useGameCommandFeedback.ts`、`GameCommandFeedbackToast.tsx`：对局命令的处理中、超时解锁和失败原因反馈，不把 Socket 确认逻辑散落进按钮组件。
-- `gameUiTuning.ts`、`GameUiTuningPanel.tsx`：V2 调参配置、人数密度预设、V1 迁移和组件间安全值计算；正式环境不注册调参入口。
+- `gameUiTuning.ts`、`GameUiTuningPanel.tsx`：V4 单份全局调参配置、旧版迁移、对手人数密度派生和组件间安全值计算；开发环境显示入口，已应用参数在普通对局中继续生效。
+- `GameSelectionOverlay.tsx`：抽牌与技能身份目标共用的选择层骨架，统一标题、说明、右上无框倒计时、遮罩和按钮区。
+- `GameRoleSelectionDock.tsx`：仅负责自己选身份时位于手牌上方的轻量浮窗；不得加入全桌遮罩，也不得展示其他玩家选择的具体身份。
+- `useBuildAnimationTransactions.ts`、`GameBuildAnimationLayer.tsx`：按建筑牌 ID 管理视觉先行的建造事务、权威成功提交、失败退回、迟到成功和对手建造移动；客户端不得借动画提前修改金币、手牌或城市状态。
 - `cardInspectorData.ts`：把角色 / 建筑公开信息转换为统一检视器数据属性，禁止把未公开身份或对手私有手牌送入检视器。
 - `GameActionDock.tsx`：角色选择、抽牌选择、行动阶段按钮、角色技能和建筑效果入口。
 - `GameCornerDocks.tsx`：游戏日志和聊天入口。
@@ -70,6 +73,7 @@
 - 自动操作必须使用 `player / bot / timeout / offline / rule` 来源，并通过 `server/src/game/gameEngineUtils.ts` 的上下文写入日志和表现事件。
 - 卡牌守恒检查集中在 `server/src/game/cardIntegrity.ts`，规则覆盖和 4–8 人固定种子模拟放在同目录测试中。
 - UI 极端场景只能通过 `ZY_ENABLE_UI_QA=1` 注册，生产环境不得暴露 `qa_configure_game`。
+- `registerSocketHandlers.ts` 维护每个房间唯一的服务端截止任务；任务必须以房间、阶段、玩家和 `deadlineAt` 四项重新核对后才能结算，客户端超时命令只作旧版兼容。
 - `scripts/run-regression.mjs` 负责快速与完整报告；本次启动的服务、页面和浏览器必须在 `finally` 中关闭，不能在桌面留下递归预览窗口。
 - `scripts/smoke-server-restart-recovery.mjs` 必须真实停止并重启服务，验证房间快照、恢复令牌和恢复后继续行动。
 - 正式卡图使用固定同名目录与 `VITE_CARD_FACE_MODE`，资源缺失必须回退程序卡面并由严格美术检查报告，不得伪装为已交付。
@@ -334,3 +338,16 @@
 - 单次任务原则上最多启动 1 到 2 个 subagent；短任务、同文件任务和需要频繁整合的任务不并行。
 - UI 调整优先采用“读取相关模块 -> 主 Agent 修改 -> 单个代表性视口验收 -> 构建检查”的轻量流程；完整多分辨率矩阵留到阶段性定稿。
 - 不重复扫描已确认的项目范围，不让多个 Agent 输出相同类型的分析，不为了形式上的分工增加 token 和等待时间。
+
+## 对局 UI 调音与安全验收补充
+
+- `gameUiTuning.ts` 使用 V4 单份全局配置：自己的手牌、名片、身份区、操作区、建筑区、中央区和预览尺寸只保存一次并应用于 4–8 人。
+- 对手区域也只保存一套基础参数；4 人保持完整尺寸、5–6 人轻度压缩、7–8 人紧凑压缩，低高度屏幕再派生一次临时安全值。派生值不得写回用户保存的全局值。
+- `?uiTune=1` 只负责显示开发调音面板。正式对局始终读取已经“保存并应用”的 V4 全局配置，没有配置时才回退安全默认值。
+- 开发环境的对局“设置”弹窗必须提供“UI 布局调试”入口，避免要求用户记忆查询参数；生产构建不得显示该入口。
+- 手牌安全宽度必须同时考虑左侧牌堆 / 名片 / 身份牌、右侧操作区、卡牌宽度、叠放距离和真实手牌数，不能只校验单个滑块范围。
+- 底部身份区、手牌轨道和弃牌 / 控制区是三个不可相交的硬区域；验收必须比较三个容器的实际矩形，不能只比较第一张可见手牌。
+- 技能身份目标和抽牌选择共用 `GameSelectionOverlay.tsx`。自己选择职业时使用 `GameRoleSelectionDock.tsx` 放在手牌上方，不使用全桌遮罩；两类倒计时均保持右上无边框。
+- 建造确认后的移动由 `useBuildAnimationTransactions.ts` 管理：先播放完整卡面，再根据服务端结果提交或退回。`GameSkillPresentationLayer.tsx` 不得再为 `build_district` 播放通用方块或重复建筑幻影。
+- 中央标题、阶段、当前玩家和倒计时保持固定坐标；行动文字位于其下方独立绝对提示槽，不得参与固定信息容器高度计算。
+- 极端手牌验收必须遵守卡牌守恒：按当前实际启用的建筑牌池轮流分完，最小正式人数与最大人数都要检查。扩展牌加入卡牌数据后，验收上限自动随牌池增长，禁止给每名玩家同时克隆 40 张牌。

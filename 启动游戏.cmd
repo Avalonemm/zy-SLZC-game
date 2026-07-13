@@ -1,6 +1,9 @@
 @echo off
 setlocal
-chcp 65001 >nul
 cd /d "%~dp0"
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start-dev.ps1"
-pause
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start-dev.ps1"
+if errorlevel 1 (
+  echo.
+  echo Startup failed. Keep this window open and review the error above.
+  pause
+)

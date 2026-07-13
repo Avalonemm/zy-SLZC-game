@@ -10,7 +10,7 @@ import { GameActionDock } from "./GameActionDock";
 import { GameCenterStatus } from "./GameCenterStatus";
 import { GameCornerDocks } from "./GameCornerDocks";
 import { GameOpponentSeat } from "./GameOpponentSeat";
-import { GameObjectiveNotice } from "./GameObjectiveNotice";
+import { GameOpeningSequence } from "./GameOpeningSequence";
 import { GameSelfArea } from "./GameSelfArea";
 import { GameSelfCity } from "./GameSelfCity";
 import { GameResultOverlay } from "../result/GameResultOverlay";
@@ -24,18 +24,22 @@ import { useTableDistrictTargeting } from "./useTableDistrictTargeting";
 import { legalRoleTargets, type RoleSkillTargeting } from "./roleSkillTargeting";
 import { GameCardInspector } from "./GameCardInspector";
 import { GameSkillPresentationLayer } from "./GameSkillPresentationLayer";
+import { GameBuildAnimationLayer } from "./GameBuildAnimationLayer";
+import { useBuildAnimationTransactions } from "./useBuildAnimationTransactions";
 import { GameActionNoticeLayer } from "./GameActionNoticeLayer";
 import { GameUiTuningPanel } from "./GameUiTuningPanel";
 import { GameCommandFeedbackToast } from "./GameCommandFeedbackToast";
 import type { GameCommandFeedback } from "./useGameCommandFeedback";
 import {
   canShowUiTuningPanel,
+  clampGameUiTuning,
+  clearStoredGameUiTuning,
   defaultGameUiTuning,
   densityForPlayerCount,
-  GAME_UI_TUNING_STORAGE_KEY,
   gameUiTuningStyle,
   readStoredGameUiTuning,
-  resolveSafeGameUiTuning
+  resolveSafeGameUiTuning,
+  saveStoredGameUiTuning
 } from "./gameUiTuning";
 
 export type GameTableViewProps = {
@@ -48,14 +52,13 @@ export type GameTableViewProps = {
   selfAvatarImage: string | null;
   selfAvatarLabel: string;
   onDismissCommandFeedback: () => void;
-  onBuildDistrict: (districtCardId: string) => void;
+  onBuildDistrict: (districtCardId: string) => boolean;
   onChooseDrawnCard: (districtCardId: string) => void;
   onDrawCards: () => void;
   onEndTurn: () => void;
   onLeaveRoom: () => void;
   onRematch: () => void;
   onOpenInfoModal: (modal: InfoModalId) => void;
-  onResolveTurnTimeout: () => void;
   onResolveGraveyardChoice: (buyBack: boolean) => void;
   onSendChatMessage: (message: string) => void;
   onSelectRole: (roleId: string) => void;
@@ -84,20 +87,34 @@ export function GameTableView(props: GameTableViewProps) {
   const [districtEffectDiscardCardId, setDistrictEffectDiscardCardId] = useState<string | null>(null);
   const [roleSkillTargeting, setRoleSkillTargeting] = useState<RoleSkillTargeting | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [objectiveIntroVisible, setObjectiveIntroVisible] = useState(false);
   const [tuningSafetyMessages, setTuningSafetyMessages] = useState<string[]>([]);
+  const [viewport, setViewport] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
   const density = densityForPlayerCount(props.gameState.players.length);
-  const tuningDefaults = useMemo(
-    () => defaultGameUiTuning(props.gameState.players.length, window.innerHeight <= 720),
-    [props.gameState.players.length]
-  );
+  const tuningDefaults = useMemo(() => defaultGameUiTuning(), []);
   const tuningPanelVisible = canShowUiTuningPanel();
-  const [uiTuning, setUiTuning] = useState(() => readStoredGameUiTuning(tuningDefaults));
+  const initialStoredTuning = useMemo(
+    () => readStoredGameUiTuning(tuningDefaults, density),
+    [density, tuningDefaults]
+  );
+  const [uiTuning, setUiTuning] = useState(() => initialStoredTuning.config);
+  const [appliedUiTuning, setAppliedUiTuning] = useState(() => initialStoredTuning.config);
+  const [hasAppliedUiTuning, setHasAppliedUiTuning] = useState(() => initialStoredTuning.hasApplied);
+  const [uiTuningDirty, setUiTuningDirty] = useState(false);
   const gameShellRef = useRef<HTMLElement>(null);
   const gameTableRef = useRef<HTMLElement>(null);
   const tableTargeting = useTableDistrictTargeting();
-  const lastResolvedDeadlineRef = useRef<string | null>(null);
   const viewModel = useGameViewModel({ gameState: props.gameState, playerId: props.playerId });
+  const buildAnimations = useBuildAnimationTransactions({
+    actionEvents: props.actionEvents,
+    commandFeedback: props.commandFeedback,
+    gameState: props.gameState,
+    selfPlayerId: props.playerId,
+    tableRef: gameTableRef
+  });
+  const buildArrivalHighlightIds = useMemo(
+    () => new Set(buildAnimations.arrivalHighlights),
+    [buildAnimations.arrivalHighlights]
+  );
   const districtEffectCard =
     viewModel.self?.city.find((card) => card.id === districtEffectCardId) ?? null;
   const usedDistrictEffectIds = viewModel.turnState?.usedDistrictEffectIds ?? [];
@@ -109,6 +126,21 @@ export function GameTableView(props: GameTableViewProps) {
       ? districtEffectDiscardCardId && viewModel.self?.hand?.some((card) => card.id === districtEffectDiscardCardId)
       : districtEffectCard.effectType === "pay_gold_draw_cards" && (viewModel.self?.gold ?? 0) >= 2)
   );
+
+  useEffect(() => {
+    const updateViewport = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener("resize", updateViewport);
+    return () => window.removeEventListener("resize", updateViewport);
+  }, []);
+
+  useEffect(() => {
+    const stored = readStoredGameUiTuning(tuningDefaults, density);
+    setUiTuning(stored.config);
+    setAppliedUiTuning(stored.config);
+    setHasAppliedUiTuning(stored.hasApplied);
+    setUiTuningDirty(false);
+    setTuningSafetyMessages([]);
+  }, [density, tuningDefaults]);
   const tableSeats = useMemo(
     () => arrangeGameTableSeats(props.gameState.players, props.playerId),
     [props.gameState.players, props.playerId]
@@ -125,52 +157,6 @@ export function GameTableView(props: GameTableViewProps) {
     const intervalId = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(intervalId);
   }, []);
-
-  useEffect(() => {
-    const storageKey = `citadel-objective-intro:${props.gameState.roomId}`;
-    const shouldShow =
-      props.gameState.currentRound === 1 &&
-      window.sessionStorage.getItem(storageKey) !== "seen";
-
-    if (!shouldShow) {
-      setObjectiveIntroVisible(false);
-      return;
-    }
-
-    setObjectiveIntroVisible(true);
-    const timeoutId = window.setTimeout(() => {
-      window.sessionStorage.setItem(storageKey, "seen");
-      setObjectiveIntroVisible(false);
-    }, 4200);
-    return () => window.clearTimeout(timeoutId);
-  }, [props.gameState.roomId]);
-
-  useEffect(() => {
-    if (props.gameState.currentRound > 1) {
-      setObjectiveIntroVisible(false);
-    }
-  }, [props.gameState.currentRound]);
-
-  useEffect(() => {
-    lastResolvedDeadlineRef.current = null;
-  }, [timerDeadlineAt]);
-
-  useEffect(() => {
-    if (!timerDeadlineAt || remainingSeconds === null || remainingSeconds > 0) {
-      return;
-    }
-    if (lastResolvedDeadlineRef.current === timerDeadlineAt) {
-      return;
-    }
-    const timerPlayer = props.gameState.players.find(
-      (player) => player.id === props.gameState.turnTimer?.playerId
-    );
-    if (timerPlayer?.isBot) {
-      return;
-    }
-    lastResolvedDeadlineRef.current = timerDeadlineAt;
-    props.onResolveTurnTimeout();
-  }, [props, remainingSeconds, timerDeadlineAt]);
 
   function requestBuildDistrict(district: BuildableDistrictCard) {
     tableTargeting.cancel();
@@ -420,7 +406,10 @@ export function GameTableView(props: GameTableViewProps) {
       return;
     }
     if (pendingConfirm.type === "build") {
-      props.onBuildDistrict(pendingConfirm.district.id);
+      buildAnimations.beginSelfBuild(
+        pendingConfirm.district,
+        () => props.onBuildDistrict(pendingConfirm.district.id)
+      );
     } else if (pendingConfirm.type === "magician-swap") {
       props.onUseSkill({ targetPlayerId: pendingConfirm.targetPlayerId });
       setRoleSkillTargeting(null);
@@ -434,54 +423,72 @@ export function GameTableView(props: GameTableViewProps) {
     setPendingConfirm(null);
   }
 
+  const layoutContext = {
+    viewportWidth: viewport.width,
+    viewportHeight: viewport.height,
+    playerCount: props.gameState.players.length,
+    handCount: viewModel.self?.handCount ?? 0
+  };
+  const resolvedDraftTuning = resolveSafeGameUiTuning(uiTuning, layoutContext);
+  const resolvedAppliedTuning = resolveSafeGameUiTuning(appliedUiTuning, layoutContext);
+  const displayedUiTuning = tuningPanelVisible ? resolvedDraftTuning.config : resolvedAppliedTuning.config;
+  const openingVisible = props.gameState.phase === "CROWN_REVEAL";
+
   function updateUiTuning(nextConfig: typeof uiTuning) {
-    const resolved = resolveSafeGameUiTuning(
-      nextConfig,
-      window.innerWidth,
-      window.innerHeight <= 720
-    );
-    setUiTuning(resolved.config);
-    setTuningSafetyMessages(resolved.corrections);
-    window.localStorage.setItem(GAME_UI_TUNING_STORAGE_KEY, JSON.stringify(resolved.config));
+    const rawConfig = clampGameUiTuning(nextConfig);
+    setUiTuning(rawConfig);
+    setUiTuningDirty(true);
+    setTuningSafetyMessages(resolveSafeGameUiTuning(rawConfig, layoutContext).corrections);
   }
 
-  const appliedUiTuning = tuningPanelVisible ? uiTuning : tuningDefaults;
+  function applyUiTuning() {
+    const rawConfig = clampGameUiTuning(uiTuning);
+    saveStoredGameUiTuning(rawConfig);
+    setUiTuning(rawConfig);
+    setAppliedUiTuning(rawConfig);
+    setHasAppliedUiTuning(true);
+    setUiTuningDirty(false);
+    setTuningSafetyMessages(resolveSafeGameUiTuning(rawConfig, layoutContext).corrections);
+  }
 
   return (
     <section
       ref={gameShellRef}
-      className={`citadel-game-shell citadel-game-shell--players-${props.gameState.players.length} citadel-game-shell--density-${density} ${pendingConfirm ? "citadel-game-shell--confirming" : ""} ${districtEffectCard ? "citadel-game-shell--hand-choice" : ""} ${tableTargeting.source ? "citadel-game-shell--table-targeting" : ""} ${objectiveIntroVisible ? "citadel-game-shell--objective-intro" : ""} ${props.gameState.pendingDrawChoice ? "citadel-game-shell--draw-choice" : ""} ${tuningPanelVisible && uiTuning.showBounds ? "ui-show-bounds" : ""}`}
+      className={`citadel-game-shell citadel-game-shell--players-${props.gameState.players.length} citadel-game-shell--density-${density} ${pendingConfirm ? "citadel-game-shell--confirming" : ""} ${districtEffectCard ? "citadel-game-shell--hand-choice" : ""} ${tableTargeting.source ? "citadel-game-shell--table-targeting" : ""} ${openingVisible ? "citadel-game-shell--objective-intro citadel-game-shell--opening" : ""} ${props.gameState.pendingDrawChoice ? "citadel-game-shell--draw-choice" : ""} ${tuningPanelVisible && uiTuning.showBounds ? "ui-show-bounds" : ""}`}
       data-crown-player-id={props.gameState.crownPlayerId}
       aria-busy={Boolean(props.pendingCommand)}
-      style={gameUiTuningStyle(appliedUiTuning)}
+      style={gameUiTuningStyle(displayedUiTuning)}
     >
       {tuningPanelVisible && (
         <GameUiTuningPanel
           config={uiTuning}
-          density={density}
+          dirty={uiTuningDirty}
+          hasApplied={hasAppliedUiTuning}
           safetyMessages={tuningSafetyMessages}
           onChange={updateUiTuning}
+          onApply={applyUiTuning}
           onReset={() => {
-            window.localStorage.removeItem(GAME_UI_TUNING_STORAGE_KEY);
+            clearStoredGameUiTuning();
             setUiTuning(tuningDefaults);
+            setAppliedUiTuning(tuningDefaults);
+            setHasAppliedUiTuning(false);
+            setUiTuningDirty(false);
             setTuningSafetyMessages([]);
           }}
         />
       )}
       <GameTopBar
         gameState={props.gameState}
-        objectiveIntroVisible={objectiveIntroVisible}
+        objectiveIntroVisible={openingVisible}
         onLeaveRoom={props.onLeaveRoom}
         onOpenInfoModal={props.onOpenInfoModal}
       />
       <main ref={gameTableRef} className="citadel-game-table" aria-label={"\u5bf9\u5c40\u684c\u9762"}>
         <div className="citadel-game-board" aria-hidden="true" />
-        <GameObjectiveNotice
-          endCitySize={props.gameState.settings.endCitySize}
-          visible={objectiveIntroVisible}
-        />
+        <GameOpeningSequence gameState={props.gameState} tableRef={gameTableRef} />
         {tableSeats.opponents.map((seat) => (
           <GameOpponentSeat
+            arrivalHighlightCardIds={buildArrivalHighlightIds}
             key={seat.player.id}
             dense={
               props.gameState.players.length >= 7 &&
@@ -489,6 +496,7 @@ export function GameTableView(props: GameTableViewProps) {
             }
             hasCrown={seat.player.id === props.gameState.crownPlayerId}
             currentTurnPlayerId={props.gameState.currentTurnPlayerId}
+            hiddenDistrictCardIds={buildAnimations.hiddenDistrictCardIds}
             districtTargeting={Boolean(tableTargeting.source)}
             playerTargeting={roleSkillTargeting?.kind === "magician-player"}
             playerTargetSelected={
@@ -509,20 +517,26 @@ export function GameTableView(props: GameTableViewProps) {
             onSelectPlayerTarget={() => requestMagicianPlayerTarget(seat.player)}
             player={seat.player}
             position={seat.position}
-            handStackDepth={appliedUiTuning.opponentHandStackDepth}
+            handStackDepth={displayedUiTuning.opponentHandStackDepth}
           />
         ))}
-        <GameCenterStatus
-          currentTurnName={viewModel.currentTurnName}
-          gameState={props.gameState}
-          remainingSeconds={remainingSeconds}
-          roleSelectionTurnName={viewModel.roleSelectionTurnName}
-        />
+        <div className="citadel-center-feedback-rail">
+          <GameCenterStatus
+            currentTurnName={viewModel.currentTurnName}
+            gameState={props.gameState}
+            remainingSeconds={remainingSeconds}
+            roleSelectionTurnName={viewModel.roleSelectionTurnName}
+          />
+          <GameActionNoticeLayer actionEvents={props.actionEvents} gameState={props.gameState} />
+        </div>
         {tableSeats.self && (
           <GameSelfCity
             activeDistrictCardId={districtEffectCardId}
+            arrivalHighlightCardIds={buildArrivalHighlightIds}
             canUseDistrictEffects={viewModel.isMyTurn && !pendingConfirm && !tableTargeting.source && !roleSkillTargeting && !props.gameState.pendingDrawChoice}
             city={tableSeats.self.city ?? []}
+            hiddenDistrictCardIds={buildAnimations.hiddenDistrictCardIds}
+            pendingBuildCards={buildAnimations.pendingSelfCards}
             usedDistrictEffectIds={usedDistrictEffectIds}
             onSelectDistrictEffect={requestDistrictEffect}
           />
@@ -537,6 +551,7 @@ export function GameTableView(props: GameTableViewProps) {
             districtEffectDiscardCardId={districtEffectDiscardCardId}
             magicianDiscardSelection={roleSkillTargeting?.kind === "magician-discard"}
             magicianDiscardCardIds={viewModel.discardCardIds}
+            pendingBuildCardIds={buildAnimations.pendingSelfCardIds}
             gameState={props.gameState}
             hasCrown={tableSeats.self.id === props.gameState.crownPlayerId}
             self={tableSeats.self}
@@ -615,7 +630,11 @@ export function GameTableView(props: GameTableViewProps) {
           selfPlayerId={props.playerId}
           tableRef={gameTableRef}
         />
-        <GameActionNoticeLayer actionEvents={props.actionEvents} />
+        <GameBuildAnimationLayer
+          tableRef={gameTableRef}
+          transactions={buildAnimations.transactions}
+          onFinish={buildAnimations.finishTransaction}
+        />
         {props.gameState.phase === "ENDED" && viewModel.scoringResults.length > 0 && (
           <GameResultOverlay
             avatarImage={props.selfAvatarImage}
@@ -671,7 +690,7 @@ export function GameTableView(props: GameTableViewProps) {
           onConfirm={() => props.onResolveGraveyardChoice(true)}
         />
       )}
-      <GameCardInspector rootRef={gameShellRef} />
+      <GameCardInspector previewScale={displayedUiTuning.cardPreviewScale} rootRef={gameShellRef} />
     </section>
   );
 }

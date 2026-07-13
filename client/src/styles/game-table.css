@@ -151,6 +151,10 @@
   display: none;
 }
 
+.citadel-game-shell:has(.citadel-selection-layer) .citadel-game-topbar {
+  z-index: 74;
+}
+
 .citadel-game-topbar {
   position: absolute;
   z-index: 30;
@@ -1108,6 +1112,25 @@ button.citadel-player-mini {
 .citadel-action-button--draw {
   background: linear-gradient(180deg, #167264, #0b463e);
   color: #f5edcf;
+}
+
+.citadel-action-button--skill-income {
+  display: inline-grid;
+  place-content: center;
+  gap: 3px;
+  min-height: clamp(38px, 3.25vw, 52px);
+  padding-block: 5px;
+}
+
+.citadel-action-button--skill-income > small {
+  color: rgb(255 225 158 / 88%);
+  font-size: clamp(0.54rem, 0.62vw, 0.68rem);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.citadel-action-button--skill-income:disabled > small {
+  color: currentColor;
 }
 
 .citadel-action-button:hover:not(:disabled),
@@ -3380,13 +3403,6 @@ button.citadel-player-mini {
     left: 67%;
   }
 
-  .citadel-hand-zone:has(.citadel-hand-card:nth-child(7)) .citadel-hand-card + .citadel-hand-card {
-    margin-left: -22px;
-  }
-
-  .citadel-hand-zone:has(.citadel-hand-card:nth-child(9)) .citadel-hand-card + .citadel-hand-card {
-    margin-left: -34px;
-  }
 }
 
 /* Focused skill targeting must stay above the hand-selection prompt. */

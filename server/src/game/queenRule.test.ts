@@ -66,6 +66,13 @@ describe("queen rule", () => {
 
     expect(resolveQueenIncome(gameRoom, queen, { atRoundEnd: false })).toBe(true);
     expect(queen.gold).toBe(initialGold + 3);
+    expect(gameRoom.gameLog[0].presentation).toMatchObject({
+      kind: "queen_income",
+      actorPlayerId: queen.id,
+      targetPlayerId: gameRoom.players[7].id,
+      roleId: "queen",
+      amount: 3
+    });
     expect(resolveQueenIncome(gameRoom, queen, { atRoundEnd: false })).toBe(false);
     expect(queen.gold).toBe(initialGold + 3);
   });

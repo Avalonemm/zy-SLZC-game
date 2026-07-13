@@ -3,8 +3,10 @@ import type { GameCommandAck, GameCommandResult } from "@zy/shared";
 
 export type GameCommandFeedback = {
   id: number;
+  commandKey?: string;
   kind: "error" | "info";
   message: string;
+  reason?: "rejected" | "timeout";
 };
 
 type SendGameCommand = (ack: GameCommandAck) => void;
@@ -25,20 +27,6 @@ export function useGameCommandFeedback() {
     }
   }, []);
 
-  const finishCommand = useCallback((result: GameCommandResult) => {
-    clearTimer();
-    pendingRef.current = null;
-    setPendingCommand(null);
-    if (!result.ok) {
-      feedbackIdRef.current += 1;
-      setFeedback({
-        id: feedbackIdRef.current,
-        kind: "error",
-        message: result.error || "操作失败，请重试。"
-      });
-    }
-  }, [clearTimer]);
-
   const runCommand = useCallback((key: string, label: string, send: SendGameCommand) => {
     if (pendingRef.current) {
       return false;
@@ -47,23 +35,49 @@ export function useGameCommandFeedback() {
     pendingRef.current = key;
     setPendingCommand(key);
     clearTimer();
-    timeoutRef.current = window.setTimeout(() => {
+
+    const finishCommand = (result: GameCommandResult) => {
+      if (pendingRef.current !== key) {
+        return;
+      }
+      clearTimer();
       pendingRef.current = null;
       setPendingCommand(null);
+      if (!result.ok) {
+        feedbackIdRef.current += 1;
+        setFeedback({
+          id: feedbackIdRef.current,
+          commandKey: key,
+          kind: "error",
+          message: result.error || "操作失败，请重试。",
+          reason: "rejected"
+        });
+      }
+    };
+
+    timeoutRef.current = window.setTimeout(() => {
+      if (pendingRef.current !== key) {
+        return;
+      }
+      pendingRef.current = null;
+      setPendingCommand(null);
+      timeoutRef.current = null;
       feedbackIdRef.current += 1;
       setFeedback({
         id: feedbackIdRef.current,
+        commandKey: key,
         kind: "error",
-        message: `${label}未收到服务器确认，请检查连接后重试。`
+        message: `${label}结果尚未确认，已恢复界面；请检查连接后重试。`,
+        reason: "timeout"
       });
     }, COMMAND_TIMEOUT_MS);
     send(finishCommand);
     return true;
-  }, [clearTimer, finishCommand]);
+  }, [clearTimer]);
 
   const showError = useCallback((message: string) => {
     feedbackIdRef.current += 1;
-    setFeedback({ id: feedbackIdRef.current, kind: "error", message });
+    setFeedback({ id: feedbackIdRef.current, kind: "error", message, reason: "rejected" });
   }, []);
 
   const dismissFeedback = useCallback(() => setFeedback(null), []);

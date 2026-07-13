@@ -49,11 +49,23 @@ const roomSnapshotStore = createRoomSnapshotStore();
 const roomManager = createRoomManager(roomSnapshotStore.load());
 let nextUid = 100001;
 const botTurnTimers = new Map<string, ReturnType<typeof setTimeout>>();
-const crownRevealTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const turnDeadlineTimers = new Map<string, {
+  deadlineAt: string;
+  phase: string;
+  playerId: string;
+  timeout: ReturnType<typeof setTimeout>;
+}>();
 const socketRateWindows = new Map<string, Map<string, number[]>>();
+const qaNextBuildOutcomes = new Map<string, "reject" | "timeout">();
 const cleanupTimer = setInterval(() => {
   const removed = roomManager.cleanupInactiveRooms();
-  if (removed.length > 0) persistRoomSnapshot();
+  if (removed.length > 0) {
+    for (const roomCode of removed) {
+      clearTurnDeadlineTimer(roomCode);
+      clearBotTurnTimer(roomCode);
+    }
+    persistRoomSnapshot();
+  }
 }, 60 * 60 * 1000);
 cleanupTimer.unref();
 
@@ -196,7 +208,7 @@ export function registerSocketHandlers(io: GameServer) {
       broadcastRoomState(io, result.room);
       if (result.gameRoom) {
         broadcastGameState(result.gameRoom);
-        scheduleCrownReveal(result.gameRoom);
+        scheduleBotTurn(result.gameRoom);
       }
       console.log(`[room] player ${result.player.id} reconnected to room ${result.room.roomCode}`);
     });
@@ -239,7 +251,6 @@ export function registerSocketHandlers(io: GameServer) {
 
       broadcastRoomState(io, result.room);
       broadcastGameState(result.gameRoom);
-      scheduleCrownReveal(result.gameRoom);
       scheduleBotTurn(result.gameRoom);
       console.log(`[room] room ${result.room.roomCode} marked as started`);
     });
@@ -260,7 +271,7 @@ export function registerSocketHandlers(io: GameServer) {
         return;
       }
 
-      clearCrownRevealTimer(result.room.roomCode);
+      clearTurnDeadlineTimer(result.room.roomCode);
       clearBotTurnTimer(result.room.roomCode);
       io.to(result.room.roomCode).emit("returned_to_ready_room", {
         roomCode: result.room.roomCode
@@ -434,6 +445,16 @@ export function registerSocketHandlers(io: GameServer) {
     });
 
     socket.on("build_district", (payload, ack) => {
+      if (process.env.ZY_ENABLE_UI_QA === "1") {
+        const qaOutcome = qaNextBuildOutcomes.get(payload.roomCode);
+        if (qaOutcome) {
+          qaNextBuildOutcomes.delete(payload.roomCode);
+          if (qaOutcome === "reject") {
+            reportGameCommandError(socket, ack, "验收模拟：服务器拒绝了本次建造。");
+          }
+          return;
+        }
+      }
       handleGameAction(socket, payload.roomCode, (playerId) =>
         buildDistrictOrError({
           roomCode: payload.roomCode,
@@ -509,6 +530,10 @@ export function registerSocketHandlers(io: GameServer) {
           reportGameCommandError(socket, ack, "游戏房间不存在。");
           return;
         }
+        const qaOptions = payload as typeof payload & {
+          incomeRoleId?: string;
+          triggerOpponentBuildIndex?: number;
+        };
         const cards = loadDistrictCards();
         const cloneCards = (count: number, prefix: string) => Array.from({ length: count }, (_, index) => ({
           ...cards[index % cards.length],
@@ -518,16 +543,62 @@ export function registerSocketHandlers(io: GameServer) {
           const existingRolePlayer = gameRoom.players.find(
             (player) => player.selectedRoleId === payload.ensureSelectedRoleId
           );
-          if (!existingRolePlayer) {
-            const target = gameRoom.players.find((player) => player.id !== payload.playerId);
-            if (target) target.selectedRoleId = payload.ensureSelectedRoleId;
+          const target = gameRoom.players.find((player) => player.id !== payload.playerId);
+          if (target && existingRolePlayer?.id !== target.id) {
+            const replacedRoleId = target.selectedRoleId;
+            target.selectedRoleId = payload.ensureSelectedRoleId;
+            if (existingRolePlayer) existingRolePlayer.selectedRoleId = replacedRoleId;
           }
         }
-        if (
+        if (payload.forceSelfRoleSelectionTurn && gameRoom.phase === "ROLE_SELECTION") {
+          gameRoom.roleSelectionOrder = [
+            payload.playerId,
+            ...gameRoom.roleSelectionOrder.filter((playerId) => playerId !== payload.playerId)
+          ];
+          gameRoom.roleSelectionTurnPlayerId = payload.playerId;
+        }
+        if (payload.deadlineMs !== undefined && gameRoom.turnTimer) {
+          const timeoutMs = Math.max(80, Math.min(10_000, Math.floor(payload.deadlineMs)));
+          const startedAt = new Date().toISOString();
+          const deadlineAt = new Date(Date.now() + timeoutMs).toISOString();
+          gameRoom.turnTimer = {
+            phase: gameRoom.turnTimer.phase,
+            playerId: gameRoom.phase === "ROLE_SELECTION"
+              ? gameRoom.roleSelectionTurnPlayerId ?? gameRoom.turnTimer.playerId
+              : gameRoom.turnTimer.playerId,
+            startedAt,
+            deadlineAt,
+            timeoutMs
+          };
+          if (gameRoom.turnState && gameRoom.turnTimer.phase === "ROLE_ACTION") {
+            gameRoom.turnState.startedAt = startedAt;
+            gameRoom.turnState.deadlineAt = deadlineAt;
+            gameRoom.turnState.timeoutMs = timeoutMs;
+          }
+        }
+        if (payload.nextBuildOutcome) {
+          qaNextBuildOutcomes.set(payload.roomCode, payload.nextBuildOutcome);
+        }
+        if (payload.distributionMode === "drain-deck-round-robin") {
+          const configuredCards = loadDistrictCards();
+          gameRoom.districtDeck = [];
+          gameRoom.districtDiscardPile = [];
+          gameRoom.pendingDrawChoice = null;
+          gameRoom.pendingGraveyardChoice = null;
+          for (const player of gameRoom.players) {
+            player.gold = 99;
+            player.hand = [];
+            player.city = [];
+          }
+          configuredCards.forEach((card, index) => {
+            gameRoom.players[index % gameRoom.players.length].hand.push({ ...card });
+          });
+        }
+        if (payload.distributionMode !== "drain-deck-round-robin" && (
           payload.selfHandCount !== undefined ||
           payload.opponentHandCount !== undefined ||
           payload.cityCount !== undefined
-        ) {
+        )) {
           const selfHandCount = Math.max(0, Math.min(40, Math.floor(payload.selfHandCount ?? 4)));
           const opponentHandCount = Math.max(0, Math.min(40, Math.floor(payload.opponentHandCount ?? 4)));
           const cityCount = Math.max(0, Math.min(8, Math.floor(payload.cityCount ?? 0)));
@@ -539,6 +610,79 @@ export function registerSocketHandlers(io: GameServer) {
             );
             player.city = cloneCards(cityCount, `${player.id}-city`);
           }
+        }
+        if (qaOptions.incomeRoleId) {
+          const incomeColorByRoleId = {
+            king: "yellow",
+            bishop: "blue",
+            merchant: "green",
+            warlord: "red"
+          } as const;
+          const color = incomeColorByRoleId[qaOptions.incomeRoleId as keyof typeof incomeColorByRoleId];
+          const self = gameRoom.players.find((player) => player.id === payload.playerId);
+          const coloredCard = color ? cards.find((card) => card.color === color) : null;
+          const schoolOfMagic = cards.find((card) => card.effectType === "wildcard_income_color");
+          if (self && color && coloredCard && schoolOfMagic) {
+            self.city = [
+              { ...coloredCard, id: `qa-income-${qaOptions.incomeRoleId}-${coloredCard.id}` },
+              { ...schoolOfMagic, id: `qa-income-${qaOptions.incomeRoleId}-${schoolOfMagic.id}` }
+            ];
+            self.gold = 20;
+          }
+        }
+        if (qaOptions.triggerOpponentBuildIndex !== undefined) {
+          const opponents = gameRoom.players.filter((player) => player.id !== payload.playerId);
+          const requestedIndex = Math.max(
+            0,
+            Math.min(opponents.length - 1, Math.floor(qaOptions.triggerOpponentBuildIndex))
+          );
+          const actor = opponents[requestedIndex];
+          const card = actor?.hand.find(
+            (candidate) => !actor.city.some((district) => district.name === candidate.name)
+          );
+          if (!actor || !card) {
+            reportGameCommandError(socket, ack, "验收场景没有可供对手建造的建筑牌。");
+            return;
+          }
+          const now = Date.now();
+          actor.gold = Math.max(actor.gold, 99);
+          gameRoom.phase = "ROLE_ACTION";
+          gameRoom.currentTurnPlayerId = actor.id;
+          gameRoom.pendingDrawChoice = null;
+          gameRoom.pendingGraveyardChoice = null;
+          gameRoom.turnState = {
+            playerId: actor.id,
+            resourceActionTaken: true,
+            actionStep: "ACTION",
+            buildsUsed: 0,
+            maxBuilds: 1,
+            startedAt: new Date(now).toISOString(),
+            deadlineAt: new Date(now + 60_000).toISOString(),
+            timeoutMs: 60_000,
+            usedDistrictEffectIds: []
+          };
+          gameRoom.turnTimer = {
+            phase: "ROLE_ACTION",
+            playerId: actor.id,
+            startedAt: new Date(now).toISOString(),
+            deadlineAt: new Date(now + 60_000).toISOString(),
+            timeoutMs: 60_000
+          };
+          const previousLogId = gameRoom.gameLog[0]?.id;
+          const result: ActionResult = withActionEvents(
+            gameRoom,
+            buildDistrict(gameRoom, { playerId: actor.id, districtCardId: card.id }),
+            actor.id,
+            previousLogId
+          );
+          if (!result.ok) {
+            reportGameCommandError(socket, ack, result.error ?? "验收模拟对手建造失败。");
+            return;
+          }
+          broadcastActionEvents(result.actionEvents);
+          broadcastGameState(gameRoom);
+          ack?.({ ok: true });
+          return;
         }
         broadcastGameState(gameRoom);
         ack?.({ ok: true });
@@ -882,40 +1026,87 @@ export function registerSocketHandlers(io: GameServer) {
 
       io.to(player.socketId).emit("game_state", visibleStateForPlayer(gameRoom, player.id));
     }
+    scheduleTurnDeadline(gameRoom);
     persistRoomSnapshot();
   }
 
-  function scheduleCrownReveal(gameRoom: NonNullable<ReturnType<typeof roomManager.getGameRoom>>) {
+  function scheduleTurnDeadline(gameRoom: NonNullable<ReturnType<typeof roomManager.getGameRoom>>) {
     const roomCode = gameRoom.roomId;
-    if (gameRoom.phase !== "CROWN_REVEAL" || gameRoom.turnTimer?.phase !== "CROWN_REVEAL") {
-      clearCrownRevealTimer(roomCode);
+    const timer = gameRoom.turnTimer;
+    if (!timer) {
+      clearTurnDeadlineTimer(roomCode);
       return;
     }
 
-    if (crownRevealTimers.has(roomCode)) {
+    const timerPlayer = gameRoom.players.find((player) => player.id === timer.playerId);
+    if (timer.phase !== "CROWN_REVEAL" && timerPlayer?.isBot) {
+      clearTurnDeadlineTimer(roomCode);
       return;
     }
 
-    const delayMs = Math.max(0, new Date(gameRoom.turnTimer.deadlineAt).getTime() - Date.now());
+    const existing = turnDeadlineTimers.get(roomCode);
+    if (
+      existing?.deadlineAt === timer.deadlineAt &&
+      existing.phase === timer.phase &&
+      existing.playerId === timer.playerId
+    ) {
+      return;
+    }
+    clearTurnDeadlineTimer(roomCode);
+
+    const scheduledIdentity = {
+      deadlineAt: timer.deadlineAt,
+      phase: timer.phase,
+      playerId: timer.playerId
+    };
+    const delayMs = Math.max(0, new Date(timer.deadlineAt).getTime() - Date.now());
     const timeout = setTimeout(() => {
-      crownRevealTimers.delete(roomCode);
+      const scheduled = turnDeadlineTimers.get(roomCode);
+      if (
+        !scheduled ||
+        scheduled.deadlineAt !== scheduledIdentity.deadlineAt ||
+        scheduled.phase !== scheduledIdentity.phase ||
+        scheduled.playerId !== scheduledIdentity.playerId
+      ) {
+        return;
+      }
+      turnDeadlineTimers.delete(roomCode);
+
       const latestGameRoom = roomManager.getGameRoom(roomCode);
       if (!latestGameRoom) {
         return;
       }
-
-      const result = resolveExpiredTurn(latestGameRoom);
-      if (!result.ok) {
-        io.to(roomCode).emit("error_message", { message: result.error });
-        broadcastGameState(latestGameRoom);
+      const latestTimer = latestGameRoom.turnTimer;
+      if (
+        !latestTimer ||
+        latestTimer.deadlineAt !== scheduledIdentity.deadlineAt ||
+        latestTimer.phase !== scheduledIdentity.phase ||
+        latestTimer.playerId !== scheduledIdentity.playerId
+      ) {
+        scheduleTurnDeadline(latestGameRoom);
         return;
       }
 
+      const previousLogId = latestGameRoom.gameLog[0]?.id;
+      const result = resolveExpiredTurn(latestGameRoom);
+      if (!result.ok) {
+        io.to(roomCode).emit("error_message", { message: result.error });
+        persistRoomSnapshot();
+        return;
+      }
+
+      if (result.timedOut) {
+        broadcastActionEvents(createActionEventsFromLogs(
+          latestGameRoom,
+          newLogsSince(latestGameRoom, previousLogId),
+          { actorPlayerId: scheduledIdentity.playerId }
+        ));
+      }
       broadcastGameState(latestGameRoom);
       scheduleBotTurn(latestGameRoom);
     }, delayMs);
 
-    crownRevealTimers.set(roomCode, timeout);
+    turnDeadlineTimers.set(roomCode, { ...scheduledIdentity, timeout });
   }
   function scheduleBotTurn(gameRoom: NonNullable<ReturnType<typeof roomManager.getGameRoom>>) {
     const roomCode = gameRoom.roomId;
@@ -977,13 +1168,18 @@ export function registerSocketHandlers(io: GameServer) {
     return null;
   }
 
+  for (const recoveredGameRoom of roomManager.exportSnapshot().gameRooms) {
+    scheduleTurnDeadline(recoveredGameRoom);
+    scheduleBotTurn(recoveredGameRoom);
+  }
+
 }
 
-function clearCrownRevealTimer(roomCode: string) {
-  const timer = crownRevealTimers.get(roomCode);
-  if (timer) {
-    clearTimeout(timer);
-    crownRevealTimers.delete(roomCode);
+function clearTurnDeadlineTimer(roomCode: string) {
+  const scheduled = turnDeadlineTimers.get(roomCode);
+  if (scheduled) {
+    clearTimeout(scheduled.timeout);
+    turnDeadlineTimers.delete(roomCode);
   }
 }
 function clearBotTurnTimer(roomCode: string) {
