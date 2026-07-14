@@ -26,6 +26,9 @@ const labels: Record<NumericKey, string> = {
   actionDockRight: "操作台向左位置",
   actionDockBottom: "操作台底边距",
   cardPreviewScale: "卡牌预览大小",
+  activeRoleCardWidth: "行动身份牌大小",
+  scoreStripScale: "顶部积分条大小",
+  cornerDockLength: "日志聊天折叠长度",
   centerTop: "中央信息高度",
   cityTop: "自己的建筑高度",
   actionTop: "窄屏操作区高度",
@@ -40,7 +43,10 @@ const quickKeys: NumericKey[] = [
   "opponentHandWidth",
   "opponentDistrictWidth",
   "actionDockWidth",
-  "cardPreviewScale"
+  "cardPreviewScale",
+  "activeRoleCardWidth",
+  "scoreStripScale",
+  "cornerDockLength"
 ];
 
 const advancedKeys = (Object.keys(gameUiTuningBounds) as NumericKey[])
@@ -48,6 +54,7 @@ const advancedKeys = (Object.keys(gameUiTuningBounds) as NumericKey[])
 
 export function GameUiTuningPanel(props: {
   config: GameUiTuningConfig;
+  effectiveConfig: GameUiTuningConfig;
   dirty: boolean;
   hasApplied: boolean;
   safetyMessages: string[];
@@ -71,13 +78,13 @@ export function GameUiTuningPanel(props: {
       <section className="game-ui-tuning-panel__group">
         <b>快速调整</b>
         <div className="game-ui-tuning-panel__fields">
-          {quickKeys.map((key) => <TuningField key={key} config={props.config} fieldKey={key} onChange={props.onChange} />)}
+          {quickKeys.map((key) => <TuningField key={key} config={props.config} effectiveConfig={props.effectiveConfig} fieldKey={key} onChange={props.onChange} />)}
         </div>
       </section>
       <details className="game-ui-tuning-panel__group">
         <summary>高级微调</summary>
         <div className="game-ui-tuning-panel__fields">
-          {advancedKeys.map((key) => <TuningField key={key} config={props.config} fieldKey={key} onChange={props.onChange} />)}
+          {advancedKeys.map((key) => <TuningField key={key} config={props.config} effectiveConfig={props.effectiveConfig} fieldKey={key} onChange={props.onChange} />)}
         </div>
       </details>
       {props.safetyMessages.length > 0 && (
@@ -105,13 +112,20 @@ export function GameUiTuningPanel(props: {
 
 function TuningField(props: {
   config: GameUiTuningConfig;
+  effectiveConfig: GameUiTuningConfig;
   fieldKey: NumericKey;
   onChange: (config: GameUiTuningConfig) => void;
 }) {
   const [min, max, step] = gameUiTuningBounds[props.fieldKey];
+  const requestedValue = props.config[props.fieldKey];
+  const effectiveValue = props.effectiveConfig[props.fieldKey];
+  const corrected = Math.abs(requestedValue - effectiveValue) > 0.0001;
   return (
-    <label>
-      <span>{labels[props.fieldKey]} <b>{props.config[props.fieldKey]}</b></span>
+    <label data-tuning-field={props.fieldKey} data-effective-value={effectiveValue}>
+      <span>
+        {labels[props.fieldKey]}
+        <b>{requestedValue}{corrected ? <em>实际 {effectiveValue}</em> : null}</b>
+      </span>
       <input
         type="range"
         min={min}

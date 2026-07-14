@@ -94,8 +94,8 @@ export function GameCornerDocks(props: {
         type="button"
         onClick={() => togglePanel("log")}
       >
-        <span aria-hidden="true">{"\u2315"}</span>
-        {"\u6e38\u620f\u65e5\u5fd7"}
+        <span aria-hidden="true" className="citadel-corner-dock__icon">{"\u2315"}</span>
+        <span className="citadel-corner-dock__label">{"\u6e38\u620f\u65e5\u5fd7"}</span>
         <b>{openPanel === "log" ? "\u2303" : "\u2304"}</b>
       </button>
       <button
@@ -106,8 +106,8 @@ export function GameCornerDocks(props: {
         type="button"
         onClick={() => togglePanel("chat")}
       >
-        <span aria-hidden="true">{"\u2315"}</span>
-        {"\u804a\u5929"}
+        <span aria-hidden="true" className="citadel-corner-dock__icon">{"\u2315"}</span>
+        <span className="citadel-corner-dock__label">{"\u804a\u5929"}</span>
         <b>{openPanel === "chat" ? "\u2303" : "\u2304"}</b>
       </button>
       {openPanel && props.compact ? (

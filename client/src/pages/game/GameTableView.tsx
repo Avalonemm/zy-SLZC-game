@@ -490,6 +490,7 @@ export function GameTableView(props: GameTableViewProps) {
       {tuningPanelVisible && (
         <GameUiTuningPanel
           config={uiTuning}
+          effectiveConfig={resolvedDraftTuning.config}
           dirty={uiTuningDirty}
           hasApplied={hasAppliedUiTuning}
           safetyMessages={tuningSafetyMessages}

@@ -89,32 +89,32 @@
   grid-area: scores;
   align-self: stretch;
   justify-self: stretch;
-  gap: 4px;
-  min-height: 54px;
-  max-height: 54px;
+  gap: var(--ui-score-strip-compact-gap);
+  min-height: var(--ui-score-strip-compact-height);
+  max-height: var(--ui-score-strip-compact-height);
   margin: 0;
   border-radius: 8px;
-  padding: 4px 6px;
+  padding: var(--ui-score-strip-compact-padding-y) var(--ui-score-strip-compact-padding-x);
 }
 
 .citadel-game-shell--compact .citadel-live-score-strip > strong {
-  font-size: 0.52rem;
+  font-size: var(--ui-score-strip-compact-label-font-size);
 }
 
 .citadel-game-shell--compact .citadel-live-score-strip ol {
   display: grid;
   flex: 1 1 auto;
   grid-template-columns: repeat(auto-fit, minmax(66px, 1fr));
-  grid-auto-rows: minmax(17px, 1fr);
+  grid-auto-rows: minmax(var(--ui-score-strip-compact-row-height), 1fr);
   gap: 2px 4px;
-  max-height: 42px;
+  max-height: calc(var(--ui-score-strip-compact-height) - 12px);
   overflow: hidden;
 }
 
 .citadel-game-shell--compact .citadel-live-score-strip li {
   justify-content: center;
   max-width: none;
-  font-size: 0.52rem;
+  font-size: var(--ui-score-strip-compact-item-font-size);
 }
 
 .citadel-game-shell--compact .citadel-live-score-strip li + li::before {
@@ -128,7 +128,7 @@
 .citadel-game-shell--compact .citadel-opponent-rail {
   position: absolute;
   z-index: 12;
-  top: 66px;
+  top: 72px;
   right: 8px;
   left: 8px;
   display: grid;
@@ -306,8 +306,14 @@
 
 .citadel-game-shell--compact .citadel-opponent-card-line .citadel-mini-card-row,
 .citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-mini-card-row {
+  width: calc(23px + var(--opponent-stack-depth) + 8px);
   min-width: 0;
   min-height: 36px;
+}
+
+.citadel-game-shell--compact .citadel-opponent-card-line .citadel-mini-card-row--stacked,
+.citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-mini-card-row--stacked {
+  min-width: calc(23px + var(--opponent-stack-depth) + 8px);
 }
 
 .citadel-game-shell--compact .citadel-opponent-card-line .citadel-mini-card,
@@ -363,7 +369,7 @@
 }
 
 .citadel-game-shell--compact .citadel-center-feedback-rail {
-  top: 48%;
+  top: var(--ui-center-top);
   width: min(360px, 50vw);
   gap: 4px;
 }
@@ -395,7 +401,7 @@
 }
 
 .citadel-game-shell--compact .citadel-game-center__role-card.citadel-role-card {
-  width: 64px;
+  width: var(--ui-active-role-card-width);
   height: auto;
   padding: 5px;
 }
@@ -416,18 +422,6 @@
   width: 36px;
   height: 36px;
   font-size: 0.92rem;
-}
-
-.citadel-game-shell--compact .citadel-center-feedback-rail:has(.citadel-game-center--active-turn) {
-  top: 53%;
-}
-
-.citadel-game-shell--compact:has(.citadel-game-center--active-turn) .citadel-self-city {
-  top: 65%;
-}
-
-.citadel-game-shell--compact:has(.citadel-game-center--active-turn) .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]) {
-  top: 80%;
 }
 
 .citadel-game-shell--compact .citadel-role-call {
@@ -451,7 +445,7 @@
 }
 
 .citadel-game-shell--compact .citadel-self-city {
-  top: 54%;
+  top: var(--ui-city-top);
   width: min(68%, 520px);
   gap: 1px;
 }
@@ -484,11 +478,15 @@
 }
 
 .citadel-game-shell--compact .citadel-self-city > span {
+  position: absolute;
+  top: 50%;
+  right: 0;
   font-size: 0.56rem;
+  transform: translateY(-50%);
 }
 
 .citadel-game-shell--compact .citadel-action-layer .citadel-action-dock {
-  top: 72%;
+  top: var(--ui-action-top);
   width: min(620px, calc(100vw - 24px));
   max-width: calc(100vw - 24px);
   gap: 5px;
@@ -504,14 +502,14 @@
 }
 
 .citadel-game-shell--compact .citadel-action-button {
-  min-width: 70px;
-  min-height: 30px;
-  padding: 0 8px;
-  font-size: 0.64rem;
+  min-width: 78px;
+  min-height: 38px;
+  padding: 0 11px;
+  font-size: 0.74rem;
 }
 
 .citadel-game-shell--compact .citadel-action-button--skill-income small {
-  font-size: 0.46rem;
+  font-size: 0.54rem;
 }
 
 .citadel-game-shell--compact .citadel-self-area {
@@ -720,19 +718,26 @@
 
 .citadel-game-shell--compact .citadel-corner-dock {
   z-index: 32;
-  bottom: 92px;
-  width: 68px;
-  min-width: 68px;
-  height: 28px;
+  bottom: 86px;
+  width: 36px;
+  min-width: 36px;
+  height: var(--ui-corner-dock-length);
   gap: 3px;
-  border-radius: 6px;
-  padding: 0 5px;
+  padding: 5px 0;
   font-size: 0.56rem;
 }
 
-.citadel-game-shell--compact .citadel-corner-dock--log { left: 2px; }
-.citadel-game-shell--compact .citadel-corner-dock--chat { right: 2px; }
-.citadel-game-shell--compact .citadel-corner-dock > span { display: none; }
+.citadel-game-shell--compact .citadel-corner-dock--log {
+  left: 0;
+  border-radius: 0 7px 7px 0;
+}
+.citadel-game-shell--compact .citadel-corner-dock--chat {
+  right: 0;
+  height: calc(var(--ui-corner-dock-length) * 0.78);
+  border-radius: 7px 0 0 7px;
+}
+.citadel-game-shell--compact .citadel-corner-dock > span:not(.citadel-corner-dock__label) { display: none; }
+.citadel-game-shell--compact .citadel-corner-dock > .citadel-corner-dock__label { display: block; }
 
 .citadel-drawer-backdrop {
   position: fixed;
@@ -791,13 +796,10 @@
 }
 
 @media (max-height: 600px) {
-  .citadel-game-shell--compact .citadel-opponent-rail { top: 62px; }
-  .citadel-game-shell--compact .citadel-self-city { top: 54%; }
-  .citadel-game-shell--compact .citadel-action-layer .citadel-action-dock { top: 71%; }
+  .citadel-game-shell--compact .citadel-opponent-rail { top: 72px; }
+  .citadel-game-shell--compact .citadel-self-city { top: var(--ui-city-top); }
+  .citadel-game-shell--compact .citadel-action-layer .citadel-action-dock { top: var(--ui-action-top); }
   .citadel-game-shell--compact .citadel-role-selection-dock { bottom: 82px; }
-  .citadel-game-shell--compact .citadel-center-feedback-rail:has(.citadel-game-center--active-turn) { top: 53%; }
-  .citadel-game-shell--compact:has(.citadel-game-center--active-turn) .citadel-self-city { top: 65%; }
-  .citadel-game-shell--compact:has(.citadel-game-center--active-turn) .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]) { top: 80%; }
 }
 
 @media (max-width: 767px), (max-height: 599px) {

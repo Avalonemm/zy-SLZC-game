@@ -246,14 +246,14 @@
   justify-self: center;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--ui-score-strip-gap);
   min-width: 0;
   max-width: 100%;
   margin-top: 4px;
   border: 1px solid rgb(221 177 91 / 24%);
   border-radius: 999px;
   background: linear-gradient(180deg, rgb(6 15 24 / 80%), rgb(4 10 17 / 70%));
-  padding: 6px 10px;
+  padding: var(--ui-score-strip-padding-y) var(--ui-score-strip-padding-x);
   box-shadow: 0 8px 20px rgb(0 0 0 / 24%), inset 0 1px 0 rgb(255 255 255 / 4%);
   color: rgb(246 226 183 / 82%);
   white-space: nowrap;
@@ -262,7 +262,7 @@
 .citadel-live-score-strip > strong {
   flex: 0 0 auto;
   color: #e8bd67;
-  font-size: clamp(0.62rem, 0.7vw, 0.76rem);
+  font-size: var(--ui-score-strip-label-font-size);
   line-height: 1;
 }
 
@@ -281,7 +281,7 @@
   min-width: 0;
   max-width: 84px;
   color: rgb(246 226 183 / 74%);
-  font-size: clamp(0.58rem, 0.66vw, 0.72rem);
+  font-size: var(--ui-score-strip-item-font-size);
   line-height: 1;
 }
 
@@ -1209,9 +1209,10 @@ button.citadel-player-mini {
 }
 
 .citadel-action-button--skill-income {
-  display: inline-grid;
-  place-content: center;
-  gap: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   min-height: clamp(38px, 3.25vw, 52px);
   padding-block: 5px;
 }
@@ -4144,7 +4145,7 @@ button.citadel-player-mini {
     right: auto;
     bottom: 5%;
     left: 60.5%;
-    top: auto;
+    top: auto !important;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
@@ -4184,13 +4185,45 @@ button.citadel-player-mini {
   .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]) .citadel-action-button {
     width: 100%;
     min-width: 0;
-    min-height: 35px;
+    min-height: 38px;
     padding-right: 5px;
     padding-left: 5px;
-    font-size: clamp(0.66rem, 0.7vw, 0.8rem);
+    font-size: clamp(0.74rem, 0.72vw, 0.82rem);
   }
 
   .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]) .citadel-action-button:nth-of-type(n + 3) {
-    grid-column: 1 / -1;
+    grid-column: auto;
+  }
+}
+
+/* A low-height desktop has a usable right-side lane but not enough vertical
+   space for city, controls, and hand to share the center. Keep only the normal
+   four-button turn dock in that lane; skill/choice panels stay centered. */
+@media (min-width: 1101px) and (max-width: 1500px) and (max-height: 720px) {
+  .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]),
+  .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]):has(> .citadel-action-button:nth-of-type(5)) {
+    right: var(--ui-action-dock-right);
+    bottom: var(--ui-action-dock-bottom);
+    left: auto;
+    top: auto !important;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: min(var(--ui-action-dock-width), 320px);
+    max-width: none;
+    border: 1px solid rgb(225 180 89 / 28%);
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgb(5 12 17 / 86%), rgb(3 8 12 / 80%));
+    padding: 10px;
+    box-shadow: 0 12px 24px rgb(0 0 0 / 24%);
+    transform: none;
+  }
+
+  .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]) .citadel-action-button {
+    width: 100%;
+    min-width: 0;
+    min-height: 38px;
+    padding: 0 8px;
+    font-size: 0.76rem;
   }
 }

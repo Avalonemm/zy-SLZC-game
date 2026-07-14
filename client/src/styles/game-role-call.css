@@ -212,7 +212,7 @@
 }
 
 .citadel-game-center__role-card.citadel-role-card {
-  width: clamp(78px, 5.1vw, 96px);
+  width: var(--ui-active-role-card-width);
   height: auto;
   aspect-ratio: 2 / 3;
   overflow: hidden;
@@ -263,7 +263,9 @@
 .citadel-game-center__turn-timer {
   position: absolute;
   z-index: 3;
-  top: -11px;
+  /* Keep the badge on the card face. A negative top offset made it collide
+     with the top opponent's district row at medium and wide viewports. */
+  top: 4px;
   right: -20px;
   display: grid;
   place-items: center;
@@ -337,10 +339,6 @@
 }
 
 @media (min-width: 1101px) and (max-width: 1365px) and (max-height: 720px) {
-  .citadel-center-feedback-rail {
-    top: calc(var(--ui-center-top) + 36px);
-  }
-
   .citadel-center-feedback-rail .citadel-game-center--active-turn {
     width: max-content;
     min-height: 0;
@@ -348,15 +346,7 @@
   }
 
   .citadel-game-center__role-card.citadel-role-card {
-    width: 78px;
+    width: var(--ui-active-role-card-width);
     height: auto;
-  }
-
-  .citadel-game-shell:has(.citadel-game-center--active-turn):not(:has(.citadel-selection-layer)) .citadel-self-city {
-    top: 56%;
-  }
-
-  .citadel-game-shell:has(.citadel-game-center--active-turn) .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]) {
-    top: 78%;
   }
 }

@@ -562,6 +562,10 @@ async function preparePage(cdp, sessionId, session, viewport, options = {}) {
         if (${JSON.stringify(options.skipGuide !== false)}) {
           localStorage.setItem("zy-board-game-guide-complete", "1");
         }
+        const requestedTuningConfig = ${JSON.stringify(options.uiTuningConfig ?? null)};
+        if (requestedTuningConfig) {
+          localStorage.setItem("zy-game-ui-tuning-v4", JSON.stringify({ version: 4, config: requestedTuningConfig }));
+        }
         if (${JSON.stringify(skipObjectiveIntro)}) {
           sessionStorage.setItem(${JSON.stringify(objectiveStorageKey)}, "seen");
         } else {
@@ -960,6 +964,7 @@ async function collectLayout(cdp, sessionId, exerciseSkillButton = false) {
             privateRow: elementRect(seat.querySelector(".citadel-opponent-card-line")),
             roleCard: elementRect(seat.querySelector(".citadel-opponent-card-line .citadel-role-card")),
             handRow: elementRect(seat.querySelector(".citadel-opponent-card-line .citadel-mini-card-row")),
+            handCountBadge: elementRect(seat.querySelector(".citadel-mini-card-count")),
             cityRow: elementRect(seat.querySelector(".citadel-mini-city-row")),
             handCards: [...seat.querySelectorAll(".citadel-opponent-card-line .citadel-mini-card")].map((card) => elementRect(card)),
             cityCards: cityCards.map((card) => elementRect(card))
@@ -968,12 +973,23 @@ async function collectLayout(cdp, sessionId, exerciseSkillButton = false) {
         denseOpponentSeats: rects(".citadel-opponent-seat.is-dense"),
         opponentHandRows: rects(".citadel-opponent-card-line .citadel-mini-card-row"),
         opponentCityRows: rects(".citadel-mini-city-row"),
-        opponentHandCardCounts: [...document.querySelectorAll(".citadel-opponent-seat")].map((seat) => ({
-          dense: seat.classList.contains("is-dense"),
-          visibleCards: seat.querySelectorAll(".citadel-opponent-card-line .citadel-mini-card").length,
-          reportedCount: Number(seat.querySelector(".citadel-mini-card-row")?.getAttribute("data-hand-count") ?? 0),
-          countBadge: seat.querySelector(".citadel-mini-card-count")?.textContent?.trim() ?? ""
-        })),
+        opponentHandCardCounts: [...document.querySelectorAll(".citadel-opponent-seat")].map((seat) => {
+          const cards = [...seat.querySelectorAll(".citadel-opponent-card-line .citadel-mini-card")];
+          const badge = seat.querySelector(".citadel-mini-card-count");
+          const box = (element) => {
+            if (!element) return null;
+            const value = element.getBoundingClientRect();
+            return { left: value.left, top: value.top, right: value.right, bottom: value.bottom, width: value.width, height: value.height };
+          };
+          return {
+            dense: seat.classList.contains("is-dense"),
+            visibleCards: cards.length,
+            reportedCount: Number(seat.querySelector(".citadel-mini-card-row")?.getAttribute("data-hand-count") ?? 0),
+            countBadge: badge?.textContent?.trim() ?? "",
+            lastCardRect: box(cards.at(-1)),
+            countBadgeRect: box(badge)
+          };
+        }),
         tableTargetingDock: rect(".citadel-action-dock--table-targeting"),
         tableTargetingPrompt: rect(".citadel-action-dock--table-targeting .citadel-action-guidance"),
         targetableDistricts: rects(".citadel-mini-city-card.is-targetable"),
@@ -1548,6 +1564,21 @@ async function collectScoringOverviewFlow(cdp, sessionId, screenshotName) {
         normalActionLabels: [...(normalActionDock?.querySelectorAll('.citadel-action-button') ?? [])]
           .map((button) => button.innerText.trim().replace(/\\s+/g, ' ')),
         selfCityRect: rect(document.querySelector('.citadel-self-city')),
+        selfHandRect: rect(document.querySelector('.citadel-self-hand-column .citadel-hand-zone')),
+        selfAreaRect: rect(document.querySelector('.citadel-self-area')),
+        tuning: {
+          stored: (() => {
+            try { return JSON.parse(localStorage.getItem('zy-game-ui-tuning-v4') ?? 'null')?.config ?? null; }
+            catch { return null; }
+          })(),
+          effective: {
+            centerTop: getComputedStyle(document.querySelector('.citadel-game-shell')).getPropertyValue('--ui-center-top').trim(),
+            cityTop: getComputedStyle(document.querySelector('.citadel-game-shell')).getPropertyValue('--ui-city-top').trim(),
+            actionTop: getComputedStyle(document.querySelector('.citadel-game-shell')).getPropertyValue('--ui-action-top').trim(),
+            activeRoleCardWidth: getComputedStyle(document.querySelector('.citadel-game-shell')).getPropertyValue('--ui-active-role-card-width').trim(),
+            scoreStripScale: getComputedStyle(document.querySelector('.citadel-game-shell')).getPropertyValue('--ui-score-strip-scale').trim()
+          }
+        },
         opponentVisibleRects,
         dialogRect: rect(dialog),
         dialogText: dialog?.innerText ?? '',
@@ -1667,6 +1698,16 @@ function checkScoringOverview(label, flow, gameState) {
     state.activeCenter.timerBackgroundImage !== "none"
   ), state?.activeCenter);
   const centerRects = [state?.activeCenter?.cardRect, state?.activeCenter?.timerRect].filter(Boolean);
+  const activeRoleRect = centerRects.length > 0 ? {
+    left: Math.min(...centerRects.map((rect) => rect.left)),
+    top: Math.min(...centerRects.map((rect) => rect.top)),
+    right: Math.max(...centerRects.map((rect) => rect.right)),
+    bottom: Math.max(...centerRects.map((rect) => rect.bottom))
+  } : null;
+  if (activeRoleRect) {
+    activeRoleRect.width = activeRoleRect.right - activeRoleRect.left;
+    activeRoleRect.height = activeRoleRect.bottom - activeRoleRect.top;
+  }
   addCheck("active identity card stays clear of seats, city, and action controls", Boolean(
     centerRects.length > 0 &&
     centerRects.every((centerRect) =>
@@ -1679,6 +1720,33 @@ function checkScoringOverview(label, flow, gameState) {
     selfCityRect: state?.selfCityRect,
     normalActionDockRect: state?.normalActionDockRect,
     opponentVisibleRects: state?.opponentVisibleRects
+  });
+  const centralBottomRegions = [
+    { name: "active-role", rect: activeRoleRect },
+    { name: "self-city", rect: state?.selfCityRect },
+    { name: "action-dock", rect: state?.normalActionDockRect },
+    { name: "self-hand", rect: state?.selfHandRect }
+  ].filter((item) => item.rect);
+  const centralBottomCollisions = [];
+  for (let leftIndex = 0; leftIndex < centralBottomRegions.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < centralBottomRegions.length; rightIndex += 1) {
+      const left = centralBottomRegions[leftIndex];
+      const right = centralBottomRegions[rightIndex];
+      if (intersects(left.rect, right.rect, 8)) {
+        centralBottomCollisions.push({
+          left: left.name,
+          right: right.name,
+          leftRect: left.rect,
+          rightRect: right.rect,
+          gap: rectGap(left.rect, right.rect)
+        });
+      }
+    }
+  }
+  addCheck("central and bottom hard regions keep an 8px safety gap", centralBottomCollisions.length === 0, {
+    collisions: centralBottomCollisions,
+    regions: centralBottomRegions,
+    tuning: state?.tuning
   });
 
   const isSelfTurn = Boolean(selfPlayer && gameState.currentTurnPlayerId === selfPlayer.id);
@@ -1842,6 +1910,8 @@ function checkLayout(label, layout, options = {}) {
 
   const viewport = layout.viewport;
   const wideTurnPanel = viewport?.width >= 1501 && viewport?.height >= 700;
+  const lowHeightTurnPanel = viewport?.width >= 1101 && viewport?.width <= 1500 && viewport?.height <= 720;
+  const sideTurnPanel = wideTurnPanel || lowHeightTurnPanel;
   addCheck("game shell exists", Boolean(layout.shell));
   addCheck("action dock exists", Boolean(layout.actionDock));
   addCheck("center status exists", Boolean(layout.center));
@@ -1879,8 +1949,8 @@ function checkLayout(label, layout, options = {}) {
     layout.boardVisual.beforeDisplay === "none" &&
     layout.boardVisual.afterDisplay === "none"
   ), layout.boardVisual);
-  addCheck(wideTurnPanel ? "wide turn controls use the lower-right action panel" : "compact turn controls have no outer frame", Boolean(
-    layout.actionDockVisual && (wideTurnPanel
+  addCheck(sideTurnPanel ? "side turn controls use the lower-right action panel" : "compact turn controls have no outer frame", Boolean(
+    layout.actionDockVisual && (sideTurnPanel
       ? layout.actionDockVisual.borderTopWidth !== "0px" &&
         layout.actionDockVisual.backgroundImage !== "none" &&
         layout.actionDockVisual.boxShadow !== "none"
@@ -1937,6 +2007,18 @@ function checkLayout(label, layout, options = {}) {
   addCheck("all four utility menu labels remain visible", Boolean(
     layout.utilityLabels?.length === 4 && layout.utilityLabels.every((item) => item.width > 2 && item.height > 2)
   ), layout.utilityLabels);
+  for (const seat of layout.opponentSeats ?? []) {
+    const visibleSeatElements = [seat.profile, seat.roleCard, ...(seat.handCards ?? []), ...(seat.cityCards ?? [])]
+      .filter(Boolean);
+    const roomCollisions = visibleSeatElements.filter((element) => intersects(layout.roomCard, element, 4));
+    addCheck(`room card stays clear of opponent seat: ${seat.position}`, roomCollisions.length === 0, {
+      position: seat.position,
+      playerId: seat.playerId,
+      roomCard: layout.roomCard,
+      collisions: roomCollisions,
+      requiredGap: 4
+    });
+  }
   if (layout.centerRoleCard && !layout.tableTargetingDock && !layout.selectionHeader) {
     addCheck("normal turn controls remove the repeated guidance paragraph", !layout.actionGuidance, layout.actionGuidance);
   }
@@ -1948,7 +2030,7 @@ function checkLayout(label, layout, options = {}) {
     });
   }
 
-  if (wideTurnPanel) {
+  if (sideTurnPanel) {
     const protectedSelfElements = [
       layout.selfProfile,
       layout.deckCard,
@@ -2021,10 +2103,16 @@ function checkLayout(label, layout, options = {}) {
     }
     const firstHandCard = layout.handCards?.[0] ?? null;
     const firstBuiltCard = layout.builtCards[0] ?? null;
-    addCheck("built district cards are larger than hand cards", Boolean(firstBuiltCard && firstHandCard && firstBuiltCard.height > firstHandCard.height && firstBuiltCard.width > firstHandCard.width), {
-      builtCard: firstBuiltCard,
-      handCard: firstHandCard
-    });
+    if (options.allowTunedSelfCardScale) {
+      addCheck("built district cards remain readable under tuning", Boolean(firstBuiltCard && firstBuiltCard.width >= 42 && firstBuiltCard.height >= 60), {
+        builtCard: firstBuiltCard
+      });
+    } else {
+      addCheck("built district cards are larger than hand cards", Boolean(firstBuiltCard && firstHandCard && firstBuiltCard.height > firstHandCard.height && firstBuiltCard.width > firstHandCard.width), {
+        builtCard: firstBuiltCard,
+        handCard: firstHandCard
+      });
+    }
   }
   addCheck("topbar does not overlap action dock", !intersects(layout.topbar, layout.actionDock, 8), {
     topbar: layout.topbar,
@@ -2080,6 +2168,36 @@ function checkLayout(label, layout, options = {}) {
       discardCard: layout.discardCard
     });
   }
+  addCheck("collapsed log and chat are vertical edge tabs", Boolean(
+    layout.cornerDocks?.length === 2 &&
+    layout.cornerDocks.every((dock) => dock.height > dock.width * 1.4) &&
+    layout.cornerDocks[0].left <= 1 &&
+    layout.cornerDocks[1].right >= viewport.width - 1
+  ), { cornerDocks: layout.cornerDocks, viewport });
+  const cornerOpponentCollisions = (layout.cornerDocks ?? []).flatMap((dock, dockIndex) =>
+    (layout.opponentSeats ?? []).flatMap((seat) => {
+      const elements = [
+        ["profile", seat.profile],
+        ["role", seat.roleCard],
+        ["hand count", seat.handCountBadge],
+        ...(seat.handCards ?? []).map((element, index) => [`hand ${index + 1}`, element]),
+        ...(seat.cityCards ?? []).map((element, index) => [`district ${index + 1}`, element])
+      ];
+      return elements
+        .filter(([, element]) => element && intersects(dock, element, 4))
+        .map(([elementName, element]) => ({
+          dock: dockIndex === 0 ? "game log" : "chat",
+          seat: seat.position,
+          playerId: seat.playerId,
+          element: elementName,
+          dockRect: dock,
+          elementRect: element
+        }));
+    })
+  );
+  addCheck("collapsed log and chat stay clear of every opponent element", cornerOpponentCollisions.length === 0, {
+    collisions: cornerOpponentCollisions
+  });
   addCheck("each opponent has a role card beside cards", (layout.opponentRoleCards?.length ?? 0) === (layout.opponentSeats?.length ?? 0), {
     opponentRoleCards: layout.opponentRoleCards?.length ?? 0,
     opponentSeats: layout.opponentSeats?.length ?? 0
@@ -2246,6 +2364,14 @@ function checkLayout(label, layout, options = {}) {
     addCheck("opponent hand stacks render the real card count", (layout.opponentHandCardCounts ?? []).every((row) =>
       row.visibleCards === row.reportedCount && Number(row.countBadge) === row.reportedCount
     ), {
+      rows: layout.opponentHandCardCounts
+    });
+    addCheck("opponent hand badges stay anchored to the last card corner", (layout.opponentHandCardCounts ?? []).every((row) => {
+      if (row.reportedCount === 0) return row.countBadgeRect == null;
+      if (!row.lastCardRect || !row.countBadgeRect) return false;
+      return Math.abs(row.countBadgeRect.right - row.lastCardRect.right) <= 10 &&
+        Math.abs(row.countBadgeRect.bottom - row.lastCardRect.bottom) <= 10;
+    }), {
       rows: layout.opponentHandCardCounts
     });
   }
@@ -4047,7 +4173,24 @@ async function main() {
       await captureStage("unanswered", "unanswered");
     }
 
-    if (qaMode === "scoring" || qaMode === "full") {
+    if (qaMode === "scoring" || qaMode === "ui-tuning-stress" || qaMode === "full") {
+      const stressTuningConfig = qaMode === "ui-tuning-stress" ? {
+        selfCardWidth: 104,
+        handOverlap: 0,
+        handMaxWidth: 820,
+        playerPlateWidth: 320,
+        opponentPlayerPlateWidth: 320,
+        opponentRoleWidth: 72,
+        opponentHandWidth: 58,
+        opponentDistrictWidth: 72,
+        actionDockWidth: 320,
+        activeRoleCardWidth: 112,
+        scoreStripScale: 1.25,
+        cornerDockLength: 116,
+        centerTop: 35,
+        cityTop: 45,
+        actionTop: 62
+      } : null;
       for (const playerCount of opponentPlayerCounts) {
         const scoringSetup = await setupGame(playerCount, {
           actionDeadlineMs: 90_000,
@@ -4060,8 +4203,19 @@ async function main() {
 
         for (const viewport of viewports) {
           await freezeQaTimer(scoringSetup);
-          const label = `${viewport.width}x${viewport.height}-${playerCount}p`;
-          await preparePage(browser.cdp, browser.sessionId, scoringSetup.created, viewport);
+          const label = `${viewport.width}x${viewport.height}-${playerCount}p${stressTuningConfig ? '-tuning-stress' : ''}`;
+          await preparePage(browser.cdp, browser.sessionId, scoringSetup.created, viewport, {
+            uiTuningConfig: stressTuningConfig
+          });
+          const tableLayout = await collectLayout(browser.cdp, browser.sessionId);
+          results.push(checkLayout(`${label} action-table`, tableLayout, {
+            expectedOpponentCount: playerCount - 1,
+            expectedDenseCount: playerCount >= 7 ? 4 : 0,
+            allowTunedSelfCardScale: Boolean(stressTuningConfig)
+          }));
+          if (stressTuningConfig && playerCount === 8 && [768, 1262, 1365, 1893].includes(viewport.width)) {
+            screenshots.push(await captureScreenshot(browser.cdp, browser.sessionId, `${label}-action-table`));
+          }
           results.push(checkRoomCardLayout(
             `${label} action-room-card`,
             await collectRoomCardLayout(browser.cdp, browser.sessionId)
@@ -4323,49 +4477,108 @@ async function main() {
       `);
       await waitForSelector(browser.cdp, browser.sessionId, ".game-ui-tuning-panel", 10000);
       const state = await evaluate(browser.cdp, browser.sessionId, `
-        (() => {
+        (async () => {
           const shell = document.querySelector('.citadel-game-shell');
           const panel = document.querySelector('.game-ui-tuning-panel');
-          const slider = panel?.querySelector('input[type="range"]');
-          const before = getComputedStyle(shell).getPropertyValue('--ui-self-card-width').trim();
-          if (slider) {
+          const rect = (selector) => {
+            const element = document.querySelector(selector);
+            if (!element) return null;
+            const value = element.getBoundingClientRect();
+            return { left: value.left, top: value.top, right: value.right, bottom: value.bottom, width: value.width, height: value.height };
+          };
+          const snapshot = () => ({
+            center: rect('.citadel-center-feedback-rail'),
+            city: rect('.citadel-self-city'),
+            action: rect('.citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"])'),
+            role: rect('.citadel-game-center__role-card'),
+            score: rect('.citadel-live-score-strip'),
+            cornerDock: rect('.citadel-corner-dock--log'),
+            selfCardVariable: getComputedStyle(shell).getPropertyValue('--ui-self-card-width').trim(),
+            roleVariable: getComputedStyle(shell).getPropertyValue('--ui-active-role-card-width').trim(),
+            scoreVariable: getComputedStyle(shell).getPropertyValue('--ui-score-strip-scale').trim(),
+            cornerDockVariable: getComputedStyle(shell).getPropertyValue('--ui-corner-dock-length').trim()
+          });
+          const wait = (duration = 90) => new Promise((resolve) => setTimeout(resolve, duration));
+          const setField = async (key, value) => {
+            const input = document.querySelector('[data-tuning-field="' + key + '"] input[type="range"]');
+            if (!input) return false;
             const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-            setValue?.call(slider, String(Math.min(Number(slider.max), Number(slider.value) + 4)));
-            slider.dispatchEvent(new Event('input', { bubbles: true }));
-            slider.dispatchEvent(new Event('change', { bubbles: true }));
-          }
+            const nextValue = Math.max(Number(input.min), Math.min(Number(input.max), value));
+            setValue?.call(input, String(nextValue));
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            await wait();
+            return true;
+          };
+
+          const before = snapshot();
+          const selfInput = document.querySelector('[data-tuning-field="selfCardWidth"] input');
+          await setField('selfCardWidth', Number(selfInput?.value ?? 84) - 8);
+          const afterSelf = snapshot();
+
+          const centerInput = document.querySelector('[data-tuning-field="centerTop"] input');
+          await setField('centerTop', Number(centerInput?.value ?? 44) - 2);
+          const afterCenter = snapshot();
+
+          const cityInput = document.querySelector('[data-tuning-field="cityTop"] input');
+          await setField('cityTop', Number(cityInput?.value ?? 55.2) + 2);
+          const afterCity = snapshot();
+
+          const actionInput = document.querySelector('[data-tuning-field="actionTop"] input');
+          await setField('actionTop', Number(actionInput?.value ?? 71) + 9);
+          const afterAction = snapshot();
+
+          const roleInput = document.querySelector('[data-tuning-field="activeRoleCardWidth"] input');
+          await setField('activeRoleCardWidth', Number(roleInput?.value ?? 92) + 8);
+          const afterRole = snapshot();
+
+          const scoreInput = document.querySelector('[data-tuning-field="scoreStripScale"] input');
+          await setField('scoreStripScale', Number(scoreInput?.value ?? 1) + 0.15);
+          const afterScore = snapshot();
+
+          const cornerDockInput = document.querySelector('[data-tuning-field="cornerDockLength"] input');
+          await setField('cornerDockLength', Number(cornerDockInput?.value ?? 92) + 12);
+          const afterCornerDock = snapshot();
+
           const bounds = panel?.querySelector('input[type="checkbox"]');
           bounds?.click();
-          return new Promise((resolve) => setTimeout(() => {
-            const currentPanel = document.querySelector('.game-ui-tuning-panel');
-            const previewSlider = [...(currentPanel?.querySelectorAll('label') ?? [])]
-              .find((label) => label.textContent?.includes('卡牌预览大小'))
-              ?.querySelector('input[type="range"]');
-            if (previewSlider) {
-              const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-              setValue?.call(previewSlider, '1.4');
-              previewSlider.dispatchEvent(new Event('input', { bubbles: true }));
-              previewSlider.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-            setTimeout(() => document.querySelector('.game-ui-tuning-panel button.is-primary')?.click(), 70);
-            setTimeout(() => resolve({
-              panelVisible: Boolean(panel),
-              sliderCount: panel?.querySelectorAll('input[type="range"]').length ?? 0,
-              before,
-              after: getComputedStyle(shell).getPropertyValue('--ui-self-card-width').trim(),
-              preview: getComputedStyle(shell).getPropertyValue('--ui-card-preview-scale').trim(),
-              boundsVisible: shell?.classList.contains('ui-show-bounds'),
-              stored: (() => {
-                const raw = localStorage.getItem('zy-game-ui-tuning-v4');
-                if (!raw) return false;
-                const parsed = JSON.parse(raw);
-                return parsed.version === 4 && Boolean(parsed.config) && !('profiles' in parsed);
-              })()
-            }), 220);
-          }, 70));
+          await wait(70);
+          await setField('cardPreviewScale', 1.4);
+          document.querySelector('.game-ui-tuning-panel button.is-primary')?.click();
+          await wait(220);
+          const correctedFields = [...document.querySelectorAll('[data-tuning-field]')]
+            .filter((field) => field.querySelector('em'))
+            .map((field) => ({
+              key: field.getAttribute('data-tuning-field'),
+              text: field.textContent?.trim(),
+              effective: field.getAttribute('data-effective-value')
+            }));
+          return {
+            panelVisible: Boolean(panel),
+            sliderCount: panel?.querySelectorAll('input[type="range"]').length ?? 0,
+            before,
+            afterSelf,
+            afterCenter,
+            afterCity,
+            afterAction,
+            afterRole,
+            afterScore,
+            afterCornerDock,
+            preview: getComputedStyle(shell).getPropertyValue('--ui-card-preview-scale').trim(),
+            boundsVisible: shell?.classList.contains('ui-show-bounds'),
+            correctedFields,
+            stored: (() => {
+              const raw = localStorage.getItem('zy-game-ui-tuning-v4');
+              if (!raw) return false;
+              const parsed = JSON.parse(raw);
+              return parsed.version === 4 && Boolean(parsed.config) &&
+                'activeRoleCardWidth' in parsed.config && 'scoreStripScale' in parsed.config &&
+                'cornerDockLength' in parsed.config && !('profiles' in parsed);
+            })()
+          };
         })()
       `);
-      const appliedValue = state.after;
+      const appliedValue = state.afterSelf.selfCardVariable;
       await navigate(
         browser.cdp,
         browser.sessionId,
@@ -4377,7 +4590,10 @@ async function main() {
         return {
           panelHidden: !document.querySelector('.game-ui-tuning-panel'),
           applied: getComputedStyle(shell).getPropertyValue('--ui-self-card-width').trim(),
-          preview: getComputedStyle(shell).getPropertyValue('--ui-card-preview-scale').trim()
+          preview: getComputedStyle(shell).getPropertyValue('--ui-card-preview-scale').trim(),
+          activeRoleCardWidth: getComputedStyle(shell).getPropertyValue('--ui-active-role-card-width').trim(),
+          scoreStripScale: getComputedStyle(shell).getPropertyValue('--ui-score-strip-scale').trim(),
+          cornerDockLength: getComputedStyle(shell).getPropertyValue('--ui-corner-dock-length').trim()
         };
       })()`);
       screenshots.push(await captureScreenshot(browser.cdp, browser.sessionId, `${label}-ui-tuning`));
@@ -4385,12 +4601,22 @@ async function main() {
         ["settings exposes a discoverable UI tuning entry", settingsEntryFound, { settingsEntryFound }],
         ["development tuning panel is visible", state.panelVisible, state],
         ["high-impact controls are available", state.sliderCount >= 10, state],
-        ["slider changes a semantic CSS variable", state.before !== state.after, state],
+        ["self-card slider changes a semantic CSS variable", state.before.selfCardVariable !== state.afterSelf.selfCardVariable, state],
+        ["center slider moves the rendered center rail", state.afterCenter.center?.top < state.afterSelf.center?.top - 4, state],
+        ["city slider moves the rendered city region", state.afterCity.city?.top > state.afterCenter.city?.top + 4, state],
+        ["action slider moves the rendered action controls", state.afterAction.action?.top > state.afterCity.action?.top + 4, state],
+        ["active-role slider resizes the rendered role card", state.afterRole.role?.width > state.afterAction.role?.width + 4, state],
+        ["score-strip slider changes real reserved dimensions", state.afterScore.score?.height > state.afterRole.score?.height + 1, state],
+        ["corner-dock slider changes the rendered tab length", state.afterCornerDock.cornerDock?.height > state.afterScore.cornerDock?.height + 4, state],
+        ["derived values expose requested and effective values", state.correctedFields.some((field) => field.text?.includes('实际')), state.correctedFields],
         ["boundary overlay can be enabled", state.boundsVisible, state],
         ["tuning config is stored once as a global V4 layout", state.stored, state],
         ["formal mode hides the tuning panel", formalState.panelHidden, formalState],
         ["formal mode applies the saved value", formalState.applied === appliedValue, { appliedValue, formalState }],
-        ["formal mode applies card preview scaling", formalState.preview === "1.4", formalState]
+        ["formal mode applies card preview scaling", formalState.preview === "1.4", formalState],
+        ["formal mode applies the saved active-role size", formalState.activeRoleCardWidth === state.afterRole.roleVariable, { formalState, state }],
+        ["formal mode applies the saved score-strip scale", formalState.scoreStripScale === state.afterScore.scoreVariable, { formalState, state }],
+        ["formal mode applies the saved corner-dock length", formalState.cornerDockLength === state.afterCornerDock.cornerDockVariable, { formalState, state }]
       ]));
 
       const denseOpponentWidth = await evaluate(browser.cdp, browser.sessionId, `

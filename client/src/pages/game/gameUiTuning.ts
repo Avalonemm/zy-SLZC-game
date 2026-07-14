@@ -26,6 +26,9 @@ export type GameUiTuningConfigV4 = {
   actionDockRight: number;
   actionDockBottom: number;
   cardPreviewScale: number;
+  activeRoleCardWidth: number;
+  scoreStripScale: number;
+  cornerDockLength: number;
   centerTop: number;
   cityTop: number;
   actionTop: number;
@@ -83,7 +86,10 @@ export const gameUiTuningBounds: Record<NumericTuningKey, [number, number, numbe
   actionDockRight: [2, 30, 0.5],
   actionDockBottom: [2, 12, 0.5],
   cardPreviewScale: [0.8, 1.4, 0.05],
-  centerTop: [35, 51, 0.2],
+  activeRoleCardWidth: [64, 112, 1],
+  scoreStripScale: [0.8, 1.25, 0.05],
+  cornerDockLength: [72, 116, 1],
+  centerTop: [35, 58, 0.2],
   cityTop: [45, 65, 0.2],
   actionTop: [62, 80, 0.2],
   selfBottom: [1, 9, 0.2]
@@ -97,7 +103,8 @@ const globalPreset = createPreset({
   opponentResourceIconSize: 16, opponentResourceFontSize: 15, opponentResourceGap: 9,
   opponentRoleWidth: 58, opponentHandWidth: 45, opponentHandStackDepth: 20,
   opponentDistrictWidth: 60, actionDockWidth: 252, actionDockRight: 14,
-  actionDockBottom: 5, cardPreviewScale: 1, centerTop: 44, cityTop: 55.2,
+  actionDockBottom: 5, cardPreviewScale: 1, activeRoleCardWidth: 92,
+  scoreStripScale: 1, cornerDockLength: 92, centerTop: 44, cityTop: 55.2,
   actionTop: 71, selfBottom: 2.4
 });
 
@@ -128,9 +135,7 @@ function applyLowHeightCompression(input: GameUiTuningConfigV4) {
     opponentRoleWidth: Math.round(input.opponentRoleWidth * 0.9),
     opponentHandWidth: Math.round(input.opponentHandWidth * 0.9),
     opponentDistrictWidth: Math.round(input.opponentDistrictWidth * 0.9),
-    centerTop: Math.min(40.5, input.centerTop - 0.3),
-    cityTop: 45.8,
-    actionTop: 66.5
+    activeRoleCardWidth: Math.max(64, Math.round(input.activeRoleCardWidth * 0.88))
   };
 }
 
@@ -176,33 +181,133 @@ function applyOpponentDensity(input: GameUiTuningConfigV4, density: GameUiDensit
 
 export function resolveSafeGameUiTuning(input: GameUiTuningConfigV4, context: GameUiLayoutContext) {
   const lowHeight = context.viewportHeight <= 720;
+  const compact = context.viewportWidth <= 1100 || (context.viewportWidth <= 1365 && context.viewportHeight <= 640);
   const density = densityForPlayerCount(context.playerCount);
-  const compressed = lowHeight ? applyLowHeightCompression(clampGameUiTuning(input)) : clampGameUiTuning(input);
+  const requested = clampGameUiTuning(input);
+  const compressed = lowHeight ? applyLowHeightCompression(requested) : requested;
   const config = applyOpponentDensity(compressed, density);
   const corrections: string[] = [];
 
-  if (lowHeight) {
-    config.actionTop = Math.max(66.2, Math.min(config.actionTop, 66.8));
-    config.cityTop = Math.min(config.cityTop, 45.8);
+  function applySafetyValue(
+    key: NumericTuningKey,
+    value: number,
+    label: string,
+    reason: string
+  ) {
+    const next = roundTuningValue(value, gameUiTuningBounds[key][2]);
+    if (Math.abs(config[key] - next) < 0.0001) return;
+    config[key] = next as never;
+    corrections.push(`${label}：${formatTuningValue(requested[key])} → ${formatTuningValue(next)}（${reason}）`);
+  }
+
+  if (compact) {
+    const maximumRoleWidth = context.viewportWidth <= 800 ? 64 : context.playerCount >= 7 ? 70 : 76;
+    if (config.activeRoleCardWidth > maximumRoleWidth) {
+      applySafetyValue("activeRoleCardWidth", maximumRoleWidth, "行动身份牌", "紧凑视口保留中央与底部安全带");
+    }
+    const maximumScoreScale = context.playerCount >= 7 ? 1 : 1.1;
+    if (config.scoreStripScale > maximumScoreScale) {
+      applySafetyValue("scoreStripScale", maximumScoreScale, "积分条缩放", "紧凑顶部最多保留两行");
+    }
+    if (config.cornerDockLength > 88) {
+      applySafetyValue("cornerDockLength", 88, "日志聊天折叠长度", "紧凑视口同时避开对手区和底部牌堆");
+    }
+
+    const opponentRows = context.playerCount - 1 <= 4 ? 1 : 2;
+    const opponentBottom = 72 + opponentRows * 88 + Math.max(0, opponentRows - 1) * 6;
+    const timerClearance = 11;
+    const minimumCenterTop = 100 * (
+      opponentBottom + 8 + config.activeRoleCardWidth * 0.75 + timerClearance
+    ) / context.viewportHeight;
+    if (config.centerTop < minimumCenterTop) {
+      applySafetyValue("centerTop", minimumCenterTop, "中央信息高度", "行动牌和倒计时避开对手区域");
+    }
+
+  } else if (lowHeight) {
+    if (config.activeRoleCardWidth > 78) {
+      applySafetyValue("activeRoleCardWidth", 78, "行动身份牌", "低高度桌面保留上下安全间距");
+    }
+    if (config.scoreStripScale > 1.1) {
+      applySafetyValue("scoreStripScale", 1.1, "积分条缩放", "低高度顶部保留玩家座位空间");
+    }
   } else if (context.viewportWidth <= 1300) {
-    config.actionTop = Math.max(config.actionTop, 75);
-    corrections.push("窄桌面的操作区已下移，避开两侧玩家的建筑牌。");
+    if (config.actionTop < 75) {
+      applySafetyValue("actionTop", 75, "窄屏操作区高度", "避开两侧玩家的建筑牌");
+    }
   }
 
-  const maximumCityTop = config.actionTop - 8;
-  if (config.cityTop > maximumCityTop) {
-    config.cityTop = maximumCityTop;
-    corrections.push("已上移自己的建筑区，避免进入操作区。");
+  if (lowHeight && !compact && config.selfCardWidth > 76) {
+    applySafetyValue("selfCardWidth", 76, "本人卡牌", "低高度桌面为建筑区和手牌保留安全间距");
   }
-  const maximumCenterTop = lowHeight ? 40.5 : config.cityTop - 8;
-  if (config.centerTop > maximumCenterTop) {
-    config.centerTop = maximumCenterTop;
-    corrections.push("已上移中央信息，避免与建筑区穿插。");
+  if (!lowHeight && !compact && context.viewportWidth <= 1300 && config.selfCardWidth > 82) {
+    applySafetyValue("selfCardWidth", 82, "本人卡牌", "中等宽度桌面为操作区和手牌保留安全间距");
+  }
+  if (!compact) {
+    const maximumOpponentRoleWidth = lowHeight ? 44 : context.viewportWidth <= 1500 ? 50 : 58;
+    const maximumOpponentHandWidth = lowHeight ? 36 : context.viewportWidth <= 1500 ? 42 : 45;
+    const maximumOpponentDistrictWidth = lowHeight ? 44 : context.viewportWidth <= 1500 ? 50 : 56;
+    if (config.opponentRoleWidth > maximumOpponentRoleWidth) {
+      applySafetyValue("opponentRoleWidth", maximumOpponentRoleWidth, "对手身份牌", "极端尺寸下保持相邻座位的垂直安全间距");
+    }
+    if (config.opponentHandWidth > maximumOpponentHandWidth) {
+      applySafetyValue("opponentHandWidth", maximumOpponentHandWidth, "对手手牌", "极端尺寸下保持手牌与相邻名片分离");
+    }
+    if (config.opponentDistrictWidth > maximumOpponentDistrictWidth) {
+      applySafetyValue("opponentDistrictWidth", maximumOpponentDistrictWidth, "对手建筑牌", "极端尺寸下保持建筑、身份与相邻座位分离");
+    }
+  }
+  if (!compact && context.viewportWidth > 1500 && config.actionDockRight < 15) {
+    applySafetyValue("actionDockRight", 15, "操作区右侧间距", "宽屏操作区避开弃牌堆");
+  }
+  if (lowHeight && !compact && context.viewportWidth <= 1500 && config.actionDockRight < 15) {
+    applySafetyValue("actionDockRight", 15, "操作区右侧间距", "右下操作区避开弃牌堆");
   }
 
-  const plateLimit = density === "dense"
+  if (!compact) {
+    const topPrivateRowTop = lowHeight ? 158 : context.viewportWidth > 1500 ? 194 : 181;
+    const opponentBottom = topPrivateRowTop + config.opponentRoleWidth * 1.5;
+    const minimumCenterTop = 100 * (
+      opponentBottom + 10 + config.activeRoleCardWidth * 0.75
+    ) / context.viewportHeight;
+    if (config.centerTop < minimumCenterTop) {
+      applySafetyValue("centerTop", minimumCenterTop, "中央信息高度", "行动牌避开顶部玩家的身份牌与建筑牌");
+    }
+  }
+  if (lowHeight && !compact && context.viewportWidth <= 1500 && config.actionDockRight < 15) {
+    applySafetyValue("actionDockRight", 15, "操作区右侧间距", "右下操作区避开弃牌堆");
+  }
+
+  // The active role card is centered on --ui-center-top. Reserve its real lower
+  // half plus the hard gap before the city begins, in every viewport mode.
+  const minimumCityTop = config.centerTop + 100 * (
+    config.activeRoleCardWidth * 0.75 + 10
+  ) / context.viewportHeight;
+  if (config.cityTop < minimumCityTop) {
+    applySafetyValue("cityTop", minimumCityTop, "自己的建筑高度", "建筑区避开行动身份牌");
+  }
+
+  // Compact and regular medium-width tables keep the normal action dock in the
+  // central vertical lane. Derive its center from the rendered city/button sizes.
+  // Low-height desktop and wide tables use the right-side lane instead.
+  const actionUsesCentralLane = compact || (!lowHeight && context.viewportWidth <= 1500);
+  if (actionUsesCentralLane) {
+    // The compact count is an out-of-flow side label, so the hard city region
+    // is the 66px card row instead of the previous 78px stacked block.
+    const cityHeight = compact ? 66 : 140;
+    const actionHeight = compact ? 38 : 44;
+    const minimumActionTop = config.cityTop + 100 * (
+      cityHeight + 10 + actionHeight / 2
+    ) / context.viewportHeight;
+    if (config.actionTop < minimumActionTop) {
+      applySafetyValue("actionTop", Math.min(80, minimumActionTop), "窄屏操作区高度", "操作区避开本人建筑区");
+    }
+  }
+
+  const densityPlateLimit = density === "dense"
     ? Math.max(210, Math.min(270, context.viewportWidth * 0.145))
     : Math.max(230, Math.min(300, context.viewportWidth * 0.18));
+  const viewportPlateLimit = compact ? densityPlateLimit : context.viewportWidth <= 1500 ? 220 : 270;
+  const plateLimit = Math.min(densityPlateLimit, viewportPlateLimit);
   if (config.opponentPlayerPlateWidth > plateLimit) {
     config.opponentPlayerPlateWidth = Math.floor(plateLimit);
     corrections.push("对手名片已限制在当前人数的座位轨道内。");
@@ -273,6 +378,15 @@ export function resolveSafeGameUiTuning(input: GameUiTuningConfigV4, context: Ga
   }
 
   return { config, corrections: [...new Set(corrections)] };
+}
+
+function roundTuningValue(value: number, step: number) {
+  const precision = step < 0.1 ? 100 : step < 1 ? 10 : 1;
+  return Math.round(value * precision) / precision;
+}
+
+function formatTuningValue(value: number) {
+  return Number.isInteger(value) ? String(value) : String(Math.round(value * 100) / 100);
 }
 
 export function readStoredGameUiTuning(
@@ -375,11 +489,30 @@ export function gameUiTuningStyle(config: GameUiTuningConfigV4): CSSProperties {
     "--ui-action-dock-right": `${config.actionDockRight}%`,
     "--ui-action-dock-bottom": `${config.actionDockBottom}%`,
     "--ui-card-preview-scale": String(config.cardPreviewScale),
+    "--ui-active-role-card-width": `${config.activeRoleCardWidth}px`,
+    "--ui-score-strip-scale": String(config.scoreStripScale),
+    "--ui-corner-dock-length": `${config.cornerDockLength}px`,
+    "--ui-score-strip-label-font-size": `${roundCssNumber(0.7 * config.scoreStripScale)}rem`,
+    "--ui-score-strip-item-font-size": `${roundCssNumber(0.66 * config.scoreStripScale)}rem`,
+    "--ui-score-strip-gap": `${roundCssNumber(5 * config.scoreStripScale)}px`,
+    "--ui-score-strip-padding-y": `${roundCssNumber(6 * config.scoreStripScale)}px`,
+    "--ui-score-strip-padding-x": `${roundCssNumber(10 * config.scoreStripScale)}px`,
+    "--ui-score-strip-compact-height": `${roundCssNumber(54 * config.scoreStripScale)}px`,
+    "--ui-score-strip-compact-row-height": `${roundCssNumber(17 * config.scoreStripScale)}px`,
+    "--ui-score-strip-compact-label-font-size": `${roundCssNumber(0.52 * config.scoreStripScale)}rem`,
+    "--ui-score-strip-compact-item-font-size": `${roundCssNumber(0.52 * config.scoreStripScale)}rem`,
+    "--ui-score-strip-compact-gap": `${roundCssNumber(4 * config.scoreStripScale)}px`,
+    "--ui-score-strip-compact-padding-y": `${roundCssNumber(4 * config.scoreStripScale)}px`,
+    "--ui-score-strip-compact-padding-x": `${roundCssNumber(6 * config.scoreStripScale)}px`,
     "--ui-center-top": `${config.centerTop}%`,
     "--ui-city-top": `${config.cityTop}%`,
     "--ui-action-top": `${config.actionTop}%`,
     "--ui-self-bottom": `${config.selfBottom}%`
   } as CSSProperties;
+}
+
+function roundCssNumber(value: number) {
+  return Math.round(value * 1000) / 1000;
 }
 
 export function canShowUiTuningPanel() {
