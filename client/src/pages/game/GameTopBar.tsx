@@ -1,4 +1,5 @@
 import type { VisibleGameState } from "@zy/shared";
+import type { RefObject } from "react";
 import type { InfoModalId } from "../../components/ui/infoModalTypes";
 import { UtilityMenuButton, type UtilityMenuIcon } from "../../components/ui/UtilityMenuButton";
 import { phaseText } from "./gameText";
@@ -7,8 +8,10 @@ import { objectiveSummary } from "./GameObjectiveNotice";
 export function GameTopBar(props: {
   gameState: VisibleGameState;
   objectiveIntroVisible: boolean;
+  scoringButtonRef: RefObject<HTMLButtonElement>;
   onLeaveRoom: () => void;
   onOpenInfoModal: (modal: InfoModalId) => void;
+  onOpenScoring: () => void;
 }) {
   return (
     <header className="citadel-game-topbar">
@@ -18,7 +21,16 @@ export function GameTopBar(props: {
         <small className={props.objectiveIntroVisible ? "is-hidden" : ""}>
           {objectiveSummary(props.gameState.settings.endCitySize)}
         </small>
-        <button type="button" aria-label={"\u5e2e\u52a9"} onClick={() => props.onOpenInfoModal("help")}>?</button>
+        <button
+          ref={props.scoringButtonRef}
+          className="citadel-game-room-card__score-button"
+          data-scoring-trigger
+          type="button"
+          aria-label="打开计分总览"
+          onClick={props.onOpenScoring}
+        >
+          <span aria-hidden="true">★</span> 计分
+        </button>
       </section>
       <nav className="citadel-game-top-actions" aria-label={"\u5bf9\u5c40\u83dc\u5355"}>
         <GameTopAction label={"\u516c\u544a"} icon="announcement" onClick={() => props.onOpenInfoModal("announcements")} />

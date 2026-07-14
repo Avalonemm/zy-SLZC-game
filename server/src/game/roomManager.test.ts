@@ -591,7 +591,7 @@ describe("room manager", () => {
       throw new Error(started.error);
     }
     expect(started.gameRoom.settings.turnTimeoutSeconds).toBe(35);
-    expect(started.gameRoom.turnTimer?.timeoutMs).toBe(7_000);
+    expect(started.gameRoom.turnTimer?.timeoutMs).toBe(9_000);
     started.gameRoom.crownPlayerId = host.playerId;
     const crownResolved = resolveExpiredTurn(started.gameRoom, started.gameRoom.turnTimer?.deadlineAt);
     expect(crownResolved.ok).toBe(true);

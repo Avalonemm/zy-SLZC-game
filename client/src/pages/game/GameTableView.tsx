@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ActionEventPayload, ChatMessage, VisibleGameState } from "@zy/shared";
+import { calculateCityScore, type ActionEventPayload, type ChatMessage, type VisibleGameState } from "@zy/shared";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { useGameViewModel } from "./useGameViewModel";
 import { skillHint } from "./gameText";
@@ -14,6 +14,7 @@ import { GameOpeningSequence } from "./GameOpeningSequence";
 import { GameRoleCallSequence } from "./GameRoleCallSequence";
 import { GameSelfArea } from "./GameSelfArea";
 import { GameSelfCity } from "./GameSelfCity";
+import { GameScoringOverview } from "./GameScoringOverview";
 import { GameResultOverlay } from "../result/GameResultOverlay";
 import { GameTopBar } from "./GameTopBar";
 import {
@@ -90,6 +91,7 @@ export function GameTableView(props: GameTableViewProps) {
   const [now, setNow] = useState(() => Date.now());
   const [tuningSafetyMessages, setTuningSafetyMessages] = useState<string[]>([]);
   const [viewport, setViewport] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
+  const [scoringOverviewOpen, setScoringOverviewOpen] = useState(false);
   const density = densityForPlayerCount(props.gameState.players.length);
   const tuningDefaults = useMemo(() => defaultGameUiTuning(), []);
   const tuningPanelVisible = canShowUiTuningPanel();
@@ -103,6 +105,7 @@ export function GameTableView(props: GameTableViewProps) {
   const [uiTuningDirty, setUiTuningDirty] = useState(false);
   const gameShellRef = useRef<HTMLElement>(null);
   const gameTableRef = useRef<HTMLElement>(null);
+  const scoringButtonRef = useRef<HTMLButtonElement>(null);
   const tableTargeting = useTableDistrictTargeting();
   const viewModel = useGameViewModel({ gameState: props.gameState, playerId: props.playerId });
   const buildAnimations = useBuildAnimationTransactions({
@@ -146,6 +149,21 @@ export function GameTableView(props: GameTableViewProps) {
     () => arrangeGameTableSeats(props.gameState.players, props.playerId),
     [props.gameState.players, props.playerId]
   );
+  const scoreByPlayerId = useMemo(() => new Map(
+    props.gameState.players.map((player) => [
+      player.id,
+      calculateCityScore({
+        city: player.city,
+        endCitySize: props.gameState.settings.endCitySize,
+        playerId: player.id,
+        firstCompletedCityPlayerId: props.gameState.firstCompletedCityPlayerId
+      })
+    ])
+  ), [
+    props.gameState.firstCompletedCityPlayerId,
+    props.gameState.players,
+    props.gameState.settings.endCitySize
+  ]);
   const timerDeadlineAt = props.gameState.turnTimer?.deadlineAt ?? null;
   const remainingSeconds = useMemo(() => {
     if (!timerDeadlineAt) {
@@ -454,6 +472,11 @@ export function GameTableView(props: GameTableViewProps) {
     setTuningSafetyMessages(resolveSafeGameUiTuning(rawConfig, layoutContext).corrections);
   }
 
+  function closeScoringOverview() {
+    setScoringOverviewOpen(false);
+    window.requestAnimationFrame(() => scoringButtonRef.current?.focus());
+  }
+
   return (
     <section
       ref={gameShellRef}
@@ -485,9 +508,19 @@ export function GameTableView(props: GameTableViewProps) {
       <GameTopBar
         gameState={props.gameState}
         objectiveIntroVisible={openingVisible}
+        scoringButtonRef={scoringButtonRef}
         onLeaveRoom={props.onLeaveRoom}
         onOpenInfoModal={props.onOpenInfoModal}
+        onOpenScoring={() => setScoringOverviewOpen(true)}
       />
+      {scoringOverviewOpen && (
+        <GameScoringOverview
+          endCitySize={props.gameState.settings.endCitySize}
+          players={props.gameState.players}
+          scores={scoreByPlayerId}
+          onClose={closeScoringOverview}
+        />
+      )}
       <main ref={gameTableRef} className="citadel-game-table" aria-label={"\u5bf9\u5c40\u684c\u9762"}>
         <div className="citadel-game-board" aria-hidden="true" />
         <GameOpeningSequence gameState={props.gameState} tableRef={gameTableRef} />
@@ -527,6 +560,8 @@ export function GameTableView(props: GameTableViewProps) {
               onSelectDistrictTarget={(card) => requestTableDistrictTarget(seat.player, card)}
               onSelectPlayerTarget={() => requestMagicianPlayerTarget(seat.player)}
               player={seat.player}
+              cityTarget={props.gameState.settings.endCitySize}
+              score={scoreByPlayerId.get(seat.player.id)!}
               position={seat.position}
               handStackDepth={displayedUiTuning.opponentHandStackDepth}
             />
@@ -548,6 +583,8 @@ export function GameTableView(props: GameTableViewProps) {
             arrivalHighlightCardIds={buildArrivalHighlightIds}
             canUseDistrictEffects={viewModel.isMyTurn && !pendingConfirm && !tableTargeting.source && !roleSkillTargeting && !props.gameState.pendingDrawChoice}
             city={tableSeats.self.city ?? []}
+            cityTarget={props.gameState.settings.endCitySize}
+            score={scoreByPlayerId.get(tableSeats.self.id)!}
             hiddenDistrictCardIds={buildAnimations.hiddenDistrictCardIds}
             pendingBuildCards={buildAnimations.pendingSelfCards}
             usedDistrictEffectIds={usedDistrictEffectIds}
@@ -569,6 +606,7 @@ export function GameTableView(props: GameTableViewProps) {
             hasCrown={tableSeats.self.id === props.gameState.crownPlayerId}
             roleCallHighlighted={tableSeats.self.id === roleCallHighlightedPlayerId}
             self={tableSeats.self}
+            score={scoreByPlayerId.get(tableSeats.self.id) ?? null}
             onBuildDistrict={requestBuildDistrict}
             onCancelDistrictEffect={cancelDistrictEffect}
             onConfirmDistrictEffect={confirmDistrictEffect}

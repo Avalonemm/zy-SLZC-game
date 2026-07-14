@@ -177,7 +177,7 @@
   border: 1px solid rgb(221 177 91 / 34%);
   border-radius: 8px;
   background: linear-gradient(180deg, rgb(6 15 24 / 90%), rgb(4 10 17 / 82%));
-  padding: clamp(10px, 1.1vw, 16px) clamp(42px, 3.8vw, 60px) clamp(10px, 1vw, 14px) clamp(12px, 1.3vw, 18px);
+  padding: clamp(10px, 1.1vw, 16px) clamp(76px, 5.4vw, 92px) clamp(10px, 1vw, 14px) clamp(12px, 1.3vw, 18px);
   box-shadow: 0 14px 30px rgb(0 0 0 / 34%), inset 0 1px 0 rgb(255 255 255 / 5%);
 }
 
@@ -207,18 +207,20 @@
   opacity: 0;
 }
 
-.citadel-game-room-card button {
+.citadel-game-room-card__score-button {
   position: absolute;
   top: 50%;
   right: clamp(10px, 1vw, 14px);
   display: grid;
   place-items: center;
-  width: clamp(26px, 2.2vw, 36px);
-  height: clamp(26px, 2.2vw, 36px);
+  width: clamp(58px, 4.4vw, 72px);
+  height: clamp(27px, 2.2vw, 34px);
   border: 1px solid var(--game-gold-muted);
   border-radius: 999px;
   background: rgb(10 20 31 / 78%);
   color: var(--game-gold);
+  gap: 3px;
+  font-size: clamp(0.64rem, 0.72vw, 0.78rem);
   font-weight: 900;
   transform: translateY(-50%);
 }
@@ -230,7 +232,7 @@
   gap: clamp(26px, 3vw, 46px);
 }
 
-.citadel-game-room-card button:hover {
+.citadel-game-room-card__score-button:hover {
   border-color: rgb(246 208 128 / 78%);
   filter: brightness(1.12);
 }

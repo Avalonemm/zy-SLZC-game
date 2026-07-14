@@ -653,8 +653,10 @@ async function preparePage(cdp, sessionId, session, viewport, options = {}) {
       })()
     `);
     const rouletteFirst = await collectOpeningState();
-    await delay(520);
+    const rouletteSamples = [rouletteFirst];
+    await delay(650);
     const rouletteSecond = await collectOpeningState();
+    rouletteSamples.push(rouletteSecond);
     const rouletteScreenshot = await captureScreenshot(
       cdp,
       sessionId,
@@ -664,9 +666,22 @@ async function preparePage(cdp, sessionId, session, viewport, options = {}) {
     await navigate(cdp, sessionId, `${qaUrl}&opening-reconnect=${Date.now()}`);
     await waitForSelector(cdp, sessionId, ".citadel-game-opening", 3000);
     const afterReconnect = await collectOpeningState();
-    await waitForSelector(cdp, sessionId, ".citadel-game-opening--settle", 4500);
-    await delay(120);
-    const settle = await collectOpeningState();
+    if (afterReconnect.stage === "roulette") rouletteSamples.push(afterReconnect);
+    const samplingDeadline = Date.now() + 5_000;
+    let settle = null;
+    while (Date.now() < samplingDeadline) {
+      const sample = await collectOpeningState();
+      if (sample.stage === "roulette") rouletteSamples.push(sample);
+      if (sample.stage === "settle") {
+        settle = sample;
+        break;
+      }
+      await delay(110);
+    }
+    if (!settle) {
+      await waitForSelector(cdp, sessionId, ".citadel-game-opening--settle", 1000);
+      settle = await collectOpeningState();
+    }
     const settleScreenshot = await captureScreenshot(
       cdp,
       sessionId,
@@ -691,6 +706,7 @@ async function preparePage(cdp, sessionId, session, viewport, options = {}) {
     openingSequence = {
       rouletteFirst,
       rouletteSecond,
+      rouletteSamples,
       afterReconnect,
       settle,
       finalCrown,
@@ -1149,6 +1165,8 @@ async function collectRoleCallPresentation(cdp, sessionId) {
       const shell = document.querySelector('.citadel-game-shell');
       const roleCall = document.querySelector('.citadel-role-call');
       const cardInner = document.querySelector('.citadel-role-call__card-inner');
+      const unansweredCard = document.querySelector('.citadel-role-call--unanswered .citadel-role-call__card');
+      const unansweredStamp = document.querySelector('.citadel-role-call__stamp');
       const activeCenter = document.querySelector('.citadel-game-center--active-turn');
       const highlightedPlayers = [...document.querySelectorAll('.is-role-revealing [data-player-id], .citadel-opponent-seat.is-role-revealing')]
         .map((element) => element.getAttribute('data-player-id') || element.closest('[data-player-id]')?.getAttribute('data-player-id'))
@@ -1166,7 +1184,9 @@ async function collectRoleCallPresentation(cdp, sessionId) {
           pointerEvents: getComputedStyle(roleCall).pointerEvents,
           text: roleCall.innerText.trim(),
           transform: cardInner ? getComputedStyle(cardInner).transform : null,
-          transitionDuration: cardInner ? getComputedStyle(cardInner).transitionDuration : null
+          transitionDuration: cardInner ? getComputedStyle(cardInner).transitionDuration : null,
+          unansweredCardAnimationDuration: unansweredCard ? getComputedStyle(unansweredCard).animationDuration : null,
+          stampAnimationDuration: unansweredStamp ? getComputedStyle(unansweredStamp).animationDuration : null
         } : null,
         highlightedPlayers: [...new Set(highlightedPlayers)],
         activeCenter: activeCenter ? {
@@ -1203,6 +1223,12 @@ function checkRoleCallPresentation(label, state, expectedStage, options = {}) {
   } else if (expectedStage === "unanswered") {
     addCheck("unanswered keeps the player hidden", !state.roleCall?.playerId && state.highlightedPlayers.length === 0, state);
     addCheck("unanswered stamp is explicit", state.roleCall?.text.includes("\u65e0\u4eba\u5e94\u7b54"), state.roleCall);
+    if (!options.reducedMotion) {
+      addCheck("unanswered gray-and-stamp entrance lasts 320ms", Boolean(
+        state.roleCall?.unansweredCardAnimationDuration === "0.32s" &&
+        state.roleCall?.stampAnimationDuration === "0.32s"
+      ), state.roleCall);
+    }
   } else if (expectedStage === "revealing") {
     addCheck("reveal publishes exactly one responding player", Boolean(
       state.roleCall?.playerId &&
@@ -1214,6 +1240,8 @@ function checkRoleCallPresentation(label, state, expectedStage, options = {}) {
     ), state.roleCall);
     if (options.reducedMotion) {
       addCheck("reduced motion removes the flip transition", state.roleCall?.transitionDuration === "0s", state.roleCall);
+    } else {
+      addCheck("identity flip uses the readable 900ms transition", state.roleCall?.transitionDuration === "0.9s", state.roleCall);
     }
   }
 
@@ -1235,6 +1263,211 @@ function checkActiveRoleStatus(label, state, roleId) {
   addCheck("action page has no outer scrollbar", !state.pageScrolls, state);
   const failures = checks.filter((check) => !check.pass);
   return { label, pass: failures.length === 0, failures, checks };
+}
+
+async function collectScoringOverviewFlow(cdp, sessionId, screenshotName) {
+  const opened = await evaluate(cdp, sessionId, `
+    (() => {
+      const button = document.querySelector('[data-scoring-trigger]');
+      if (!button) return false;
+      button.click();
+      return true;
+    })()
+  `);
+  if (!opened) return { opened: false };
+  await waitForSelector(cdp, sessionId, ".citadel-scoring-overview", 3000);
+  await delay(80);
+  await cdp.send("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "Tab",
+    code: "Tab",
+    windowsVirtualKeyCode: 9
+  }, sessionId);
+  await cdp.send("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "Tab",
+    code: "Tab",
+    windowsVirtualKeyCode: 9
+  }, sessionId);
+  const openState = await evaluate(cdp, sessionId, `
+    (() => {
+      const rect = (element) => {
+        if (!element) return null;
+        const box = element.getBoundingClientRect();
+        return { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height };
+      };
+      const miniStatuses = [...document.querySelectorAll('.citadel-player-mini[data-player-id]')].map((mini) => ({
+        playerId: mini.getAttribute('data-player-id'),
+        rect: rect(mini),
+        cityProgress: mini.querySelector('[data-player-city-progress]')?.getAttribute('data-player-city-progress') ?? null,
+        currentScore: Number(mini.querySelector('[data-player-current-score]')?.getAttribute('data-player-current-score')),
+        statRects: [...mini.querySelectorAll('.citadel-player-mini__stat')].map(rect)
+      }));
+      const rows = [...document.querySelectorAll('[data-scoring-player-id]')].map((row) => ({
+        playerId: row.getAttribute('data-scoring-player-id'),
+        cityCount: Number(row.getAttribute('data-city-count')),
+        cityTarget: Number(row.getAttribute('data-city-target')),
+        districtScore: Number(row.getAttribute('data-district-score')),
+        colorCount: Number(row.getAttribute('data-color-count')),
+        colorBonus: Number(row.getAttribute('data-color-bonus')),
+        completionBonus: Number(row.getAttribute('data-completion-bonus')),
+        totalScore: Number(row.getAttribute('data-total-score')),
+        rect: rect(row),
+        text: row.innerText.trim()
+      }));
+      const dialog = document.querySelector('.citadel-scoring-overview');
+      const trigger = document.querySelector('[data-scoring-trigger]');
+      const active = document.activeElement;
+      return {
+        viewport: { width: innerWidth, height: innerHeight },
+        pageScrolls: document.documentElement.scrollWidth > innerWidth + 1 || document.documentElement.scrollHeight > innerHeight + 1,
+        dialogRect: rect(dialog),
+        dialogText: dialog?.innerText ?? '',
+        triggerRect: rect(trigger),
+        triggerText: trigger?.textContent?.trim() ?? '',
+        focusInsideDialog: Boolean(dialog && active && dialog.contains(active)),
+        activeLabel: active?.getAttribute?.('aria-label') ?? '',
+        miniStatuses,
+        rows,
+        selfScoreline: document.querySelector('.citadel-self-city__scoreline')?.textContent?.trim() ?? ''
+      };
+    })()
+  `);
+  const screenshot = await captureScreenshot(cdp, sessionId, screenshotName);
+
+  await cdp.send("Input.dispatchKeyEvent", {
+    type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27
+  }, sessionId);
+  await cdp.send("Input.dispatchKeyEvent", {
+    type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27
+  }, sessionId);
+  await waitForSelectorAbsent(cdp, sessionId, ".citadel-scoring-overview", 3000);
+  await delay(30);
+  const escapeClose = await evaluate(cdp, sessionId, `
+    ({
+      closed: !document.querySelector('.citadel-scoring-overview'),
+      focusRestored: document.activeElement?.matches?.('[data-scoring-trigger]') ?? false
+    })
+  `);
+
+  await evaluate(cdp, sessionId, `document.querySelector('[data-scoring-trigger]')?.click()`);
+  await waitForSelector(cdp, sessionId, ".citadel-scoring-backdrop", 3000);
+  await evaluate(cdp, sessionId, `
+    (() => {
+      const backdrop = document.querySelector('.citadel-scoring-backdrop');
+      backdrop?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    })()
+  `);
+  await waitForSelectorAbsent(cdp, sessionId, ".citadel-scoring-overview", 3000);
+  await delay(30);
+  const backdropClose = await evaluate(cdp, sessionId, `
+    ({
+      closed: !document.querySelector('.citadel-scoring-overview'),
+      focusRestored: document.activeElement?.matches?.('[data-scoring-trigger]') ?? false
+    })
+  `);
+
+  return { opened, openState, escapeClose, backdropClose, screenshot };
+}
+
+function checkScoringOverview(label, flow, gameState) {
+  const checks = [];
+  const addCheck = (name, pass, details = undefined) => checks.push({ name, pass: Boolean(pass), details });
+  const expectedScores = new Map(gameState.players.map((player) => [player.id, calculateVisibleScore(player, gameState)]));
+  const state = flow.openState;
+  addCheck("scoring trigger is visible and explicitly labelled", Boolean(
+    state?.triggerText?.includes("计分") && insideViewport(state.triggerRect, state.viewport, 2)
+  ), state);
+  addCheck("scoring overview opens inside the real viewport", Boolean(
+    flow.opened && insideViewport(state?.dialogRect, state?.viewport, 4)
+  ), state);
+  addCheck("scoring overview contains every public player", state?.rows?.length === gameState.players.length, state?.rows);
+  addCheck("scoring rules expose all bonuses and Ghost City", [
+    "五色 +3", "首位完城 +4", "其他完城 +2", "鬼城补 1 种缺色"
+  ].every((text) => state?.dialogText?.includes(text)), state?.dialogText);
+  addCheck("focus stays trapped inside the scoring dialog", Boolean(state?.focusInsideDialog), state?.activeLabel);
+  addCheck("scoring overview never creates an outer page scrollbar", !state?.pageScrolls, state);
+  addCheck("all score-bearing player nameplates stay inside the viewport", Boolean(
+    state?.miniStatuses?.length === gameState.players.length &&
+    state.miniStatuses.every((mini) => insideViewport(mini.rect, state.viewport, 2))
+  ), state?.miniStatuses);
+  addCheck("score-bearing player nameplates do not collide with adjacent players", Boolean(
+    state?.miniStatuses?.length === gameState.players.length &&
+    !hasInternalRectCollision(state.miniStatuses.map((mini) => mini.rect))
+  ), state?.miniStatuses);
+
+  for (const player of gameState.players) {
+    const expected = expectedScores.get(player.id);
+    const mini = state?.miniStatuses?.find((item) => item.playerId === player.id);
+    const row = state?.rows?.find((item) => item.playerId === player.id);
+    addCheck(`${player.name} nameplate shows building progress and current score`, Boolean(
+      mini && expected &&
+      mini.cityProgress === `${player.city.length}/${gameState.settings.endCitySize}` &&
+      mini.currentScore === expected.totalScore
+    ), { mini, expected });
+    addCheck(`${player.name} scoring row matches the shared breakdown`, Boolean(
+      row && expected &&
+      row.cityCount === player.city.length &&
+      row.cityTarget === gameState.settings.endCitySize &&
+      row.districtScore === expected.districtScore &&
+      row.colorCount === expected.effectiveColorCount &&
+      row.colorBonus === expected.colorBonus &&
+      row.completionBonus === expected.completionBonus &&
+      row.totalScore === expected.totalScore
+    ), { row, expected });
+    addCheck(`${player.name} four nameplate resources do not overlap`, Boolean(
+      mini?.statRects?.length === 4 && !hasInternalRectCollision(mini.statRects)
+    ), mini);
+  }
+
+  const selfPlayer = gameState.players.find((player) => player.hand);
+  const selfExpected = selfPlayer ? expectedScores.get(selfPlayer.id) : null;
+  addCheck("self city caption exposes progress, building score, and current total", Boolean(
+    selfPlayer && selfExpected &&
+    state?.selfScoreline?.includes(`已建 ${selfPlayer.city.length}/${gameState.settings.endCitySize}`) &&
+    state.selfScoreline.includes(`建筑分 ${selfExpected.districtScore}`) &&
+    state.selfScoreline.includes(`当前总分 ${selfExpected.totalScore}`)
+  ), { selfScoreline: state?.selfScoreline, selfExpected });
+  addCheck("Escape closes scoring and restores trigger focus", Boolean(
+    flow.escapeClose?.closed && flow.escapeClose.focusRestored
+  ), flow.escapeClose);
+  addCheck("backdrop closes scoring and restores trigger focus", Boolean(
+    flow.backdropClose?.closed && flow.backdropClose.focusRestored
+  ), flow.backdropClose);
+
+  const failures = checks.filter((check) => !check.pass);
+  return { label, pass: failures.length === 0, failures, checks };
+}
+
+function calculateVisibleScore(player, gameState) {
+  const standardColors = ["yellow", "blue", "green", "red", "purple"];
+  const fixedColors = new Set(player.city
+    .filter((district) => district.effectType !== "wildcard_scoring_color")
+    .map((district) => district.color));
+  const wildcardCount = player.city.filter((district) => district.effectType === "wildcard_scoring_color").length;
+  const missing = standardColors.filter((color) => !fixedColors.has(color)).length;
+  const effectiveColorCount = Math.min(5, fixedColors.size + Math.min(wildcardCount, missing));
+  const colorBonus = effectiveColorCount === 5 ? 3 : 0;
+  const completionBonus = player.city.length < gameState.settings.endCitySize
+    ? 0
+    : gameState.firstCompletedCityPlayerId === player.id ? 4 : 2;
+  const districtScore = player.city.reduce((sum, district) => sum + district.score, 0);
+  return {
+    districtScore,
+    effectiveColorCount,
+    colorBonus,
+    completionBonus,
+    totalScore: districtScore + colorBonus + completionBonus
+  };
+}
+
+function hasInternalRectCollision(rects) {
+  for (let leftIndex = 0; leftIndex < rects.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < rects.length; rightIndex += 1) {
+      if (intersects(rects[leftIndex], rects[rightIndex], 0)) return true;
+    }
+  }
+  return false;
 }
 
 function intersects(a, b, gap = 0) {
@@ -1716,6 +1949,7 @@ function checkOpeningSequence(label, preparation, gameState) {
   const checks = [];
   const addCheck = (name, pass, details = undefined) => checks.push({ name, pass, details });
   addCheck("opening starts with the objective", Boolean(preparation.objectiveIntro), preparation.objectiveIntro);
+  addCheck("opening uses the authoritative nine-second timer", gameState.turnTimer?.timeoutMs === 9000, gameState.turnTimer);
   addCheck("crown roulette follows the objective", Boolean(
     sequence?.rouletteFirst?.stage === "roulette" && sequence.rouletteFirst.crownRect
   ), sequence?.rouletteFirst);
@@ -1726,6 +1960,13 @@ function checkOpeningSequence(label, preparation, gameState) {
   ), {
     first: sequence?.rouletteFirst?.haloPlayerId,
     second: sequence?.rouletteSecond?.haloPlayerId
+  });
+  const sampledPlayerIds = [...new Set(
+    (sequence?.rouletteSamples ?? []).map((sample) => sample?.haloPlayerId).filter(Boolean)
+  )];
+  addCheck("crown halo visits every seat during the roulette", sampledPlayerIds.length === gameState.players.length, {
+    expected: gameState.players.map((player) => player.id),
+    sampledPlayerIds
   });
   addCheck("crown remains at the table center during roulette", Boolean(
     crownNearExpectedCenter(sequence?.rouletteFirst) && crownNearExpectedCenter(sequence?.rouletteSecond)
@@ -1769,7 +2010,7 @@ function crownNearExpectedCenter(state) {
 function checkReducedOpeningSequence(label, preparation, gameState) {
   const sequence = preparation.openingSequence;
   return checkDirectSkillFlow(label, [
-    ["reduced opening keeps the crown centered during roulette", crownNearExpectedCenter(sequence?.rouletteFirst), sequence?.rouletteFirst],
+    ["reduced opening places the crown directly on the final seat", crownNearActiveSeat(sequence?.rouletteFirst), sequence?.rouletteFirst],
     ["reduced opening highlights only the authoritative final seat", Boolean(
       sequence?.rouletteFirst?.reducedMotion &&
       sequence.rouletteFirst.haloPlayerId === gameState.crownPlayerId &&
@@ -1788,6 +2029,15 @@ function checkReducedOpeningSequence(label, preparation, gameState) {
       sequence.finalCrown.visible
     ), sequence?.settle]
   ]);
+}
+
+function crownNearActiveSeat(state) {
+  if (!state?.crownRect || !state.activeAvatarRect) return false;
+  const crownX = state.crownRect.left + state.crownRect.width / 2;
+  const crownY = state.crownRect.top + state.crownRect.height / 2;
+  const avatarX = state.activeAvatarRect.left + state.activeAvatarRect.width / 2;
+  const avatarY = state.activeAvatarRect.top + state.activeAvatarRect.height / 2;
+  return Math.hypot(crownX - avatarX, crownY - avatarY) <= 42;
 }
 
 async function collectDrawChoiceFlow(cdp, sessionId, screenshotName) {
@@ -3268,6 +3518,7 @@ async function main() {
   const extremeSetups = [];
   const opponentSetups = [];
   const openingSetups = [];
+  const scoringSetups = [];
   const roleEffectSetups = [];
   const opponentBuildSetups = [];
   const browser = await createBrowserPage();
@@ -3277,35 +3528,37 @@ async function main() {
   try {
     if (qaMode === "opening" || qaMode === "full") {
       for (const viewport of viewports) {
-        const openingSetup = await setupGame(4, { stopAtCrownReveal: true });
-        openingSetups.push(openingSetup);
-        const label = `${viewport.width}x${viewport.height}`;
-        const openingPreparation = await preparePage(
-          browser.cdp,
-          browser.sessionId,
-          openingSetup.created,
-          viewport,
-          {
-            skipObjectiveIntro: false,
-            collectOpeningSequence: true,
-            objectiveScreenshotName: `${label}-opening-objective`,
-            rouletteScreenshotName: `${label}-opening-crown-roulette`,
-            settleScreenshotName: `${label}-opening-crown-settle`
+        for (const playerCount of [4, 8]) {
+          const openingSetup = await setupGame(playerCount, { stopAtCrownReveal: true });
+          openingSetups.push(openingSetup);
+          const label = `${viewport.width}x${viewport.height}-${playerCount}p`;
+          const openingPreparation = await preparePage(
+            browser.cdp,
+            browser.sessionId,
+            openingSetup.created,
+            viewport,
+            {
+              skipObjectiveIntro: false,
+              collectOpeningSequence: true,
+              objectiveScreenshotName: `${label}-opening-objective`,
+              rouletteScreenshotName: `${label}-opening-crown-roulette`,
+              settleScreenshotName: `${label}-opening-crown-settle`
+            }
+          );
+          if (openingPreparation.objectiveScreenshot) screenshots.push(openingPreparation.objectiveScreenshot);
+          if (openingPreparation.openingSequence?.rouletteScreenshot) {
+            screenshots.push(openingPreparation.openingSequence.rouletteScreenshot);
           }
-        );
-        if (openingPreparation.objectiveScreenshot) screenshots.push(openingPreparation.objectiveScreenshot);
-        if (openingPreparation.openingSequence?.rouletteScreenshot) {
-          screenshots.push(openingPreparation.openingSequence.rouletteScreenshot);
+          if (openingPreparation.openingSequence?.settleScreenshot) {
+            screenshots.push(openingPreparation.openingSequence.settleScreenshot);
+          }
+          results.push(checkObjectiveIntro(
+            `${label} opening-objective`,
+            openingPreparation.objectiveIntro,
+            openingSetup.gameState.settings.endCitySize
+          ));
+          results.push(checkOpeningSequence(`${label} opening-sequence`, openingPreparation, openingSetup.gameState));
         }
-        if (openingPreparation.openingSequence?.settleScreenshot) {
-          screenshots.push(openingPreparation.openingSequence.settleScreenshot);
-        }
-        results.push(checkObjectiveIntro(
-          `${label} opening-objective`,
-          openingPreparation.objectiveIntro,
-          openingSetup.gameState.settings.endCitySize
-        ));
-        results.push(checkOpeningSequence(`${label} opening-sequence`, openingPreparation, openingSetup.gameState));
       }
       await browser.cdp.send("Emulation.setEmulatedMedia", {
         media: "screen",
@@ -3450,6 +3703,32 @@ async function main() {
       await delay(50);
       roleCallSetup.gameState = roleCallSetup.socket.__qaLatestGameState ?? roleCallSetup.gameState;
       await captureStage("unanswered", "unanswered");
+    }
+
+    if (qaMode === "scoring" || qaMode === "full") {
+      for (const playerCount of opponentPlayerCounts) {
+        const scoringSetup = await setupGame(playerCount, {
+          actionDeadlineMs: 90_000,
+          fastOpeningForQa: true
+        });
+        scoringSetups.push(scoringSetup);
+        await configureQaGame(scoringSetup, { scoreScenario: true, deadlineMs: 60_000 });
+        await delay(80);
+        scoringSetup.gameState = scoringSetup.socket.__qaLatestGameState ?? scoringSetup.gameState;
+
+        for (const viewport of viewports) {
+          await freezeQaTimer(scoringSetup);
+          const label = `${viewport.width}x${viewport.height}-${playerCount}p`;
+          await preparePage(browser.cdp, browser.sessionId, scoringSetup.created, viewport);
+          const flow = await collectScoringOverviewFlow(
+            browser.cdp,
+            browser.sessionId,
+            `${label}-scoring-overview`
+          );
+          if (flow.screenshot) screenshots.push(flow.screenshot);
+          results.push(checkScoringOverview(`${label} scoring-overview`, flow, scoringSetup.gameState));
+        }
+      }
     }
 
     if (qaMode === "roles" && roleSetup) {
@@ -4305,6 +4584,7 @@ async function main() {
     roleTimeoutSetup?.socket.disconnect();
     roleCallSetup?.socket.disconnect();
     for (const openingSetup of openingSetups) openingSetup.socket.disconnect();
+    for (const scoringSetup of scoringSetups) scoringSetup.socket.disconnect();
     for (const extremeSetup of extremeSetups) extremeSetup.socket.disconnect();
     for (const opponentSetup of opponentSetups) opponentSetup.socket.disconnect();
     for (const roleEffectSetup of roleEffectSetups) roleEffectSetup.socket.disconnect();

@@ -42,7 +42,7 @@ try {
   await ensureHeadlessChrome();
 
   const defaultUiModes = mode === "release"
-    ? ["full", "opening", "role-call", "build-animation", "roles", "opponents", "targeting", "skills", "skill-thief", "role-effects", "card-inspector", "utility-menu", "ui-tuning", "action-feedback", "extreme-layout"]
+    ? ["full", "opening", "role-call", "scoring", "build-animation", "roles", "opponents", "targeting", "skills", "skill-thief", "role-effects", "card-inspector", "utility-menu", "ui-tuning", "action-feedback", "extreme-layout"]
     : ["dense", "action-feedback", "extreme-layout"];
   const uiModes = uiModeArgument || process.env.ZY_REGRESSION_UI_MODES
     ? (uiModeArgument ?? process.env.ZY_REGRESSION_UI_MODES).split(",").map((value) => value.trim()).filter(Boolean)
@@ -53,7 +53,7 @@ try {
       ? "1296x776,1893x881"
       : uiMode === "extreme-layout"
         ? "768x600,778x638,1024x640,1262x827,1365x668,1893x881"
-      : uiMode === "role-call"
+      : ["role-call", "scoring"].includes(uiMode)
         ? "768x600,778x638,1024x640,1262x827,1365x668,1893x881"
       : ["roles", "opponents", "skills", "skill-thief", "role-effects"].includes(uiMode)
         ? "768x600,778x638,1024x640,1262x827,1365x668,1893x881"
@@ -64,7 +64,7 @@ try {
         : "1893x881,1365x668";
     run(`browser ${uiMode}`, "node", ["scripts/verify-game-ui-layout.mjs"], {
       allowFailure: true,
-      timeoutMs: mode === "release" || ["opening", "opponents", "extreme-layout", "role-effects", "role-call"].includes(uiMode)
+      timeoutMs: mode === "release" || ["opening", "opponents", "extreme-layout", "role-effects", "role-call", "scoring"].includes(uiMode)
         ? 300_000
         : 180_000,
       env: {

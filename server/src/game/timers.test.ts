@@ -96,7 +96,7 @@ describe("turn timers", () => {
     vi.restoreAllMocks();
   });
 
-  it("enters role selection from crown reveal after the seven second timer expires", () => {
+  it("enters role selection from crown reveal after the nine second timer expires", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.5);
     const gameRoom = createStartedGame();
     const deadlineAt = gameRoom.turnTimer?.deadlineAt;
@@ -104,6 +104,7 @@ describe("turn timers", () => {
     expect(gameRoom.phase).toBe("CROWN_REVEAL");
     expect(gameRoom.crownPlayerId).toBe("player-2");
     expect(gameRoom.roleSelectionTurnPlayerId).toBeNull();
+    expect(gameRoom.turnTimer?.timeoutMs).toBe(9_000);
 
     const result = resolveExpiredTurn(gameRoom, deadlineAt);
 
@@ -141,12 +142,12 @@ describe("turn timers", () => {
       roleId: roles[0].id,
       stage: "calling",
       playerId: null,
-      timeoutMs: 650
+      timeoutMs: 800
     });
     expect(gameRoom.turnTimer).toMatchObject({
       phase: "ROLE_CALL",
       playerId: null,
-      timeoutMs: 650
+      timeoutMs: 800
     });
 
     expect(resolveExpiredTurn(gameRoom, gameRoom.turnTimer?.deadlineAt).ok).toBe(true);
@@ -155,7 +156,7 @@ describe("turn timers", () => {
       roleId: roles[0].id,
       stage: "revealing",
       playerId: firstRolePlayer?.id,
-      timeoutMs: 1350
+      timeoutMs: 1600
     });
 
     expect(resolveExpiredTurn(gameRoom, gameRoom.turnTimer?.deadlineAt).ok).toBe(true);
@@ -167,6 +168,21 @@ describe("turn timers", () => {
       timeoutMs: expect.any(Number)
     });
     expect(gameRoom.turnState?.deadlineAt).toBe(gameRoom.turnTimer?.deadlineAt);
+  });
+
+  it("keeps an unanswered identity visible for the configured reading time", () => {
+    const gameRoom = createStartedGame();
+    const roles = [...gameRoom.availableRoles];
+    selectRolesById(gameRoom, [roles.at(-2)!.id, roles.at(-1)!.id], false);
+
+    expect(gameRoom.roleCallState).toMatchObject({ stage: "calling", timeoutMs: 800 });
+    expect(resolveExpiredTurn(gameRoom, gameRoom.turnTimer?.deadlineAt).ok).toBe(true);
+    expect(gameRoom.roleCallState).toMatchObject({
+      roleId: roles[0].id,
+      stage: "unanswered",
+      playerId: null,
+      timeoutMs: 850
+    });
   });
 
   it("auto-selects a legal role when role selection expires", () => {

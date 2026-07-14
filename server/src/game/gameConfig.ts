@@ -24,16 +24,16 @@ export const FUTURE_MAX_PLAYERS = 8;
 export const TEST_BOT_UID_BASE = 900000;
 
 export const START_COUNTDOWN_SECONDS = 10;
-export const CROWN_REVEAL_TIMEOUT_MS = 7_000;
+export const CROWN_REVEAL_TIMEOUT_MS = 9_000;
 export const DEFAULT_TURN_TIMEOUT_SECONDS = 45;
 export const MIN_TURN_TIMEOUT_SECONDS = 10;
 export const MAX_TURN_TIMEOUT_SECONDS = 180;
 export const BOT_THINK_DELAY_MS = 2_000;
 
 export const ROLE_SELECTION_TIMEOUT_MS = 60_000;
-export const ROLE_CALL_ANNOUNCE_MS = 650;
-export const ROLE_CALL_UNANSWERED_MS = 550;
-export const ROLE_CALL_REVEAL_MS = 1_350;
+export const ROLE_CALL_ANNOUNCE_MS = 800;
+export const ROLE_CALL_UNANSWERED_MS = 850;
+export const ROLE_CALL_REVEAL_MS = 1_600;
 export const ROLE_CALL_SKIPPED_MS = 2_400;
 export const ROLE_ACTION_TIMEOUT_MS = 60_000;
 

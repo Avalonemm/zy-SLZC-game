@@ -9,6 +9,7 @@ import "./styles/game-opponents.css";
 import "./styles/game-ui-tuning.css";
 import "./styles/game-skill-presentations.css";
 import "./styles/game-role-call.css";
+import "./styles/game-scoring.css";
 import "./styles/game-compact.css";
 import "./styles/result-screen.css";
 import "./styles/onboarding.css";

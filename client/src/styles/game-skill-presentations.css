@@ -626,7 +626,7 @@
   }
 }
 
-/* Opening sequence follows the authoritative seven-second crown timer. */
+/* Opening sequence follows the authoritative nine-second crown timer. */
 .citadel-game-opening {
   position: absolute;
   z-index: 47;
@@ -670,7 +670,7 @@
 
 .citadel-game-opening--settle .citadel-opening-crown {
   width: clamp(70px, 5.8vw, 90px);
-  animation: citadel-opening-crown-settle 1.3s cubic-bezier(.2, .72, .2, 1) both;
+  animation: citadel-opening-crown-settle 1.5s cubic-bezier(.2, .72, .2, 1) both;
   animation-delay: var(--opening-crown-settle-delay, 0ms);
 }
 
@@ -685,7 +685,7 @@
   background: radial-gradient(circle, rgb(255 221 132 / 22%), transparent 66%);
   box-shadow: 0 0 18px rgb(255 196 69 / 50%), inset 0 0 14px rgb(255 226 153 / 24%);
   transform: translate(-50%, -50%);
-  animation: citadel-opening-seat-halo 450ms ease-out both;
+  animation: citadel-opening-seat-halo 600ms ease-in-out both;
 }
 
 .citadel-game-shell--opening .citadel-player-mini__crown {
@@ -730,7 +730,9 @@
 
 @keyframes citadel-opening-seat-halo {
   0% { opacity: 0; transform: translate(-50%, -50%) scale(.72); }
-  45%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  32% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+  72% { opacity: .88; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(.92); }
 }
 
 @keyframes citadel-opening-crown-fade {

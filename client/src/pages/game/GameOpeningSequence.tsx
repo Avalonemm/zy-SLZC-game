@@ -8,9 +8,9 @@ type Point = { x: number; y: number };
 type OpeningGeometry = { center: Point; seat: Point };
 
 const OBJECTIVE_END_MS = 3_000;
-const ROULETTE_END_MS = 5_700;
-const ROULETTE_STEP_MS = 450;
-const SETTLE_DURATION_MS = 1_300;
+const ROULETTE_END_MS = 7_500;
+const ROULETTE_STEP_MS = 600;
+const SETTLE_DURATION_MS = 1_500;
 
 export function GameOpeningSequence(props: {
   gameState: VisibleGameState;
@@ -114,7 +114,7 @@ export function GameOpeningSequence(props: {
           <span
             className="citadel-opening-crown"
             data-crown-player-id={activePlayerId ?? ""}
-            style={openingCrownStyle(stage, geometry, elapsedMs)}
+            style={openingCrownStyle(stage, geometry, elapsedMs, reducedMotion)}
             aria-hidden="true"
           />
         </>
@@ -126,8 +126,12 @@ export function GameOpeningSequence(props: {
 function openingCrownStyle(
   stage: OpeningStage,
   geometry: OpeningGeometry,
-  elapsedMs: number
+  elapsedMs: number,
+  reducedMotion: boolean
 ) {
+  if (reducedMotion) {
+    return { left: geometry.seat.x, top: geometry.seat.y } as CSSProperties;
+  }
   if (stage !== "settle") {
     return { left: geometry.center.x, top: geometry.center.y } as CSSProperties;
   }

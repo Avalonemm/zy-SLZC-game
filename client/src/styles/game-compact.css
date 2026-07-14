@@ -32,7 +32,7 @@
   width: min(226px, 34vw);
   min-height: 54px;
   gap: 2px;
-  padding: 6px 34px 6px 8px;
+  padding: 6px 54px 6px 8px;
 }
 
 .citadel-game-shell--compact .citadel-game-room-card strong {
@@ -54,10 +54,12 @@
   white-space: nowrap;
 }
 
-.citadel-game-shell--compact .citadel-game-room-card button {
+.citadel-game-shell--compact .citadel-game-room-card__score-button {
   right: 6px;
-  width: 24px;
+  width: 43px;
   height: 24px;
+  gap: 2px;
+  font-size: 0.54rem;
 }
 
 .citadel-game-shell--compact .citadel-game-top-actions {
@@ -201,8 +203,9 @@
 }
 
 .citadel-game-shell--compact .citadel-player-mini__resources {
-  display: flex;
-  gap: 3px;
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  gap: 2px 4px;
 }
 
 .citadel-game-shell--compact .citadel-opponent-seat .citadel-player-mini__stat,

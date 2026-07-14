@@ -535,6 +535,7 @@ export function registerSocketHandlers(io: GameServer) {
           forceSelfRoleCallReveal?: boolean;
           forceUnansweredRoleCall?: boolean;
           incomeRoleId?: string;
+          scoreScenario?: boolean;
           triggerOpponentBuildIndex?: number;
         };
         const cards = loadDistrictCards();
@@ -687,6 +688,30 @@ export function registerSocketHandlers(io: GameServer) {
               { ...schoolOfMagic, id: `qa-income-${qaOptions.incomeRoleId}-${schoolOfMagic.id}` }
             ];
             self.gold = 20;
+          }
+        }
+        if (qaOptions.scoreScenario) {
+          const standardColors = ["yellow", "blue", "green", "red", "purple"] as const;
+          const colorCards = standardColors.map((color) => cards.find(
+            (card) => card.color === color && card.effectType !== "wildcard_scoring_color"
+          ));
+          const ghostCity = cards.find((card) => card.effectType === "wildcard_scoring_color");
+          if (colorCards.some((card) => !card) || !ghostCity) {
+            reportGameCommandError(socket, ack, "验收牌池缺少五色建筑或鬼城。");
+            return;
+          }
+          gameRoom.settings.endCitySize = 5;
+          gameRoom.firstCompletedCityPlayerId = gameRoom.players[0]?.id ?? null;
+          for (const [playerIndex, player] of gameRoom.players.entries()) {
+            const scenarioCards = playerIndex === 0
+              ? colorCards
+              : playerIndex === 1
+                ? [...colorCards.slice(0, 4), ghostCity]
+                : colorCards.slice(0, Math.min(4, playerIndex));
+            player.city = scenarioCards.map((card, cardIndex) => ({
+              ...card!,
+              id: `qa-score-${player.id}-${cardIndex}-${card!.id}`
+            }));
           }
         }
         if (qaOptions.triggerOpponentBuildIndex !== undefined) {

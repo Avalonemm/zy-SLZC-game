@@ -137,7 +137,7 @@ describe("game setup", () => {
     expect(gameRoom.turnTimer).toMatchObject({
       phase: "CROWN_REVEAL",
       playerId: "player-c",
-      timeoutMs: 7_000
+      timeoutMs: 9_000
     });
     expect(gameRoom.availableRoles).toHaveLength(5);
     expect(gameRoom.discardedRoles).toHaveLength(2);

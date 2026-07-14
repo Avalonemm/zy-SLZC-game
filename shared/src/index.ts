@@ -130,6 +130,66 @@ export type DistrictCard = {
   effectParams: CardEffectParams;
 };
 
+export const STANDARD_SCORING_COLORS = ["yellow", "blue", "green", "red", "purple"] as const;
+export const FIVE_COLOR_SET_BONUS = 3;
+export const FIRST_CITY_COMPLETION_BONUS = 4;
+export const CITY_COMPLETION_BONUS = 2;
+
+export type CityScoreBreakdown = {
+  completedDistrictCount: number;
+  districtScore: number;
+  effectiveColorCount: number;
+  hasFiveColorSet: boolean;
+  colorBonus: number;
+  completionBonus: number;
+  bonusScore: number;
+  totalScore: number;
+};
+
+export function calculateCityScore(input: {
+  city: DistrictCard[];
+  endCitySize: number;
+  playerId: string;
+  firstCompletedCityPlayerId: string | null;
+}): CityScoreBreakdown {
+  const districtScore = input.city.reduce((total, district) => total + district.score, 0);
+  const fixedColors = new Set(
+    input.city
+      .filter((district) => district.effectType !== "wildcard_scoring_color")
+      .map((district) => district.color)
+  );
+  const wildcardCount = input.city.filter(
+    (district) => district.effectType === "wildcard_scoring_color"
+  ).length;
+  const missingColorCount = STANDARD_SCORING_COLORS.filter(
+    (color) => !fixedColors.has(color)
+  ).length;
+  const effectiveColorCount = Math.min(
+    STANDARD_SCORING_COLORS.length,
+    fixedColors.size + Math.min(wildcardCount, missingColorCount)
+  );
+  const hasFiveColorSet = effectiveColorCount === STANDARD_SCORING_COLORS.length;
+  const colorBonus = hasFiveColorSet ? FIVE_COLOR_SET_BONUS : 0;
+  const completedCity = input.city.length >= input.endCitySize;
+  const completionBonus = !completedCity
+    ? 0
+    : input.firstCompletedCityPlayerId === input.playerId
+      ? FIRST_CITY_COMPLETION_BONUS
+      : CITY_COMPLETION_BONUS;
+  const bonusScore = colorBonus + completionBonus;
+
+  return {
+    completedDistrictCount: input.city.length,
+    districtScore,
+    effectiveColorCount,
+    hasFiveColorSet,
+    colorBonus,
+    completionBonus,
+    bonusScore,
+    totalScore: districtScore + bonusScore
+  };
+}
+
 export type GameLog = {
   id: string;
   type: string;
