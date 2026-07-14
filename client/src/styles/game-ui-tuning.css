@@ -95,6 +95,11 @@
   font-style: normal;
 }
 
+.citadel-game-shell .citadel-player-mini__copy small[aria-label*="离线"],
+.citadel-game-shell .citadel-player-mini__copy small[aria-label*="离线"] i {
+  color: #d7a36f;
+}
+
 .citadel-game-shell .citadel-player-mini__resources {
   display: flex;
   align-items: center;
@@ -111,19 +116,6 @@
   width: var(--ui-current-resource-icon-size);
   height: var(--ui-current-resource-icon-size);
   margin-right: 4px;
-}
-
-.citadel-game-shell .citadel-player-mini__turn-badge {
-  position: absolute;
-  top: -8px;
-  right: 14px;
-  padding: 2px 7px;
-  border: 1px solid rgba(236, 197, 107, 0.62);
-  border-radius: 999px;
-  background: rgba(20, 27, 28, 0.96);
-  color: #f4d590;
-  font-size: 9px;
-  font-style: normal;
 }
 
 .citadel-game-shell .citadel-player-mini.is-current {

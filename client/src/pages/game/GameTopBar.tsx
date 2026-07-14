@@ -3,11 +3,13 @@ import type { RefObject } from "react";
 import type { InfoModalId } from "../../components/ui/infoModalTypes";
 import { UtilityMenuButton, type UtilityMenuIcon } from "../../components/ui/UtilityMenuButton";
 import { phaseText } from "./gameText";
+import { GameLiveScoreStrip } from "./GameLiveScoreStrip";
 import { objectiveSummary } from "./GameObjectiveNotice";
 
 export function GameTopBar(props: {
   gameState: VisibleGameState;
-  objectiveIntroVisible: boolean;
+  scores: ReadonlyMap<string, { totalScore: number }>;
+  selfPlayerId: string | null;
   scoringButtonRef: RefObject<HTMLButtonElement>;
   onLeaveRoom: () => void;
   onOpenInfoModal: (modal: InfoModalId) => void;
@@ -18,7 +20,7 @@ export function GameTopBar(props: {
       <section className="citadel-game-room-card" aria-label={"\u623f\u95f4\u4fe1\u606f"}>
         <strong className="citadel-game-room-card__room-number">{"\u623f\u95f4\u53f7\uff1a"}{props.gameState.roomId}</strong>
         <span className="citadel-game-room-card__phase">{"\u7b2c "}{props.gameState.currentRound}{" \u8f6e · "}{phaseText(props.gameState.phase)}</span>
-        <small className={`citadel-game-room-card__objective ${props.objectiveIntroVisible ? "is-hidden" : ""}`}>
+        <small className="citadel-game-room-card__objective">
           {objectiveSummary(props.gameState.settings.endCitySize)}
         </small>
         <button
@@ -32,6 +34,12 @@ export function GameTopBar(props: {
           计分
         </button>
       </section>
+      <GameLiveScoreStrip
+        currentTurnPlayerId={props.gameState.currentTurnPlayerId}
+        players={props.gameState.players}
+        scores={props.scores}
+        selfPlayerId={props.selfPlayerId}
+      />
       <nav className="citadel-game-top-actions" aria-label={"\u5bf9\u5c40\u83dc\u5355"}>
         <GameTopAction label={"\u516c\u544a"} icon="announcement" onClick={() => props.onOpenInfoModal("announcements")} />
         <GameTopAction label={"\u5e2e\u52a9"} icon="help" onClick={() => props.onOpenInfoModal("help")} />

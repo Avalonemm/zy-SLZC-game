@@ -12,6 +12,7 @@ export function GamePlayerMiniStatus(props: {
   onClick?: () => void;
 }) {
   const avatarText = props.avatarLabel || (props.self ? "\u4f60" : props.player.name.slice(0, 1));
+  const visibleStatus = !props.player.connected ? "\u79bb\u7ebf" : props.player.isBot ? "\u4eba\u673a" : "";
   const className = `citadel-player-mini ${props.self ? "citadel-player-mini--self" : ""} ${props.isCurrent ? "is-current" : ""} ${props.targetable ? "is-player-targetable" : ""} ${props.selected ? "is-player-target-selected" : ""}`;
   const body = (
     <>
@@ -32,9 +33,9 @@ export function GamePlayerMiniStatus(props: {
         <span className="citadel-player-mini__name-line">
           <strong>{props.self ? "\u4f60" : props.player.name}</strong>
         </span>
-        <small>
+        <small aria-label={`${props.player.name}${props.player.connected ? "\u5728\u7ebf" : "\u79bb\u7ebf"}${props.player.isBot ? "\uff0c\u4eba\u673a" : ""}`}>
           <i aria-hidden="true">{props.player.connected ? "\u25cf" : "\u25cb"}</i>
-          {props.player.isBot ? "人机" : "玩家"} · {props.player.connected ? "在线" : "离线"}
+          {visibleStatus}
         </small>
       </span>
       <span className="citadel-player-mini__resources" aria-label="玩家资源">
@@ -42,7 +43,6 @@ export function GamePlayerMiniStatus(props: {
         <span className="citadel-player-mini__stat citadel-player-mini__stat--hand" aria-label={`手牌 ${props.player.handCount} 张`} title={`手牌 ${props.player.handCount} 张`}>{props.player.handCount}</span>
         <span className="citadel-player-mini__stat citadel-player-mini__stat--city" data-player-city-count={props.player.city.length} aria-label={`建筑 ${props.player.city.length}`} title={`建筑 ${props.player.city.length}`}>{props.player.city.length}</span>
       </span>
-      {props.isCurrent && <em className="citadel-player-mini__turn-badge">行动中</em>}
     </>
   );
 

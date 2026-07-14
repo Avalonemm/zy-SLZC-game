@@ -26,31 +26,27 @@ export function GameCenterStatus(props: {
       <section
         className="citadel-game-center citadel-game-center--active-turn"
         aria-label={`\u5f53\u524d\u884c\u52a8\uff1a${roleName(activeRoleId)}\uff0c${currentPlayer.name}`}
+        data-current-player-id={currentPlayer.id}
         data-current-role-id={activeRoleId}
       >
-        <RoleIdentityCard
-          caption={"\u5f53\u524d\u8eab\u4efd"}
-          className="citadel-game-center__role-card"
-          compact
-          inspectorPlacement="bottom"
-          inspectorSize="table-small"
-          roleId={activeRoleId}
-        />
-        <div className="citadel-game-center__turn-copy">
-          <p className="citadel-game-center__callout">
-            {roleOrder(activeRoleId)}{"\u53f7"}{roleName(activeRoleId)}{" \u00b7 "}{currentPlayer.name}{"\u884c\u52a8"}
-          </p>
-          <strong>{currentPlayer.name}</strong>
-          <span>{roleName(activeRoleId)}{"\u6b63\u5728\u884c\u52a8"}</span>
+        <div className="citadel-game-center__active-card-shell">
+          <RoleIdentityCard
+            caption={`${currentPlayer.name} \u00b7 \u884c\u52a8`}
+            className="citadel-game-center__role-card"
+            inspectorPlacement="auto"
+            inspectorSize="table-small"
+            roleId={activeRoleId}
+          />
+          {props.remainingSeconds !== null ? (
+            <b
+              className="citadel-game-center__turn-timer"
+              aria-label={`\u5269\u4f59 ${props.remainingSeconds} \u79d2`}
+              data-turn-seconds={props.remainingSeconds}
+            >
+              {props.remainingSeconds}<small>{"\u79d2"}</small>
+            </b>
+          ) : null}
         </div>
-        {props.remainingSeconds !== null ? (
-          <b
-            className="citadel-game-center__timer"
-            aria-label={`\u5269\u4f59 ${props.remainingSeconds} \u79d2`}
-          >
-            {props.remainingSeconds}<small>{"\u79d2"}</small>
-          </b>
-        ) : null}
       </section>
     );
   }

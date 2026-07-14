@@ -507,7 +507,8 @@ export function GameTableView(props: GameTableViewProps) {
       )}
       <GameTopBar
         gameState={props.gameState}
-        objectiveIntroVisible={openingVisible}
+        scores={scoreByPlayerId}
+        selfPlayerId={props.playerId}
         scoringButtonRef={scoringButtonRef}
         onLeaveRoom={props.onLeaveRoom}
         onOpenInfoModal={props.onOpenInfoModal}
@@ -613,7 +614,6 @@ export function GameTableView(props: GameTableViewProps) {
         )}
         <GameActionDock
           canSkipCurrentOfflinePlayer={viewModel.canSkipCurrentOfflinePlayer}
-          canBuild={viewModel.canBuild}
           canTakeResource={viewModel.canTakeResource}
           canUseSkill={viewModel.canUseSkill}
           discardCardIds={viewModel.discardCardIds}
@@ -622,7 +622,6 @@ export function GameTableView(props: GameTableViewProps) {
           remainingSeconds={remainingSeconds}
           isMyTurn={viewModel.isMyTurn}
           isSelectingRole={viewModel.isSelectingRole}
-          currentTurnName={viewModel.currentTurnName}
           players={props.gameState.players}
           selfPlayerId={props.playerId}
           skillBlockedReason={viewModel.skillBlockedReason}
@@ -638,7 +637,6 @@ export function GameTableView(props: GameTableViewProps) {
                 canSkip: true
               }
             : null}
-          turnState={viewModel.turnState}
           onChooseDrawnCard={props.onChooseDrawnCard}
           onDrawCards={props.onDrawCards}
           onEndTurn={props.onEndTurn}

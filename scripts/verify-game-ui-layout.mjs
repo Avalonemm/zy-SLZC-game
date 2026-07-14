@@ -805,13 +805,29 @@ async function collectLayout(cdp, sessionId, exerciseSkillButton = false) {
         roomPhase: rect(".citadel-game-room-card__phase"),
         roomObjective: rect(".citadel-game-room-card__objective"),
         roomScoreButton: rect(".citadel-game-room-card__score-button"),
+        liveScoreStrip: rect(".citadel-live-score-strip"),
+        liveScoreItems: rects("[data-live-score-player-id]"),
+        liveScoreMetrics: (() => {
+          const strip = document.querySelector(".citadel-live-score-strip");
+          const list = strip?.querySelector("ol");
+          const items = [...(strip?.querySelectorAll("[data-live-score-player-id]") ?? [])];
+          if (!strip || !list) return null;
+          const rowTops = [...new Set(items.map((item) => Math.round(item.getBoundingClientRect().top)))];
+          return {
+            rowCount: rowTops.length,
+            scrolls: list.scrollWidth > list.clientWidth + 1 || list.scrollHeight > list.clientHeight + 1
+          };
+        })(),
+        topActions: rect(".citadel-game-top-actions"),
+        utilityLabels: rects(".citadel-game-top-actions .utility-menu-button span"),
         center: rect(".citadel-game-center"),
         centerCallout: rect(".citadel-game-center__callout"),
-        centerTimer: rect(".citadel-game-center__timer"),
+        centerRoleCard: rect(".citadel-game-center__role-card"),
+        centerTimer: rect(".citadel-game-center__turn-timer, .citadel-game-center__timer"),
         objectiveIntro: rect(".citadel-game-objective-intro"),
         objectiveSummary: rect(".citadel-game-room-card small"),
         selfCityCount: rect(".citadel-self-city__count"),
-        centerLines: rects(".citadel-game-center p, .citadel-game-center__timer"),
+        centerLines: rects(".citadel-game-center p, .citadel-game-center__turn-timer, .citadel-game-center__timer"),
         actionDock: rect(".citadel-action-dock"),
         actionDockVisual: (() => {
           const element = document.querySelector(".citadel-action-layer .citadel-action-dock");
@@ -1199,9 +1215,20 @@ async function collectRoleCallPresentation(cdp, sessionId) {
         activeCenter: activeCenter ? {
           rect: rect(activeCenter),
           roleId: activeCenter.getAttribute('data-current-role-id'),
+          playerId: activeCenter.getAttribute('data-current-player-id'),
           ariaLabel: activeCenter.getAttribute('aria-label'),
           cardRect: rect(activeCenter.querySelector('.citadel-game-center__role-card')),
-          timerRect: rect(activeCenter.querySelector('.citadel-game-center__timer')),
+          cardCaption: activeCenter.querySelector('.citadel-game-center__role-card small')?.textContent?.trim() ?? '',
+          cardInspector: activeCenter.querySelector('.citadel-game-center__role-card')?.getAttribute('data-card-inspector') ?? '',
+          cardPointerEvents: activeCenter.querySelector('.citadel-game-center__role-card')
+            ? getComputedStyle(activeCenter.querySelector('.citadel-game-center__role-card')).pointerEvents
+            : null,
+          timerRect: rect(activeCenter.querySelector('.citadel-game-center__turn-timer')),
+          timerStyle: activeCenter.querySelector('.citadel-game-center__turn-timer') ? (() => {
+            const style = getComputedStyle(activeCenter.querySelector('.citadel-game-center__turn-timer'));
+            return { borderRadius: style.borderRadius, backgroundImage: style.backgroundImage };
+          })() : null,
+          duplicateCopyCount: activeCenter.querySelectorAll('.citadel-game-center__turn-copy, .citadel-game-center__callout').length,
           text: activeCenter.innerText.trim()
         } : null
       };
@@ -1266,6 +1293,26 @@ function checkActiveRoleStatus(label, state, roleId) {
     state.activeCenter?.cardRect && state.activeCenter.timerRect &&
     state.activeCenter.ariaLabel?.includes("\u5f53\u524d\u884c\u52a8")
   ), state.activeCenter);
+  const minimumCardWidth = state.shellCompact ? 63.5 : 77.5;
+  addCheck("active identity card keeps its readable dedicated size", Boolean(
+    state.activeCenter?.cardRect?.width >= minimumCardWidth &&
+    Math.abs(state.activeCenter.cardRect.height / state.activeCenter.cardRect.width - 1.5) <= 0.04
+  ), { minimumCardWidth, cardRect: state.activeCenter?.cardRect });
+  addCheck("active identity card carries the player action caption without duplicate copy", Boolean(
+    state.activeCenter?.cardCaption?.includes("\u884c\u52a8") &&
+    state.activeCenter.duplicateCopyCount === 0 &&
+    !state.activeCenter.text.includes("\u5f53\u524d\u8eab\u4efd") &&
+    !state.activeCenter.text.includes("\u6b63\u5728\u884c\u52a8")
+  ), state.activeCenter);
+  addCheck("active identity card keeps the shared inspector", Boolean(
+    state.activeCenter?.cardInspector && state.activeCenter.cardPointerEvents !== "none"
+  ), state.activeCenter);
+  addCheck("turn countdown is a circular card-corner badge", Boolean(
+    state.activeCenter?.timerRect &&
+    Math.abs(state.activeCenter.timerRect.width - state.activeCenter.timerRect.height) <= 1 &&
+    state.activeCenter.timerStyle?.borderRadius !== "0px" &&
+    state.activeCenter.timerStyle?.backgroundImage !== "none"
+  ), state.activeCenter);
   addCheck("active status stays inside the real viewport", insideViewport(state.activeCenter?.rect, state.viewport, 4), state.activeCenter);
   addCheck("action page has no outer scrollbar", !state.pageScrolls, state);
   const failures = checks.filter((check) => !check.pass);
@@ -1275,12 +1322,12 @@ function checkActiveRoleStatus(label, state, roleId) {
 async function collectRoomCardLayout(cdp, sessionId) {
   return evaluate(cdp, sessionId, `
     (() => {
-      const rect = (selector) => {
-        const element = document.querySelector(selector);
+      const rect = (target) => {
+        const element = typeof target === 'string' ? document.querySelector(target) : target;
         if (!element) return null;
         const box = element.getBoundingClientRect();
         return {
-          selector,
+          selector: typeof target === 'string' ? target : element.className,
           left: box.left,
           top: box.top,
           right: box.right,
@@ -1293,11 +1340,25 @@ async function collectRoomCardLayout(cdp, sessionId) {
       };
       return {
         viewport: { width: innerWidth, height: innerHeight },
+        topbar: rect('.citadel-game-topbar'),
         card: rect('.citadel-game-room-card'),
         roomNumber: rect('.citadel-game-room-card__room-number'),
         phase: rect('.citadel-game-room-card__phase'),
         objective: rect('.citadel-game-room-card__objective'),
-        scoreButton: rect('.citadel-game-room-card__score-button')
+        scoreButton: rect('.citadel-game-room-card__score-button'),
+        liveScoreStrip: rect('.citadel-live-score-strip'),
+        liveScoreItems: [...document.querySelectorAll('[data-live-score-player-id]')].map((item) => rect(item)),
+        liveScoreMetrics: (() => {
+          const list = document.querySelector('.citadel-live-score-strip ol');
+          const items = [...document.querySelectorAll('[data-live-score-player-id]')];
+          if (!list) return null;
+          return {
+            rowCount: new Set(items.map((item) => Math.round(item.getBoundingClientRect().top))).size,
+            scrolls: list.scrollWidth > list.clientWidth + 1 || list.scrollHeight > list.clientHeight + 1
+          };
+        })(),
+        topActions: rect('.citadel-game-top-actions'),
+        utilityLabels: [...document.querySelectorAll('.citadel-game-top-actions .utility-menu-button span')].map((item) => rect(item))
       };
     })()
   `);
@@ -1311,6 +1372,9 @@ function checkRoomCardLayout(label, state) {
     state?.card && children.every(Boolean)
   ), state);
   addCheck("room card stays inside the real viewport", insideViewport(state?.card, state?.viewport, 2), state);
+  addCheck("victory objective remains visibly present in every phase", Boolean(
+    state?.objective?.text?.includes("\u76ee\u6807") && Number(state.objective.opacity) >= 0.95
+  ), state?.objective);
   for (const child of children.filter(Boolean)) {
     addCheck(`${child.selector} stays inside the room card`, insideRect(child, state.card, 1), {
       card: state.card,
@@ -1341,6 +1405,25 @@ function checkRoomCardLayout(label, state) {
     phaseButtonGap !== null && phaseButtonGap >= 5.5
   ), { phaseButtonGap, phase: state?.phase, scoreButton: state?.scoreButton });
   addCheck("scoring button is plain text without a star", state?.scoreButton?.text === "计分", state?.scoreButton);
+  addCheck("live score strip stays between the room card and utility menu", Boolean(
+    state?.liveScoreStrip && state?.topActions &&
+    insideViewport(state.liveScoreStrip, state.viewport, 2) &&
+    !intersects(state.card, state.liveScoreStrip, 4) &&
+    !intersects(state.liveScoreStrip, state.topActions, 4)
+  ), { roomCard: state?.card, liveScoreStrip: state?.liveScoreStrip, topActions: state?.topActions });
+  const compact = state?.viewport?.width <= 1100 || (
+    state?.viewport?.width <= 1365 && state?.viewport?.height <= 640
+  );
+  addCheck("live score strip uses one wide row or at most two compact rows without scrolling", Boolean(
+    state?.liveScoreItems?.length >= 4 &&
+    state?.liveScoreMetrics &&
+    !state.liveScoreMetrics.scrolls &&
+    (compact ? state.liveScoreMetrics.rowCount <= 2 : state.liveScoreMetrics.rowCount === 1)
+  ), { compact, items: state?.liveScoreItems, metrics: state?.liveScoreMetrics });
+  addCheck("all four utility menu labels remain visibly rendered", Boolean(
+    state?.utilityLabels?.length === 4 &&
+    state.utilityLabels.every((item) => item.width > 2 && item.height > 2 && Number(item.opacity) >= 0.95)
+  ), state?.utilityLabels);
   const failures = checks.filter((check) => !check.pass);
   return { label, pass: failures.length === 0, failures, checks };
 }
@@ -1382,8 +1465,39 @@ async function collectScoringOverviewFlow(cdp, sessionId, screenshotName) {
         cityCount: Number(mini.querySelector('[data-player-city-count]')?.getAttribute('data-player-city-count')),
         cityText: mini.querySelector('[data-player-city-count]')?.textContent?.trim() ?? null,
         hasCurrentScore: Boolean(mini.querySelector('[data-player-current-score], .citadel-player-mini__stat--score')),
+        visibleStatusText: [...(mini.querySelector('.citadel-player-mini__copy small')?.childNodes ?? [])]
+          .filter((node) => node.nodeType === Node.TEXT_NODE)
+          .map((node) => node.textContent ?? '')
+          .join('')
+          .trim(),
+        hasTurnBadge: Boolean(mini.querySelector('.citadel-player-mini__turn-badge')),
         statRects: [...mini.querySelectorAll('.citadel-player-mini__stat')].map(rect)
       }));
+      const scoreStrip = document.querySelector('.citadel-live-score-strip');
+      const scoreList = scoreStrip?.querySelector('ol');
+      const scoreItems = [...document.querySelectorAll('[data-live-score-player-id]')].map((item) => ({
+        playerId: item.getAttribute('data-live-score-player-id'),
+        score: Number(item.getAttribute('data-live-score-value')),
+        text: item.innerText.trim(),
+        title: item.getAttribute('title') ?? '',
+        rect: rect(item)
+      }));
+      const activeCenter = document.querySelector('.citadel-game-center--active-turn');
+      const activeCard = activeCenter?.querySelector('.citadel-game-center__role-card');
+      const activeTimer = activeCenter?.querySelector('.citadel-game-center__turn-timer');
+      const normalActionDock = document.querySelector('.citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"])');
+      const utilityLabels = [...document.querySelectorAll('.citadel-game-top-actions .utility-menu-button span')].map((label) => ({
+        text: label.textContent?.trim() ?? '',
+        rect: rect(label),
+        opacity: getComputedStyle(label).opacity,
+        visibility: getComputedStyle(label).visibility
+      }));
+      const opponentVisibleRects = [...document.querySelectorAll([
+        '.citadel-opponent-seat > .citadel-player-mini',
+        '.citadel-opponent-seat .citadel-role-card',
+        '.citadel-opponent-seat .citadel-card-back',
+        '.citadel-opponent-seat .citadel-mini-city-card'
+      ].join(','))].map(rect);
       const rows = [...document.querySelectorAll('[data-scoring-player-id]')].map((row) => ({
         playerId: row.getAttribute('data-scoring-player-id'),
         cityCount: Number(row.getAttribute('data-city-count')),
@@ -1401,7 +1515,40 @@ async function collectScoringOverviewFlow(cdp, sessionId, screenshotName) {
       const active = document.activeElement;
       return {
         viewport: { width: innerWidth, height: innerHeight },
+        compact: document.querySelector('.citadel-game-shell')?.getAttribute('data-compact-layout') === 'true',
         pageScrolls: document.documentElement.scrollWidth > innerWidth + 1 || document.documentElement.scrollHeight > innerHeight + 1,
+        topbarRect: rect(document.querySelector('.citadel-game-topbar')),
+        roomCardRect: rect(document.querySelector('.citadel-game-room-card')),
+        objectiveText: document.querySelector('.citadel-game-room-card__objective')?.textContent?.trim() ?? '',
+        objectiveOpacity: document.querySelector('.citadel-game-room-card__objective')
+          ? getComputedStyle(document.querySelector('.citadel-game-room-card__objective')).opacity
+          : null,
+        topActionsRect: rect(document.querySelector('.citadel-game-top-actions')),
+        utilityLabels,
+        scoreStripRect: rect(scoreStrip),
+        scoreItems,
+        scoreRowCount: new Set(scoreItems.map((item) => Math.round(item.rect?.top ?? -1))).size,
+        scoreScrolls: scoreList ? scoreList.scrollWidth > scoreList.clientWidth + 1 || scoreList.scrollHeight > scoreList.clientHeight + 1 : null,
+        activeCenter: activeCenter ? {
+          rect: rect(activeCenter),
+          playerId: activeCenter.getAttribute('data-current-player-id'),
+          roleId: activeCenter.getAttribute('data-current-role-id'),
+          text: activeCenter.innerText.trim(),
+          duplicateCopyCount: activeCenter.querySelectorAll('.citadel-game-center__turn-copy, .citadel-game-center__callout').length,
+          cardRect: rect(activeCard),
+          cardCaption: activeCard?.querySelector('small')?.textContent?.trim() ?? '',
+          cardInspector: activeCard?.getAttribute('data-card-inspector') ?? '',
+          cardPointerEvents: activeCard ? getComputedStyle(activeCard).pointerEvents : null,
+          timerRect: rect(activeTimer),
+          timerBorderRadius: activeTimer ? getComputedStyle(activeTimer).borderRadius : null,
+          timerBackgroundImage: activeTimer ? getComputedStyle(activeTimer).backgroundImage : null
+        } : null,
+        normalActionDockRect: rect(normalActionDock),
+        normalActionGuidance: normalActionDock?.querySelector('.citadel-action-guidance')?.innerText.trim() ?? '',
+        normalActionLabels: [...(normalActionDock?.querySelectorAll('.citadel-action-button') ?? [])]
+          .map((button) => button.innerText.trim().replace(/\\s+/g, ' ')),
+        selfCityRect: rect(document.querySelector('.citadel-self-city')),
+        opponentVisibleRects,
         dialogRect: rect(dialog),
         dialogText: dialog?.innerText ?? '',
         triggerRect: rect(trigger),
@@ -1456,6 +1603,9 @@ function checkScoringOverview(label, flow, gameState) {
   const addCheck = (name, pass, details = undefined) => checks.push({ name, pass: Boolean(pass), details });
   const expectedScores = new Map(gameState.players.map((player) => [player.id, calculateVisibleScore(player, gameState)]));
   const state = flow.openState;
+  const selfPlayer = gameState.players.find((player) => player.hand);
+  const expectedScoreOrder = gameState.players.map((player) => player.id);
+  const actualScoreOrder = state?.scoreItems?.map((item) => item.playerId) ?? [];
   addCheck("scoring trigger is visible and explicitly labelled", Boolean(
     state?.triggerText?.includes("计分") && insideViewport(state.triggerRect, state.viewport, 2)
   ), state);
@@ -1468,6 +1618,81 @@ function checkScoringOverview(label, flow, gameState) {
   ].every((text) => state?.dialogText?.includes(text)), state?.dialogText);
   addCheck("focus stays trapped inside the scoring dialog", Boolean(state?.focusInsideDialog), state?.activeLabel);
   addCheck("scoring overview never creates an outer page scrollbar", !state?.pageScrolls, state);
+  addCheck("persistent objective remains visible while scoring is available", Boolean(
+    state?.objectiveText?.includes("\u76ee\u6807") && Number(state.objectiveOpacity) >= 0.95
+  ), { objectiveText: state?.objectiveText, objectiveOpacity: state?.objectiveOpacity });
+  addCheck("all four utility labels stay visibly rendered", Boolean(
+    state?.utilityLabels?.length === 4 &&
+    state.utilityLabels.map((item) => item.text).join("|") === "\u516c\u544a|\u5e2e\u52a9|\u8bbe\u7f6e|\u9000\u51fa\u623f\u95f4" &&
+    state.utilityLabels.every((item) => item.rect?.width > 2 && item.rect?.height > 2 && item.visibility !== "hidden" && Number(item.opacity) >= 0.95)
+  ), state?.utilityLabels);
+  addCheck("live score strip stays between room information and utility controls", Boolean(
+    state?.scoreStripRect &&
+    insideViewport(state.scoreStripRect, state.viewport, 2) &&
+    !intersects(state.roomCardRect, state.scoreStripRect, 4) &&
+    !intersects(state.scoreStripRect, state.topActionsRect, 4)
+  ), { roomCard: state?.roomCardRect, scoreStrip: state?.scoreStripRect, topActions: state?.topActionsRect });
+  addCheck("live score strip contains every player once in seat order", Boolean(
+    JSON.stringify(actualScoreOrder) === JSON.stringify(expectedScoreOrder) &&
+    new Set(actualScoreOrder).size === gameState.players.length
+  ), { expectedScoreOrder, actualScoreOrder, scoreItems: state?.scoreItems });
+  addCheck("live score strip uses one wide row or at most two compact rows without scrolling", Boolean(
+    state?.scoreScrolls === false &&
+    (state?.compact ? state.scoreRowCount >= 1 && state.scoreRowCount <= 2 : state?.scoreRowCount === 1)
+  ), { compact: state?.compact, rowCount: state?.scoreRowCount, scrolls: state?.scoreScrolls });
+  for (const player of gameState.players) {
+    const scoreItem = state?.scoreItems?.find((item) => item.playerId === player.id);
+    const expected = expectedScores.get(player.id);
+    addCheck(`${player.name} live score matches the shared total`, Boolean(
+      scoreItem && expected && scoreItem.score === expected.totalScore && scoreItem.title.includes(player.id === selfPlayer?.id ? player.name : player.name)
+    ), { scoreItem, expected });
+  }
+
+  const minimumCardWidth = state?.compact ? 63.5 : 77.5;
+  addCheck("active turn is expressed by one readable identity card", Boolean(
+    state?.activeCenter?.cardRect &&
+    state.activeCenter.cardRect.width >= minimumCardWidth &&
+    Math.abs(state.activeCenter.cardRect.height / state.activeCenter.cardRect.width - 1.5) <= 0.04 &&
+    state.activeCenter.cardCaption.includes("\u884c\u52a8") &&
+    state.activeCenter.duplicateCopyCount === 0 &&
+    !state.activeCenter.text.includes("\u5f53\u524d\u8eab\u4efd") &&
+    !state.activeCenter.text.includes("\u6b63\u5728\u884c\u52a8")
+  ), { minimumCardWidth, activeCenter: state?.activeCenter });
+  addCheck("active identity card keeps inspector access and a circular timer badge", Boolean(
+    state?.activeCenter?.cardInspector &&
+    state.activeCenter.cardPointerEvents !== "none" &&
+    state.activeCenter.timerRect &&
+    Math.abs(state.activeCenter.timerRect.width - state.activeCenter.timerRect.height) <= 1 &&
+    state.activeCenter.timerBorderRadius !== "0px" &&
+    state.activeCenter.timerBackgroundImage !== "none"
+  ), state?.activeCenter);
+  const centerRects = [state?.activeCenter?.cardRect, state?.activeCenter?.timerRect].filter(Boolean);
+  addCheck("active identity card stays clear of seats, city, and action controls", Boolean(
+    centerRects.length > 0 &&
+    centerRects.every((centerRect) =>
+      !intersects(centerRect, state?.selfCityRect, 4) &&
+      !intersects(centerRect, state?.normalActionDockRect, 4) &&
+      (state?.opponentVisibleRects ?? []).every((opponentRect) => !intersects(centerRect, opponentRect, 4))
+    )
+  ), {
+    centerRects,
+    selfCityRect: state?.selfCityRect,
+    normalActionDockRect: state?.normalActionDockRect,
+    opponentVisibleRects: state?.opponentVisibleRects
+  });
+
+  const isSelfTurn = Boolean(selfPlayer && gameState.currentTurnPlayerId === selfPlayer.id);
+  addCheck("normal action controls are concise and only render for the acting player", Boolean(
+    isSelfTurn
+      ? state?.normalActionDockRect &&
+        !state.normalActionGuidance &&
+        state.normalActionLabels.length === 4 &&
+        state.normalActionLabels[0] === "\u91d1\u5e01" &&
+        state.normalActionLabels[1] === "\u62bd\u724c" &&
+        state.normalActionLabels[2].startsWith("\u6280\u80fd") &&
+        state.normalActionLabels[3] === "\u7ed3\u675f"
+      : !state?.normalActionDockRect
+  ), { isSelfTurn, guidance: state?.normalActionGuidance, labels: state?.normalActionLabels });
   addCheck("all player nameplates stay inside the viewport", Boolean(
     state?.miniStatuses?.length === gameState.players.length &&
     state.miniStatuses.every((mini) => insideViewport(mini.rect, state.viewport, 2))
@@ -1488,6 +1713,10 @@ function checkScoringOverview(label, flow, gameState) {
       !mini.cityText.includes("/") &&
       !mini.hasCurrentScore
     ), { mini, expectedCityCount: player.city.length });
+    const expectedStatus = !player.connected ? "\u79bb\u7ebf" : player.isBot ? "\u4eba\u673a" : "";
+    addCheck(`${player.name} nameplate keeps only the necessary visible status`, Boolean(
+      mini && mini.visibleStatusText === expectedStatus && !mini.hasTurnBadge
+    ), { mini, expectedStatus });
     addCheck(`${player.name} scoring row matches the shared breakdown`, Boolean(
       row && expected &&
       row.cityCount === player.city.length &&
@@ -1503,7 +1732,6 @@ function checkScoringOverview(label, flow, gameState) {
     ), mini);
   }
 
-  const selfPlayer = gameState.players.find((player) => player.hand);
   const selfExpected = selfPlayer ? expectedScores.get(selfPlayer.id) : null;
   addCheck("self city caption restores the original single-count wording", Boolean(
     selfPlayer && selfExpected &&
@@ -1618,11 +1846,15 @@ function checkLayout(label, layout, options = {}) {
   addCheck("action dock exists", Boolean(layout.actionDock));
   addCheck("center status exists", Boolean(layout.center));
   addCheck("center timer exists", Boolean(layout.centerTimer));
-  addCheck("role-action callout names the numbered public identity", Boolean(
-    layout.centerCallout?.text.includes("\u53f7") &&
-    layout.centerCallout.text.includes("\u00b7") &&
-    layout.centerCallout.text.endsWith("\u884c\u52a8")
-  ), layout.centerCallout);
+  if (layout.centerRoleCard) {
+    const minimumCardWidth = layout.shellClass.includes("citadel-game-shell--compact") ? 63.5 : 77.5;
+    addCheck("role action is anchored by one readable identity card", Boolean(
+      layout.centerRoleCard.width >= minimumCardWidth &&
+      Math.abs(layout.centerRoleCard.height / layout.centerRoleCard.width - 1.5) <= 0.04 &&
+      layout.centerRoleCard.text.includes("\u884c\u52a8") &&
+      !layout.centerCallout
+    ), { minimumCardWidth, card: layout.centerRoleCard, callout: layout.centerCallout });
+  }
   addCheck("exactly one crown marker follows the public crown owner", Boolean(
     layout.crownPlayerId &&
     layout.crownMarkers?.length === 1 &&
@@ -1686,9 +1918,28 @@ function checkLayout(label, layout, options = {}) {
   addCheck("victory objective remains available in the top-left room card", Boolean(
     layout.objectiveSummary && layout.objectiveSummary.text.includes("\u76ee\u6807")
   ), layout.objectiveSummary);
-  addCheck("turn guidance is visible beside the action controls", Boolean(
-    layout.actionGuidance && layout.actionGuidance.text.includes("\u5f53\u524d\u6b65\u9aa4")
-  ), layout.actionGuidance);
+  addCheck("live score strip stays inside the top gap without scrolling", Boolean(
+    layout.liveScoreStrip &&
+    insideViewport(layout.liveScoreStrip, viewport, 2) &&
+    !intersects(layout.roomCard, layout.liveScoreStrip, 4) &&
+    !intersects(layout.liveScoreStrip, layout.topActions, 4) &&
+    layout.liveScoreMetrics &&
+    !layout.liveScoreMetrics.scrolls &&
+    (layout.shellClass.includes("citadel-game-shell--compact")
+      ? layout.liveScoreMetrics.rowCount <= 2
+      : layout.liveScoreMetrics.rowCount === 1)
+  ), {
+    roomCard: layout.roomCard,
+    liveScoreStrip: layout.liveScoreStrip,
+    topActions: layout.topActions,
+    metrics: layout.liveScoreMetrics
+  });
+  addCheck("all four utility menu labels remain visible", Boolean(
+    layout.utilityLabels?.length === 4 && layout.utilityLabels.every((item) => item.width > 2 && item.height > 2)
+  ), layout.utilityLabels);
+  if (layout.centerRoleCard && !layout.tableTargetingDock && !layout.selectionHeader) {
+    addCheck("normal turn controls remove the repeated guidance paragraph", !layout.actionGuidance, layout.actionGuidance);
+  }
 
   for (const line of layout.centerLines ?? []) {
     addCheck(`action dock does not overlap center line: ${line.text}`, !intersects(layout.actionDock, line, 8), {
@@ -2007,7 +2258,7 @@ function checkLayout(label, layout, options = {}) {
   }
 
   if (options.afterSkillClick) {
-    addCheck("action dock exposes use skill button", (layout.actionButtons ?? []).some((button) => button.text.includes("使用技能") || button.text.includes("浣跨敤鎶€鑳?")), {
+    addCheck("action dock exposes the concise skill button", (layout.actionButtons ?? []).some((button) => button.text.startsWith("技能")), {
       buttons: (layout.actionButtons ?? []).map((button) => button.text)
     });
     addCheck("skill button does not open a secondary panel", !layout.actionPopover, layout.actionPopover);
@@ -2890,7 +3141,7 @@ async function collectRoleSkillTargetFlow(cdp, sessionId, screenshotName) {
   await waitForSelectorAbsent(cdp, sessionId, ".citadel-skill-presentation", 5000);
   await evaluate(cdp, sessionId, `
     [...document.querySelectorAll(".citadel-action-dock .citadel-action-button")]
-      .find((button) => button.textContent.includes("结束回合"))?.click()
+      .find((button) => button.textContent.trim() === "结束")?.click()
   `);
   await waitForSelector(cdp, sessionId, ".citadel-skill-presentation--assassin_skip", 10000);
   const skipPresentation = await collectSkillPresentation(cdp, sessionId);
@@ -2977,7 +3228,7 @@ async function collectThiefPresentationFlow(cdp, sessionId, screenshotName) {
   await waitForSelectorAbsent(cdp, sessionId, ".citadel-skill-presentation", 5000);
   await evaluate(cdp, sessionId, `
     [...document.querySelectorAll(".citadel-action-dock .citadel-action-button")]
-      .find((button) => button.textContent.includes("结束回合"))?.click()
+      .find((button) => button.textContent.trim() === "结束")?.click()
   `);
   await waitForSelector(cdp, sessionId, ".citadel-skill-presentation--thief_steal", 25000);
   const stealPresentation = await collectSkillPresentation(cdp, sessionId);

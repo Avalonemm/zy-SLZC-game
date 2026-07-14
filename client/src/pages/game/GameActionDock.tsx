@@ -11,11 +11,9 @@ import { GameRoleSelectionDock } from "./GameRoleSelectionDock";
 import { roleIncomeSummary } from "./roleIncome";
 
 export function GameActionDock(props: {
-  canBuild: boolean;
   canSkipCurrentOfflinePlayer: boolean;
   canTakeResource: boolean;
   canUseSkill: boolean;
-  currentTurnName: string;
   discardCardIds: string[];
   gameState: VisibleGameState;
   isMyTurn: boolean;
@@ -27,7 +25,6 @@ export function GameActionDock(props: {
   skillBlockedReason: string;
   skillHint: string;
   skillTargetSpec: SkillTargetSpec;
-  turnState: VisibleGameState["turnState"];
   tableTargeting: { sourceName: string; canSkip: boolean } | null;
   roleSkillTargeting: RoleSkillTargeting | null;
   legalRoleTargets: RoleOption[];
@@ -179,26 +176,35 @@ export function GameActionDock(props: {
     );
   }
 
+  if (!props.isMyTurn) {
+    return props.canSkipCurrentOfflinePlayer ? (
+      <section className="citadel-action-layer" aria-label="离线玩家处理">
+        <div className="citadel-action-dock citadel-action-dock--offline-skip">
+          <button
+            className="citadel-action-button citadel-has-tooltip"
+            data-tooltip={"跳过当前离线玩家，保持对局继续。"}
+            type="button"
+            onClick={props.onSkipCurrentOfflinePlayer}
+          >
+            跳过离线
+          </button>
+        </div>
+      </section>
+    ) : null;
+  }
+
   const incomeTooltip = incomeSummary ? `\n${incomeSummary.detail}` : "";
   const skillTooltip = props.skillBlockedReason
     ? `${props.skillHint}${incomeTooltip}\n${props.skillBlockedReason}`
     : `${props.skillHint}${incomeTooltip}`;
-  const resourceTooltip = !props.isMyTurn
-    ? `等待 ${props.currentTurnName} 完成行动。`
-    : !props.canTakeResource
-      ? "本回合已经选择过金币或抽卡。"
-      : "获取 2 枚金币，或抽 2 张建筑牌后选择 1 张。两项只能选择一次。";
-  const endTurnTooltip = props.isMyTurn
-    ? "结束当前角色的行动；如果尚未选择资源，系统会自动领取 2 枚金币。"
-    : `等待 ${props.currentTurnName} 完成行动。`;
+  const resourceTooltip = !props.canTakeResource
+    ? "本回合已经选择过金币或抽牌。"
+    : "获取 2 枚金币，或抽 2 张建筑牌后选择 1 张。两项只能选择一次。";
+  const endTurnTooltip = "结束当前角色的行动；如果尚未选择资源，系统会自动领取 2 枚金币。";
 
   return (
     <section className="citadel-action-layer" aria-label={"\u5f53\u524d\u64cd\u4f5c"}>
       <div className="citadel-action-dock">
-        <p className="citadel-action-guidance">
-          <span>{"\u5f53\u524d\u6b65\u9aa4"}</span>
-          {actionGuidance(props)}
-        </p>
         <button
           className="citadel-action-button citadel-action-button--gold citadel-has-tooltip"
           data-tooltip={resourceTooltip}
@@ -207,7 +213,7 @@ export function GameActionDock(props: {
           type="button"
           onClick={props.onTakeGold}
         >
-          {props.pendingCommand === "take-gold" ? "处理中…" : "\u83b7\u53d6\u91d1\u5e01"}
+          {props.pendingCommand === "take-gold" ? "处理中…" : "金币"}
         </button>
         <button
           className="citadel-action-button citadel-action-button--draw citadel-has-tooltip"
@@ -217,7 +223,7 @@ export function GameActionDock(props: {
           type="button"
           onClick={props.onDrawCards}
         >
-          {props.pendingCommand === "draw" ? "处理中…" : "\u62bd\u5361"}
+          {props.pendingCommand === "draw" ? "处理中…" : "抽牌"}
         </button>
         <button
           className={`citadel-action-button citadel-action-button--skill citadel-has-tooltip ${incomeSummary ? "citadel-action-button--skill-income" : ""}`}
@@ -229,9 +235,9 @@ export function GameActionDock(props: {
           type="button"
           onClick={() => props.onUseSkill({})}
         >
-          <span>{props.pendingCommand === "role-skill" ? "处理中…" : "\u4f7f\u7528\u6280\u80fd"}</span>
+          <span>{props.pendingCommand === "role-skill" ? "处理中…" : "技能"}</span>
           {incomeSummary ? (
-            <small>{skillUsed ? "职业收入已结算" : `职业收入预计 +${incomeSummary.amount}`}</small>
+            <small>{skillUsed ? "已结算" : `+${incomeSummary.amount}`}</small>
           ) : null}
         </button>
         <button
@@ -242,18 +248,8 @@ export function GameActionDock(props: {
           type="button"
           onClick={props.onEndTurn}
         >
-          {props.pendingCommand === "end-turn" ? "处理中…" : "\u7ed3\u675f\u56de\u5408"}
+          {props.pendingCommand === "end-turn" ? "处理中…" : "结束"}
         </button>
-        {props.canSkipCurrentOfflinePlayer && (
-          <button
-            className="citadel-action-button citadel-has-tooltip"
-            data-tooltip={"\u8df3\u8fc7\u5f53\u524d\u79bb\u7ebf\u73a9\u5bb6\uff0c\u4fdd\u6301\u5bf9\u5c40\u7ee7\u7eed\u3002"}
-            type="button"
-            onClick={props.onSkipCurrentOfflinePlayer}
-          >
-            {"\u8df3\u8fc7\u79bb\u7ebf"}
-          </button>
-        )}
       </div>
     </section>
   );
@@ -299,30 +295,4 @@ function DrawChoiceDock(props: {
         </div>
     </GameSelectionOverlay>
   );
-}
-
-function actionGuidance(props: {
-  canBuild: boolean;
-  canTakeResource: boolean;
-  currentTurnName: string;
-  isMyTurn: boolean;
-  turnState: VisibleGameState["turnState"];
-}) {
-  if (!props.isMyTurn) {
-    return `\u7b49\u5f85 ${props.currentTurnName} \u5b8c\u6210\u884c\u52a8`;
-  }
-
-  if (props.canTakeResource) {
-    return "\u5148\u9009\u62e9\uff1a\u83b7\u53d6 2 \u91d1\u5e01\uff0c\u6216\u62bd\u53d6\u5efa\u7b51\u724c";
-  }
-
-  const remainingBuilds = Math.max(
-    0,
-    (props.turnState?.maxBuilds ?? 0) - (props.turnState?.buildsUsed ?? 0)
-  );
-  if (props.canBuild && remainingBuilds > 0) {
-    return `\u53ef\u70b9\u51fb\u624b\u724c\u5efa\u9020\uff08\u8fd8\u53ef\u5efa ${remainingBuilds} \u5ea7\uff09\uff0c\u4e5f\u53ef\u4f7f\u7528\u6280\u80fd`;
-  }
-
-  return "\u8d44\u6e90\u5df2\u9009\u62e9\uff1a\u4f7f\u7528\u6280\u80fd\u540e\u7ed3\u675f\u56de\u5408";
 }
