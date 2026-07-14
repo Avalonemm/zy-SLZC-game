@@ -1,28 +1,3 @@
-.citadel-player-mini__stat--score {
-  color: #ffe08d;
-}
-
-.citadel-player-mini__stat--score::before {
-  border-radius: 0;
-  background: linear-gradient(145deg, #fff1ad, #d69b2e 64%, #714411);
-  clip-path: polygon(50% 0, 62% 34%, 98% 36%, 69% 57%, 78% 94%, 50% 73%, 22% 94%, 31% 57%, 2% 36%, 38% 34%);
-}
-
-.citadel-opponent-seat.is-dense .citadel-player-mini__resources {
-  display: grid;
-  grid-template-columns: repeat(2, max-content);
-  gap: 2px 5px;
-}
-
-.citadel-self-city__scoreline {
-  max-width: 100%;
-  overflow: hidden;
-  color: rgb(255 230 180 / 88%) !important;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .citadel-scoring-backdrop {
   position: absolute;
   z-index: 318;

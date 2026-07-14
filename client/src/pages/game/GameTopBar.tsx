@@ -16,9 +16,9 @@ export function GameTopBar(props: {
   return (
     <header className="citadel-game-topbar">
       <section className="citadel-game-room-card" aria-label={"\u623f\u95f4\u4fe1\u606f"}>
-        <strong>{"\u623f\u95f4\u53f7\uff1a"}{props.gameState.roomId}</strong>
-        <span>{"\u7b2c "}{props.gameState.currentRound}{" \u8f6e · "}{phaseText(props.gameState.phase)}</span>
-        <small className={props.objectiveIntroVisible ? "is-hidden" : ""}>
+        <strong className="citadel-game-room-card__room-number">{"\u623f\u95f4\u53f7\uff1a"}{props.gameState.roomId}</strong>
+        <span className="citadel-game-room-card__phase">{"\u7b2c "}{props.gameState.currentRound}{" \u8f6e · "}{phaseText(props.gameState.phase)}</span>
+        <small className={`citadel-game-room-card__objective ${props.objectiveIntroVisible ? "is-hidden" : ""}`}>
           {objectiveSummary(props.gameState.settings.endCitySize)}
         </small>
         <button
@@ -29,7 +29,7 @@ export function GameTopBar(props: {
           aria-label="打开计分总览"
           onClick={props.onOpenScoring}
         >
-          <span aria-hidden="true">★</span> 计分
+          计分
         </button>
       </section>
       <nav className="citadel-game-top-actions" aria-label={"\u5bf9\u5c40\u83dc\u5355"}>

@@ -1,4 +1,3 @@
-import type { CityScoreBreakdown } from "@zy/shared";
 import type { BuildableDistrictCard } from "./gameTypes";
 import { districtInspectorAttributes } from "./cardInspectorData";
 import { CardArtwork, cardFaceAttributes } from "../../config/cardArt";
@@ -9,8 +8,6 @@ export function GameSelfCity(props: {
   activeDistrictCardId: string | null;
   canUseDistrictEffects: boolean;
   city: BuildableDistrictCard[];
-  cityTarget: number;
-  score: CityScoreBreakdown;
   hiddenDistrictCardIds: Set<string>;
   pendingBuildCards: BuildableDistrictCard[];
   arrivalHighlightCardIds: Set<string>;
@@ -47,9 +44,9 @@ export function GameSelfCity(props: {
             />
           ))}
       </div>
-      <span className="citadel-self-city__scoreline">
-        已建 {props.city.length}/{props.cityTarget} · 建筑分 {props.score.districtScore} · 当前总分 {props.score.totalScore}
-      </span>
+      {props.city.length > 0 && (
+        <span className="citadel-self-city__count">已建建筑 {props.city.length}</span>
+      )}
     </section>
   );
 }

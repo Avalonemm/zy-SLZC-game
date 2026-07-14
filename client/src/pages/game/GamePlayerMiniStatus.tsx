@@ -1,4 +1,3 @@
-import type { CityScoreBreakdown } from "@zy/shared";
 import type { GamePlayer } from "./gameTypes";
 
 export function GamePlayerMiniStatus(props: {
@@ -7,8 +6,6 @@ export function GamePlayerMiniStatus(props: {
   hasCrown: boolean;
   isCurrent?: boolean;
   player: GamePlayer;
-  cityTarget: number;
-  score: CityScoreBreakdown;
   self?: boolean;
   targetable?: boolean;
   selected?: boolean;
@@ -40,11 +37,10 @@ export function GamePlayerMiniStatus(props: {
           {props.player.isBot ? "人机" : "玩家"} · {props.player.connected ? "在线" : "离线"}
         </small>
       </span>
-      <span className="citadel-player-mini__resources" aria-label="玩家资源与实时得分">
+      <span className="citadel-player-mini__resources" aria-label="玩家资源">
         <span className="citadel-player-mini__stat citadel-player-mini__stat--gold" aria-label={`金币 ${props.player.gold}`} title={`金币 ${props.player.gold}`}>{props.player.gold}</span>
         <span className="citadel-player-mini__stat citadel-player-mini__stat--hand" aria-label={`手牌 ${props.player.handCount} 张`} title={`手牌 ${props.player.handCount} 张`}>{props.player.handCount}</span>
-        <span className="citadel-player-mini__stat citadel-player-mini__stat--city" data-player-city-progress={`${props.player.city.length}/${props.cityTarget}`} aria-label={`建筑 ${props.player.city.length}/${props.cityTarget}`} title={`建筑 ${props.player.city.length}/${props.cityTarget}`}>{props.player.city.length}/{props.cityTarget}</span>
-        <span className="citadel-player-mini__stat citadel-player-mini__stat--score" data-player-current-score={props.score.totalScore} aria-label={`当前总分 ${props.score.totalScore}`} title={`当前总分 ${props.score.totalScore}：建筑分 ${props.score.districtScore}，奖励 ${props.score.bonusScore}`}>{props.score.totalScore}</span>
+        <span className="citadel-player-mini__stat citadel-player-mini__stat--city" data-player-city-count={props.player.city.length} aria-label={`建筑 ${props.player.city.length}`} title={`建筑 ${props.player.city.length}`}>{props.player.city.length}</span>
       </span>
       {props.isCurrent && <em className="citadel-player-mini__turn-badge">行动中</em>}
     </>

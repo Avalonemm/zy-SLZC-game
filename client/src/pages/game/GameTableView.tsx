@@ -560,8 +560,6 @@ export function GameTableView(props: GameTableViewProps) {
               onSelectDistrictTarget={(card) => requestTableDistrictTarget(seat.player, card)}
               onSelectPlayerTarget={() => requestMagicianPlayerTarget(seat.player)}
               player={seat.player}
-              cityTarget={props.gameState.settings.endCitySize}
-              score={scoreByPlayerId.get(seat.player.id)!}
               position={seat.position}
               handStackDepth={displayedUiTuning.opponentHandStackDepth}
             />
@@ -583,8 +581,6 @@ export function GameTableView(props: GameTableViewProps) {
             arrivalHighlightCardIds={buildArrivalHighlightIds}
             canUseDistrictEffects={viewModel.isMyTurn && !pendingConfirm && !tableTargeting.source && !roleSkillTargeting && !props.gameState.pendingDrawChoice}
             city={tableSeats.self.city ?? []}
-            cityTarget={props.gameState.settings.endCitySize}
-            score={scoreByPlayerId.get(tableSeats.self.id)!}
             hiddenDistrictCardIds={buildAnimations.hiddenDistrictCardIds}
             pendingBuildCards={buildAnimations.pendingSelfCards}
             usedDistrictEffectIds={usedDistrictEffectIds}
@@ -606,7 +602,6 @@ export function GameTableView(props: GameTableViewProps) {
             hasCrown={tableSeats.self.id === props.gameState.crownPlayerId}
             roleCallHighlighted={tableSeats.self.id === roleCallHighlightedPlayerId}
             self={tableSeats.self}
-            score={scoreByPlayerId.get(tableSeats.self.id) ?? null}
             onBuildDistrict={requestBuildDistrict}
             onCancelDistrictEffect={cancelDistrictEffect}
             onConfirmDistrictEffect={confirmDistrictEffect}

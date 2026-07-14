@@ -1,4 +1,4 @@
-import type { CityScoreBreakdown, DistrictCard } from "@zy/shared";
+import type { DistrictCard } from "@zy/shared";
 import type { CSSProperties } from "react";
 import { useState } from "react";
 import type { GameSeatPosition } from "./gameTableLayout";
@@ -17,8 +17,6 @@ export function GameOpponentSeat(props: {
   hiddenDistrictCardIds: Set<string>;
   arrivalHighlightCardIds: Set<string>;
   player: GamePlayer;
-  cityTarget: number;
-  score: CityScoreBreakdown;
   position: GameSeatPosition;
   handStackDepth: number;
   districtTargeting: boolean;
@@ -41,8 +39,6 @@ export function GameOpponentSeat(props: {
         hasCrown={props.hasCrown}
         isCurrent={isCurrent}
         player={props.player}
-        cityTarget={props.cityTarget}
-        score={props.score}
         targetable={props.playerTargeting}
         selected={props.playerTargetSelected}
         onClick={props.playerTargeting ? props.onSelectPlayerTarget : undefined}

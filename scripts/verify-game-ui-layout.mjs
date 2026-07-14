@@ -579,6 +579,7 @@ async function preparePage(cdp, sessionId, session, viewport, options = {}) {
     }, sessionId);
   }
   await waitForSelector(cdp, sessionId, ".citadel-game-shell", 20000);
+  const roomCardLayout = await collectRoomCardLayout(cdp, sessionId);
   let objectiveIntro = null;
   let objectiveScreenshot = null;
   let openingSequence = null;
@@ -719,7 +720,7 @@ async function preparePage(cdp, sessionId, session, viewport, options = {}) {
   }
   await waitForPageText(cdp, sessionId, session.roomCode, 20000);
   await delay(500);
-  return { objectiveIntro, objectiveScreenshot, openingSequence };
+  return { objectiveIntro, objectiveScreenshot, openingSequence, roomCardLayout };
 }
 
 async function collectLayout(cdp, sessionId, exerciseSkillButton = false) {
@@ -799,11 +800,17 @@ async function collectLayout(cdp, sessionId, exerciseSkillButton = false) {
           };
         })(),
         topbar: rect(".citadel-game-topbar"),
+        roomCard: rect(".citadel-game-room-card"),
+        roomNumber: rect(".citadel-game-room-card__room-number"),
+        roomPhase: rect(".citadel-game-room-card__phase"),
+        roomObjective: rect(".citadel-game-room-card__objective"),
+        roomScoreButton: rect(".citadel-game-room-card__score-button"),
         center: rect(".citadel-game-center"),
         centerCallout: rect(".citadel-game-center__callout"),
         centerTimer: rect(".citadel-game-center__timer"),
         objectiveIntro: rect(".citadel-game-objective-intro"),
         objectiveSummary: rect(".citadel-game-room-card small"),
+        selfCityCount: rect(".citadel-self-city__count"),
         centerLines: rects(".citadel-game-center p, .citadel-game-center__timer"),
         actionDock: rect(".citadel-action-dock"),
         actionDockVisual: (() => {
@@ -1265,6 +1272,79 @@ function checkActiveRoleStatus(label, state, roleId) {
   return { label, pass: failures.length === 0, failures, checks };
 }
 
+async function collectRoomCardLayout(cdp, sessionId) {
+  return evaluate(cdp, sessionId, `
+    (() => {
+      const rect = (selector) => {
+        const element = document.querySelector(selector);
+        if (!element) return null;
+        const box = element.getBoundingClientRect();
+        return {
+          selector,
+          left: box.left,
+          top: box.top,
+          right: box.right,
+          bottom: box.bottom,
+          width: box.width,
+          height: box.height,
+          text: element.textContent?.trim() ?? '',
+          opacity: getComputedStyle(element).opacity
+        };
+      };
+      return {
+        viewport: { width: innerWidth, height: innerHeight },
+        card: rect('.citadel-game-room-card'),
+        roomNumber: rect('.citadel-game-room-card__room-number'),
+        phase: rect('.citadel-game-room-card__phase'),
+        objective: rect('.citadel-game-room-card__objective'),
+        scoreButton: rect('.citadel-game-room-card__score-button')
+      };
+    })()
+  `);
+}
+
+function checkRoomCardLayout(label, state) {
+  const checks = [];
+  const addCheck = (name, pass, details = undefined) => checks.push({ name, pass: Boolean(pass), details });
+  const children = [state?.roomNumber, state?.phase, state?.objective, state?.scoreButton];
+  addCheck("room card and all four internal elements are present", Boolean(
+    state?.card && children.every(Boolean)
+  ), state);
+  addCheck("room card stays inside the real viewport", insideViewport(state?.card, state?.viewport, 2), state);
+  for (const child of children.filter(Boolean)) {
+    addCheck(`${child.selector} stays inside the room card`, insideRect(child, state.card, 1), {
+      card: state.card,
+      child
+    });
+  }
+  const pairs = [
+    [state?.roomNumber, state?.phase],
+    [state?.roomNumber, state?.objective],
+    [state?.roomNumber, state?.scoreButton],
+    [state?.phase, state?.objective],
+    [state?.phase, state?.scoreButton],
+    [state?.objective, state?.scoreButton]
+  ];
+  for (const [first, second] of pairs) {
+    addCheck(`${first?.selector ?? "missing"} does not overlap ${second?.selector ?? "missing"}`, Boolean(
+      first && second && !intersects(first, second)
+    ), {
+      first,
+      second,
+      gap: rectGap(first, second)
+    });
+  }
+  const phaseButtonGap = state?.phase && state?.scoreButton
+    ? state.scoreButton.left - state.phase.right
+    : null;
+  addCheck("phase and scoring button keep at least 6px horizontal spacing", Boolean(
+    phaseButtonGap !== null && phaseButtonGap >= 5.5
+  ), { phaseButtonGap, phase: state?.phase, scoreButton: state?.scoreButton });
+  addCheck("scoring button is plain text without a star", state?.scoreButton?.text === "计分", state?.scoreButton);
+  const failures = checks.filter((check) => !check.pass);
+  return { label, pass: failures.length === 0, failures, checks };
+}
+
 async function collectScoringOverviewFlow(cdp, sessionId, screenshotName) {
   const opened = await evaluate(cdp, sessionId, `
     (() => {
@@ -1299,8 +1379,9 @@ async function collectScoringOverviewFlow(cdp, sessionId, screenshotName) {
       const miniStatuses = [...document.querySelectorAll('.citadel-player-mini[data-player-id]')].map((mini) => ({
         playerId: mini.getAttribute('data-player-id'),
         rect: rect(mini),
-        cityProgress: mini.querySelector('[data-player-city-progress]')?.getAttribute('data-player-city-progress') ?? null,
-        currentScore: Number(mini.querySelector('[data-player-current-score]')?.getAttribute('data-player-current-score')),
+        cityCount: Number(mini.querySelector('[data-player-city-count]')?.getAttribute('data-player-city-count')),
+        cityText: mini.querySelector('[data-player-city-count]')?.textContent?.trim() ?? null,
+        hasCurrentScore: Boolean(mini.querySelector('[data-player-current-score], .citadel-player-mini__stat--score')),
         statRects: [...mini.querySelectorAll('.citadel-player-mini__stat')].map(rect)
       }));
       const rows = [...document.querySelectorAll('[data-scoring-player-id]')].map((row) => ({
@@ -1329,7 +1410,7 @@ async function collectScoringOverviewFlow(cdp, sessionId, screenshotName) {
         activeLabel: active?.getAttribute?.('aria-label') ?? '',
         miniStatuses,
         rows,
-        selfScoreline: document.querySelector('.citadel-self-city__scoreline')?.textContent?.trim() ?? ''
+        selfCityCount: document.querySelector('.citadel-self-city__count')?.textContent?.trim() ?? ''
       };
     })()
   `);
@@ -1387,11 +1468,11 @@ function checkScoringOverview(label, flow, gameState) {
   ].every((text) => state?.dialogText?.includes(text)), state?.dialogText);
   addCheck("focus stays trapped inside the scoring dialog", Boolean(state?.focusInsideDialog), state?.activeLabel);
   addCheck("scoring overview never creates an outer page scrollbar", !state?.pageScrolls, state);
-  addCheck("all score-bearing player nameplates stay inside the viewport", Boolean(
+  addCheck("all player nameplates stay inside the viewport", Boolean(
     state?.miniStatuses?.length === gameState.players.length &&
     state.miniStatuses.every((mini) => insideViewport(mini.rect, state.viewport, 2))
   ), state?.miniStatuses);
-  addCheck("score-bearing player nameplates do not collide with adjacent players", Boolean(
+  addCheck("player nameplates do not collide with adjacent players", Boolean(
     state?.miniStatuses?.length === gameState.players.length &&
     !hasInternalRectCollision(state.miniStatuses.map((mini) => mini.rect))
   ), state?.miniStatuses);
@@ -1400,11 +1481,13 @@ function checkScoringOverview(label, flow, gameState) {
     const expected = expectedScores.get(player.id);
     const mini = state?.miniStatuses?.find((item) => item.playerId === player.id);
     const row = state?.rows?.find((item) => item.playerId === player.id);
-    addCheck(`${player.name} nameplate shows building progress and current score`, Boolean(
-      mini && expected &&
-      mini.cityProgress === `${player.city.length}/${gameState.settings.endCitySize}` &&
-      mini.currentScore === expected.totalScore
-    ), { mini, expected });
+    addCheck(`${player.name} nameplate restores the single building count`, Boolean(
+      mini &&
+      mini.cityCount === player.city.length &&
+      mini.cityText === String(player.city.length) &&
+      !mini.cityText.includes("/") &&
+      !mini.hasCurrentScore
+    ), { mini, expectedCityCount: player.city.length });
     addCheck(`${player.name} scoring row matches the shared breakdown`, Boolean(
       row && expected &&
       row.cityCount === player.city.length &&
@@ -1415,19 +1498,19 @@ function checkScoringOverview(label, flow, gameState) {
       row.completionBonus === expected.completionBonus &&
       row.totalScore === expected.totalScore
     ), { row, expected });
-    addCheck(`${player.name} four nameplate resources do not overlap`, Boolean(
-      mini?.statRects?.length === 4 && !hasInternalRectCollision(mini.statRects)
+    addCheck(`${player.name} three nameplate resources do not overlap`, Boolean(
+      mini?.statRects?.length === 3 && !hasInternalRectCollision(mini.statRects)
     ), mini);
   }
 
   const selfPlayer = gameState.players.find((player) => player.hand);
   const selfExpected = selfPlayer ? expectedScores.get(selfPlayer.id) : null;
-  addCheck("self city caption exposes progress, building score, and current total", Boolean(
+  addCheck("self city caption restores the original single-count wording", Boolean(
     selfPlayer && selfExpected &&
-    state?.selfScoreline?.includes(`已建 ${selfPlayer.city.length}/${gameState.settings.endCitySize}`) &&
-    state.selfScoreline.includes(`建筑分 ${selfExpected.districtScore}`) &&
-    state.selfScoreline.includes(`当前总分 ${selfExpected.totalScore}`)
-  ), { selfScoreline: state?.selfScoreline, selfExpected });
+    state?.selfCityCount === `已建建筑 ${selfPlayer.city.length}` &&
+    !state.selfCityCount.includes("/") &&
+    !state.selfCityCount.includes("当前总分")
+  ), { selfCityCount: state?.selfCityCount, selfExpected });
   addCheck("Escape closes scoring and restores trigger focus", Boolean(
     flow.escapeClose?.closed && flow.escapeClose.focusRestored
   ), flow.escapeClose);
@@ -2129,6 +2212,7 @@ function checkRoleSelectionLayout(label, layout, expectedRoleCount = null) {
     crownPlayerId: layout.crownPlayerId,
     crownMarkers: layout.crownMarkers
   });
+  addCheck("zero built districts keep the original city caption hidden", !layout.selfCityCount, layout.selfCityCount);
   addCheck("role selection panel stays inside the viewport", Boolean(
     layout.actionDock && insideViewport(layout.actionDock, layout.viewport, 8)
   ), {
@@ -3558,6 +3642,7 @@ async function main() {
             openingSetup.gameState.settings.endCitySize
           ));
           results.push(checkOpeningSequence(`${label} opening-sequence`, openingPreparation, openingSetup.gameState));
+          results.push(checkRoomCardLayout(`${label} opening-room-card`, openingPreparation.roomCardLayout));
         }
       }
       await browser.cdp.send("Emulation.setEmulatedMedia", {
@@ -3629,6 +3714,12 @@ async function main() {
             stage,
             { reducedMotion }
           ));
+          if (stage === "calling") {
+            results.push(checkRoomCardLayout(
+              `${label} role-call-room-card`,
+              await collectRoomCardLayout(browser.cdp, browser.sessionId)
+            ));
+          }
 
           if (stage === "revealing" && viewportIndex === 0) {
             const roleIdBeforeReconnect = state.roleCall?.roleId;
@@ -3720,6 +3811,10 @@ async function main() {
           await freezeQaTimer(scoringSetup);
           const label = `${viewport.width}x${viewport.height}-${playerCount}p`;
           await preparePage(browser.cdp, browser.sessionId, scoringSetup.created, viewport);
+          results.push(checkRoomCardLayout(
+            `${label} action-room-card`,
+            await collectRoomCardLayout(browser.cdp, browser.sessionId)
+          ));
           const flow = await collectScoringOverviewFlow(
             browser.cdp,
             browser.sessionId,
@@ -3735,6 +3830,10 @@ async function main() {
       for (const roleViewport of viewports) {
         const roleLabel = `${roleViewport.width}x${roleViewport.height}`;
         await preparePage(browser.cdp, browser.sessionId, roleSetup.created, roleViewport);
+        results.push(checkRoomCardLayout(
+          `${roleLabel} role-selection-room-card`,
+          await collectRoomCardLayout(browser.cdp, browser.sessionId)
+        ));
         await seedFullRoleChoices(browser.cdp, browser.sessionId, 3);
         const compactRoleLayout = await collectLayout(browser.cdp, browser.sessionId);
         screenshots.push(await captureScreenshot(browser.cdp, browser.sessionId, `${roleLabel}-role-selection-3`));

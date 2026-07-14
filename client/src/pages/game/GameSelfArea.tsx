@@ -1,4 +1,4 @@
-import type { CityScoreBreakdown, VisibleGameState } from "@zy/shared";
+import type { VisibleGameState } from "@zy/shared";
 import type { BuildableDistrictCard, GamePlayer } from "./gameTypes";
 import { GamePlayerMiniStatus } from "./GamePlayerMiniStatus";
 import { RoleIdentityCard } from "./RoleIdentityCard";
@@ -19,7 +19,6 @@ export function GameSelfArea(props: {
   hasCrown: boolean;
   roleCallHighlighted: boolean;
   self: GamePlayer | null;
-  score: CityScoreBreakdown | null;
   onBuildDistrict: (card: BuildableDistrictCard) => void;
   onCancelDistrictEffect: () => void;
   onConfirmDistrictEffect: () => void;
@@ -49,8 +48,6 @@ export function GameSelfArea(props: {
               hasCrown={props.hasCrown}
               isCurrent={props.gameState.currentTurnPlayerId === props.self.id}
               player={props.self}
-              cityTarget={props.gameState.settings.endCitySize}
-              score={props.score!}
               self
             />
           ) : null}
