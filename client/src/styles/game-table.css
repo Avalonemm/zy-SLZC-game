@@ -586,8 +586,9 @@
 .citadel-opponent-seat--left-lower { top: 58%; left: 12%; }
 
 .citadel-player-mini {
+  --citadel-player-name-column-min: 32px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(var(--citadel-player-name-column-min), 1fr) auto;
   gap: clamp(6px, 0.62vw, 10px);
   align-items: center;
   width: max-content;
@@ -643,13 +644,13 @@ button.citadel-player-mini {
   display: grid;
   min-width: 0;
   gap: 1px;
+  overflow: hidden;
 }
 
 .citadel-player-mini__name-line {
-  display: flex;
-  align-items: center;
+  display: block;
   min-width: 0;
-  gap: 5px;
+  overflow: hidden;
 }
 
 .citadel-player-mini__crown {
@@ -661,6 +662,11 @@ button.citadel-player-mini {
 }
 
 .citadel-player-mini__copy strong {
+  --citadel-player-name-min-size: 11px;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   color: #f8ead0;
   font-size: clamp(0.72rem, 0.9vw, 1rem);
@@ -670,9 +676,24 @@ button.citadel-player-mini {
 }
 
 .citadel-player-mini__copy small {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 4px;
+  overflow: hidden;
   color: #2ed388;
   font-size: clamp(0.7rem, 0.78vw, 0.9rem);
   line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.citadel-player-mini__resources {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .citadel-player-mini__stat {
@@ -683,6 +704,54 @@ button.citadel-player-mini {
   font-weight: 800;
   line-height: 1;
   text-align: right;
+}
+
+.citadel-player-mini__stat-value {
+  position: relative;
+  display: inline-block;
+  min-width: .65em;
+}
+
+.citadel-player-mini__resource-delta {
+  position: absolute;
+  z-index: 5;
+  bottom: calc(100% + 5px);
+  left: 50%;
+  display: block;
+  font-size: clamp(.62rem, .7vw, .76rem);
+  font-style: normal;
+  font-weight: 950;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 100%), 0 0 4px rgb(0 0 0 / 85%);
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: citadel-resource-delta var(--citadel-resource-delta-duration) ease-out both;
+}
+
+.citadel-player-mini__resource-delta.is-positive {
+  color: #8ff0b8;
+}
+
+.citadel-player-mini__resource-delta.is-negative {
+  color: #ff9d8c;
+}
+
+@keyframes citadel-resource-delta {
+  0% { opacity: 0; transform: translate(-50%, 5px) scale(.9); }
+  18%, 72% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -7px) scale(.96); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .citadel-player-mini__resource-delta {
+    animation: citadel-resource-delta-fade var(--citadel-resource-delta-duration) linear both;
+  }
+}
+
+@keyframes citadel-resource-delta-fade {
+  0%, 100% { opacity: 0; }
+  10%, 82% { opacity: 1; }
 }
 
 .citadel-player-mini__stat::before {
@@ -3299,7 +3368,7 @@ button.citadel-player-mini {
 }
 
 .citadel-opponent-seat.is-dense .citadel-player-mini {
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto minmax(var(--citadel-player-name-column-min), 1fr) auto;
   width: 100%;
   min-width: 0;
   gap: clamp(4px, 0.38vw, 7px);
@@ -3312,9 +3381,9 @@ button.citadel-player-mini {
 }
 
 .citadel-opponent-seat.is-dense .citadel-player-mini__copy {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  display: grid;
+  align-items: initial;
+  gap: 1px;
 }
 
 .citadel-opponent-seat.is-dense .citadel-player-mini__copy strong {
@@ -3322,12 +3391,11 @@ button.citadel-player-mini {
 }
 
 .citadel-opponent-seat.is-dense .citadel-player-mini__copy small {
-  width: 6px;
-  height: 6px;
-  flex: 0 0 auto;
-  border-radius: 999px;
-  background: #2ed388;
-  font-size: 0;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  font-size: 10px;
 }
 
 .citadel-opponent-seat.is-dense .citadel-player-mini__stat {

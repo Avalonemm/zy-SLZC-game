@@ -1,30 +1,18 @@
-import { calculateCityScore, type GameRoom, type ScoreResult } from "@zy/shared";
+import type { GameRoom } from "@zy/shared";
 import { addLog } from "./gameEngineUtils";
+import { buildScoreResults, createGameResultSummary } from "./gameResults";
 
 export function scoreGame(gameRoom: GameRoom) {
-  const scoringResults: ScoreResult[] = gameRoom.players
-    .map((player) => {
-      const score = calculateCityScore({
-        city: player.city,
-        endCitySize: gameRoom.settings.endCitySize,
-        playerId: player.id,
-        firstCompletedCityPlayerId: gameRoom.firstCompletedCityPlayerId
-      });
-      player.score = score.totalScore;
-      return {
-        playerId: player.id,
-        playerName: player.name,
-        districtScore: score.districtScore,
-        bonusScore: score.bonusScore,
-        totalScore: score.totalScore
-      };
-    })
-    .sort((a, b) => b.totalScore - a.totalScore || b.districtScore - a.districtScore);
+  const scoringResults = buildScoreResults(gameRoom);
 
   gameRoom.phase = "ENDED";
   gameRoom.currentTurnPlayerId = null;
   gameRoom.turnState = null;
   gameRoom.turnTimer = null;
   gameRoom.scoringResults = scoringResults;
+  gameRoom.resultApplauseBySender = {};
   addLog(gameRoom, "game_ended", "本局结束，进入最终结算。", { kind: "game_ended" });
+  gameRoom.resultSummary = createGameResultSummary(gameRoom, scoringResults, {
+    createdAt: gameRoom.gameLog[0]?.createdAt
+  });
 }

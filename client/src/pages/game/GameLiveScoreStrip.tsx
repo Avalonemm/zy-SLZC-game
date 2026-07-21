@@ -11,7 +11,7 @@ export function GameLiveScoreStrip(props: {
   selfPlayerId: string | null;
 }) {
   const accessibleSummary = props.players
-    .map((player) => `${player.id === props.selfPlayerId ? "你" : player.name} ${props.scores.get(player.id)?.totalScore ?? 0} 分`)
+    .map((player) => `${player.name} ${props.scores.get(player.id)?.totalScore ?? 0} 分`)
     .join("，");
 
   return (
@@ -24,10 +24,9 @@ export function GameLiveScoreStrip(props: {
       <ol>
         {props.players.map((player) => {
           const isCurrent = player.id === props.currentTurnPlayerId;
-          const isSelf = player.id === props.selfPlayerId;
           const score = props.scores.get(player.id)?.totalScore ?? 0;
-          const visibleName = isSelf ? "你" : player.name;
-          const fullName = isSelf ? `你（${player.name}）` : player.name;
+          const visibleName = player.name;
+          const fullName = player.name;
 
           return (
             <li
@@ -37,7 +36,7 @@ export function GameLiveScoreStrip(props: {
               key={player.id}
               title={`${fullName}：${score} 分`}
             >
-              <span>{visibleName}</span>
+              <span aria-label={player.name} title={player.name}>{visibleName}</span>
               <b>{score}</b>
             </li>
           );

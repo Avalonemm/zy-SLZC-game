@@ -1,6 +1,6 @@
-import type { VisibleGameState } from "@zy/shared";
+import type { ReactionType, VisibleGameState } from "@zy/shared";
 import type { BuildableDistrictCard, GamePlayer } from "./gameTypes";
-import { GamePlayerMiniStatus } from "./GamePlayerMiniStatus";
+import { GameSelfReactionControl } from "./GameSelfReactionControl";
 import { RoleIdentityCard } from "./RoleIdentityCard";
 import { districtInspectorAttributes } from "./cardInspectorData";
 import { CardArtwork, cardFaceAttributes } from "../../config/cardArt";
@@ -23,6 +23,7 @@ export function GameSelfArea(props: {
   onCancelDistrictEffect: () => void;
   onConfirmDistrictEffect: () => void;
   onSelectDistrictDiscardCard: (cardId: string) => void;
+  onSendReaction: (reaction: ReactionType) => void;
   onToggleMagicianDiscardCard: (cardId: string) => void;
 }) {
   const hand = props.self?.hand ?? [];
@@ -42,13 +43,13 @@ export function GameSelfArea(props: {
         <DeckStack label={"\u5efa\u7b51\u724c\u5806"} count={props.gameState.districtDeckCount} />
         <div className="citadel-self-profile">
           {props.self ? (
-            <GamePlayerMiniStatus
+            <GameSelfReactionControl
               avatarImage={props.avatarImage}
               avatarLabel={props.avatarLabel}
               hasCrown={props.hasCrown}
               isCurrent={props.gameState.currentTurnPlayerId === props.self.id}
               player={props.self}
-              self
+              onSendReaction={props.onSendReaction}
             />
           ) : null}
         </div>

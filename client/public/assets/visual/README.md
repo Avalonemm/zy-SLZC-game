@@ -11,9 +11,13 @@
 | 准备房背景 | `assets/generated-ui/citadels-ready-room-background-v3.png` | 1920×1080 | cover，中央保留座位区 |
 | 对局背景 | `assets/generated-ui/citadels-game-table-background-v2.png` | 1920×1080 | cover，四周保留玩家区 |
 | 王冠 | `assets/generated-ui/citadels-crown-icon-v1.png` | 透明方形 | contain，不拉伸 |
+| 结算冠军城市 | `assets/generated-ui/result-screen-v1/champion-city-v1.png` | 透明横向 | contain，不拉伸，皇冠继续使用既有资源 |
+| 结算标题纹章 | `assets/generated-ui/result-screen-v1/title-ornament-v1.png` | 透明横向 | contain，中央文字安全区不得出现实体图形 |
+| 结算高光 / 鼓掌 | `assets/generated-ui/result-screen-v1/*.png` | 透明方形 | contain，小尺寸保持清晰 |
 | 公告/帮助/设置/退出 | `assets/homepage-v1/icon-*` | 保留现有画布比例 | contain，不拉伸 |
 
 颜色、圆角、阴影、面板和边框统一在 `client/src/styles/visual-tokens.css` 调整。
+结算专属资源路径集中在 `client/src/config/visualAssets.ts` 的 `result` 映射；正式美术替换时保持映射键和画布用途，不把“城邦总榜”或高光文案烘焙进图片。
 
 ## 卡牌
 

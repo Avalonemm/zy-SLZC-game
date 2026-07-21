@@ -90,18 +90,42 @@ export function GameOpeningSequence(props: {
   const crownPlayerName = props.gameState.players.find(
     (player) => player.id === props.gameState.crownPlayerId
   )?.name ?? "皇冠玩家";
+  const remainingSeconds = Math.max(0, Math.ceil((timer.timeoutMs - elapsedMs) / 1_000));
+  const openingTitle = stage === "settle"
+    ? `第 ${props.gameState.currentRound} 轮 · 皇冠归属已确定`
+    : `第 ${props.gameState.currentRound} 轮 · 皇冠随机`;
+  const openingDescription = stage === "settle"
+    ? `${crownPlayerName} 获得本轮皇冠`
+    : "正在决定本轮皇冠持有者";
 
   return (
     <aside
       className={`citadel-game-opening citadel-game-opening--${stage} ${reducedMotion ? "citadel-game-opening--reduced-motion" : ""}`}
       data-opening-stage={stage}
       aria-live="polite"
-      aria-label={stage === "objective" ? "本局目标" : `正在随机皇冠，最终归属 ${crownPlayerName}`}
+      aria-label={stage === "objective"
+        ? "本局目标"
+        : stage === "settle"
+          ? `皇冠归属已确定，${crownPlayerName} 获得本轮皇冠`
+          : `第 ${props.gameState.currentRound} 轮，正在随机皇冠`}
     >
       <GameObjectiveNotice
         endCitySize={props.gameState.settings.endCitySize}
         visible={stage === "objective"}
       />
+      {stage !== "objective" && (
+        <div className={`citadel-opening-status citadel-opening-status--${stage}`}>
+          <span>{openingTitle}</span>
+          <strong>{openingDescription}</strong>
+          <b
+            className="citadel-opening-status__timer"
+            aria-label={`剩余 ${remainingSeconds} 秒`}
+            data-opening-seconds={remainingSeconds}
+          >
+            {remainingSeconds}<small>秒</small>
+          </b>
+        </div>
+      )}
       {stage !== "objective" && geometry && (
         <>
           <span

@@ -13,6 +13,7 @@ export function GameOpponentSeat(props: {
   dense: boolean;
   hasCrown: boolean;
   roleCallHighlighted: boolean;
+  resourceDeltaEpoch: string | number;
   currentTurnPlayerId: string | null;
   hiddenDistrictCardIds: Set<string>;
   arrivalHighlightCardIds: Set<string>;
@@ -39,6 +40,8 @@ export function GameOpponentSeat(props: {
         hasCrown={props.hasCrown}
         isCurrent={isCurrent}
         player={props.player}
+        resourceDeltaEpoch={props.resourceDeltaEpoch}
+        showResourceDeltas
         targetable={props.playerTargeting}
         selected={props.playerTargetSelected}
         onClick={props.playerTargeting ? props.onSelectPlayerTarget : undefined}

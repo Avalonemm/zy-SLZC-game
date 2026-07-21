@@ -96,14 +96,14 @@ function ResultPlayerTag(props: {
   player: GamePlayer | null;
   playerName: string;
 }) {
-  const avatarText = props.avatarLabel || props.playerName.slice(0, 1);
+  const avatarText = props.avatarLabel || Array.from(props.playerName)[0] || "";
   return (
     <div className="citadel-result-player-tag">
       <span className="citadel-result-player-tag__avatar">
         {props.avatarImage ? <img alt="" src={props.avatarImage} /> : avatarText}
       </span>
       <span>
-        <strong>{props.playerName}</strong>
+        <strong aria-label={props.playerName} title={props.playerName}>{props.playerName}</strong>
         <small>{props.player ? `UID: ${props.player.uid}` : ""}</small>
       </span>
     </div>

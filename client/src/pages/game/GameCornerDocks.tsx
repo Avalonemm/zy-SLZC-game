@@ -10,6 +10,7 @@ export function GameCornerDocks(props: {
   chatMessages: ChatMessage[];
   compact: boolean;
   gameState: VisibleGameState;
+  resultMode: boolean;
   onSendChatMessage: (message: string) => void;
 }) {
   const [openPanel, setOpenPanel] = useState<PanelId | null>(null);
@@ -39,6 +40,13 @@ export function GameCornerDocks(props: {
     }
     setOpenPanel(panel);
   }
+
+  useEffect(() => {
+    if (props.resultMode && openPanel === "log") {
+      setOpenPanel(null);
+      window.requestAnimationFrame(() => chatButtonRef.current?.focus());
+    }
+  }, [openPanel, props.resultMode]);
 
   useEffect(() => {
     if (!openPanel) {
@@ -86,36 +94,41 @@ export function GameCornerDocks(props: {
 
   return (
     <>
-      <button
-        aria-controls="citadel-log-panel"
-        aria-expanded={openPanel === "log"}
-        className="citadel-corner-dock citadel-corner-dock--log"
-        ref={logButtonRef}
-        type="button"
-        onClick={() => togglePanel("log")}
-      >
-        <span aria-hidden="true" className="citadel-corner-dock__icon">{"\u2315"}</span>
-        <span className="citadel-corner-dock__label">{"\u6e38\u620f\u65e5\u5fd7"}</span>
-        <b>{openPanel === "log" ? "\u2303" : "\u2304"}</b>
-      </button>
+      {!props.resultMode ? (
+        <button
+          aria-controls="citadel-log-panel"
+          aria-expanded={openPanel === "log"}
+          className="citadel-corner-dock citadel-corner-dock--log"
+          ref={logButtonRef}
+          type="button"
+          onClick={() => togglePanel("log")}
+        >
+          <span aria-hidden="true" className="citadel-corner-dock__icon">{"\u2315"}</span>
+          <span className="citadel-corner-dock__label">{"\u6e38\u620f\u65e5\u5fd7"}</span>
+          <b>{openPanel === "log" ? "\u2303" : "\u2304"}</b>
+        </button>
+      ) : null}
       <button
         aria-controls="citadel-chat-panel"
         aria-expanded={openPanel === "chat"}
-        className="citadel-corner-dock citadel-corner-dock--chat"
+        className={`citadel-corner-dock citadel-corner-dock--chat ${props.resultMode ? "citadel-corner-dock--result" : ""}`}
         ref={chatButtonRef}
         type="button"
-        onClick={() => togglePanel("chat")}
+        onClick={(event) => {
+          event.stopPropagation();
+          togglePanel("chat");
+        }}
       >
         <span aria-hidden="true" className="citadel-corner-dock__icon">{"\u2315"}</span>
         <span className="citadel-corner-dock__label">{"\u804a\u5929"}</span>
         <b>{openPanel === "chat" ? "\u2303" : "\u2304"}</b>
       </button>
       {openPanel && props.compact ? (
-        <div className="citadel-drawer-backdrop" role="presentation" onMouseDown={closePanel}>
+        <div className={`citadel-drawer-backdrop ${props.resultMode ? "citadel-drawer-backdrop--result" : ""}`} role="presentation" onMouseDown={closePanel}>
           <aside
             aria-labelledby={`citadel-${openPanel}-panel-title`}
             aria-modal="true"
-            className={`citadel-pop-dock citadel-pop-dock--drawer citadel-pop-dock--${openPanel}`}
+            className={`citadel-pop-dock citadel-pop-dock--drawer citadel-pop-dock--${openPanel} ${props.resultMode ? "citadel-pop-dock--result" : ""}`}
             id={`citadel-${openPanel}-panel`}
             ref={drawerRef}
             role="dialog"
@@ -132,7 +145,7 @@ export function GameCornerDocks(props: {
       ) : openPanel ? (
         <aside
           aria-label={panelLabel}
-          className={`citadel-pop-dock citadel-pop-dock--${openPanel}`}
+          className={`citadel-pop-dock citadel-pop-dock--${openPanel} ${props.resultMode ? "citadel-pop-dock--result" : ""}`}
           id={`citadel-${openPanel}-panel`}
         >
           {panelContent}

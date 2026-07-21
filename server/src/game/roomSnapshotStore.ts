@@ -2,20 +2,28 @@ import type { GameRoom, RoomState } from "@zy/shared";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { enabledRoleCards } from "./rolePool";
+import { ensureGameResultSummary } from "./gameResults";
 
 export type RoomManagerSnapshot = {
-  version: 2;
+  version: 3;
   savedAt: string;
   rooms: RoomState[];
   gameRooms: GameRoom[];
   reconnectTokens: Array<[string, string]>;
 };
 
-type StoredGameRoom = Omit<GameRoom, "calledRoleIds" | "roleCallState"> &
-  Partial<Pick<GameRoom, "calledRoleIds" | "roleCallState">>;
+type StoredGameRoom = Omit<
+  GameRoom,
+  "calledRoleIds" | "roleCallState" | "resultSummary" | "resultApplauseBySender"
+> & Partial<
+  Pick<
+    GameRoom,
+    "calledRoleIds" | "roleCallState" | "resultSummary" | "resultApplauseBySender"
+  >
+>;
 
 type StoredSnapshot = Omit<RoomManagerSnapshot, "version" | "gameRooms"> & {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   gameRooms: StoredGameRoom[];
 };
 
@@ -29,7 +37,7 @@ export function createRoomSnapshotStore() {
     try {
       const snapshot = JSON.parse(readFileSync(snapshotPath, "utf8")) as StoredSnapshot;
       if (
-        ![1, 2].includes(snapshot.version) ||
+        ![1, 2, 3].includes(snapshot.version) ||
         !Array.isArray(snapshot.rooms) ||
         !Array.isArray(snapshot.gameRooms)
       ) {
@@ -44,7 +52,7 @@ export function createRoomSnapshotStore() {
         for (const player of gameRoom.players) player.connected = false;
       }
       return {
-        version: 2,
+        version: 3,
         savedAt: snapshot.savedAt,
         rooms: snapshot.rooms,
         gameRooms,
@@ -74,6 +82,8 @@ function migrateGameRoom(storedRoom: StoredGameRoom): GameRoom {
   const gameRoom = storedRoom as GameRoom;
   gameRoom.roleCallState ??= null;
   gameRoom.calledRoleIds ??= inferCalledRoleIds(gameRoom);
+  gameRoom.resultApplauseBySender ??= {};
+  ensureGameResultSummary(gameRoom);
   return gameRoom;
 }
 

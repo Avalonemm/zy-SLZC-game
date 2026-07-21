@@ -82,10 +82,26 @@
   --ui-current-resource-font-size: var(--ui-opponent-resource-font-size);
   --ui-current-resource-gap: var(--ui-opponent-resource-gap);
   position: relative;
-  grid-template-columns: auto minmax(72px, 1fr) auto;
+  grid-template-columns: auto minmax(var(--citadel-player-name-column-min), 1fr) auto;
   gap: 8px;
   border-radius: 18px;
   background: linear-gradient(180deg, rgba(18, 27, 31, 0.93), rgba(8, 14, 18, 0.88));
+}
+
+.citadel-game-shell--players-8 .citadel-opponent-seat > .citadel-player-mini,
+.citadel-game-shell--players-8 .citadel-opponent-seat.is-dense > .citadel-player-mini {
+  /* Keep resources inside the plate; long names earn capacity by shrinking. */
+  --citadel-player-name-column-min: 72px;
+  width: max(var(--ui-opponent-player-plate-width), 280px) !important;
+}
+
+.citadel-game-shell--players-8 .citadel-opponent-seat > .citadel-player-mini .citadel-player-mini__copy strong,
+.citadel-game-shell--players-8 .citadel-opponent-seat.is-dense > .citadel-player-mini .citadel-player-mini__copy strong {
+  --citadel-player-name-min-size: 6px;
+}
+
+.citadel-game-shell--players-8 .citadel-opponent-seat--top-left {
+  margin-left: 6px;
 }
 
 .citadel-game-shell .citadel-player-mini--self {
@@ -95,6 +111,15 @@
   --ui-current-resource-gap: var(--ui-self-resource-gap);
   width: var(--ui-self-player-plate-width);
   min-height: var(--ui-self-player-plate-height);
+}
+
+.citadel-game-shell--players-8 .citadel-player-mini--self {
+  --citadel-player-name-column-min: 66px;
+  gap: 4px;
+}
+
+.citadel-game-shell--players-8 .citadel-player-mini--self .citadel-player-mini__copy strong {
+  --citadel-player-name-min-size: 6px;
 }
 
 .citadel-game-shell .citadel-player-mini__copy small {
@@ -117,8 +142,11 @@
 
 .citadel-game-shell .citadel-player-mini__resources {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
+  flex-wrap: nowrap;
   gap: var(--ui-current-resource-gap);
+  white-space: nowrap;
 }
 
 .citadel-game-shell .citadel-player-mini__stat {
@@ -246,6 +274,10 @@
 
   .citadel-game-shell .citadel-opponent-seat--top-left {
     top: 115px;
+  }
+
+  .citadel-game-shell--players-8 .citadel-opponent-seat--top-left {
+    top: 118px;
   }
 }
 
@@ -400,7 +432,7 @@
   .citadel-opponent-seat--top-center,
   .citadel-opponent-seat--top-right
 ) .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(8)) {
-  --citadel-opponent-district-overlap: calc(10px - var(--ui-opponent-district-width)) !important;
+  --citadel-opponent-district-overlap: calc(10px - var(--ui-opponent-district-width));
 }
 
 @media (max-height: 720px) {
@@ -409,7 +441,7 @@
     .citadel-opponent-seat--top-center,
     .citadel-opponent-seat--top-right
   ) .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(8)) {
-    --citadel-opponent-district-overlap: calc(6px - var(--ui-opponent-district-width)) !important;
+    --citadel-opponent-district-overlap: calc(6px - var(--ui-opponent-district-width));
   }
 }
 
@@ -466,6 +498,12 @@
   font-weight: 700;
 }
 .game-ui-tuning-panel input[type="range"] { width: 100%; }
+.game-ui-tuning-panel label.is-disabled { opacity: 0.62; }
+.game-ui-tuning-panel__disabled-reason {
+  color: #b9c6cc;
+  font-size: 10px;
+  line-height: 1.25;
+}
 .game-ui-tuning-panel__check { grid-template-columns: auto 1fr; align-items: center; }
 .game-ui-tuning-panel footer button { flex: 1; padding: 6px; }
 .game-ui-tuning-panel__safety {
@@ -784,8 +822,8 @@
 .citadel-opponent-seat {
   --ui-opponent-private-lane: calc(var(--ui-opponent-role-width) + var(--ui-opponent-hand-width) + var(--ui-opponent-hand-stack-depth) + 34px);
   --ui-opponent-city-lane: calc(var(--ui-opponent-district-width) * 3.6);
-  --citadel-opponent-district-width: var(--ui-opponent-district-width) !important;
-  --citadel-opponent-district-height: calc(var(--ui-opponent-district-width) * 1.48) !important;
+  --citadel-opponent-district-width: var(--ui-opponent-district-width);
+  --citadel-opponent-district-height: calc(var(--ui-opponent-district-width) * 1.48);
   width: max(var(--ui-opponent-player-plate-width), calc(var(--ui-opponent-private-lane) + var(--ui-opponent-city-lane) + 10px)) !important;
 }
 

@@ -1,0 +1,73 @@
+{
+  "version": "v1",
+  "integratedAt": "2026-07-20",
+  "status": "approved-and-integrated",
+  "approval": "验收通过，可以接入完整音频包",
+  "format": "PCM signed 16-bit little-endian WAV, mono or stereo, 44100 Hz",
+  "runtimeLoops": {
+    "lobby": { "cueId": "amb-ready", "loopStart": 0, "loopEnd": 19.95, "crossfade": 1.25, "continuesInto": "ready" },
+    "ready": { "cueId": "amb-ready", "loopStart": 0, "loopEnd": 19.95, "crossfade": 1.25, "continuesFrom": "lobby" },
+    "game": { "cueId": "amb-game", "loopStart": 0, "loopEnd": 8.55, "crossfade": 1.1, "note": "The approved source has a long silent tail after about 8.62 seconds; runtime skips it without altering the file." },
+    "result": { "cueId": null }
+  },
+  "sourceReviewManifests": [
+    "output/audio-review/direct-multi-review-01/legacy-approved/manifest.json",
+    "output/audio-review/direct-multi-review-01/manifest.json",
+    "output/audio-review/role-signature-review-01/manifest.json",
+    "output/audio-review/role-signature-review-02/manifest.json",
+    "output/audio-review/role-signature-review-03/manifest.json"
+  ],
+  "sources": {
+    "wood-click": { "title": "Wooden Click", "author": "BenjaminNelan", "license": "CC0 1.0", "page": "https://freesound.org/people/BenjaminNelan/sounds/321083/" },
+    "paper-rustle": { "title": "Paper Rustle", "author": "BenjaminNelan", "license": "CC0 1.0", "page": "https://freesound.org/people/BenjaminNelan/sounds/353125/" },
+    "coin-single": { "title": "Singular Coin Dropping.wav", "author": "Flem0527", "license": "CC0 1.0", "page": "https://freesound.org/s/630018/" },
+    "metal-bell": { "title": "Metal Bell Ringing", "author": "michorvath", "license": "CC0 1.0", "page": "https://freesound.org/people/michorvath/sounds/270587/" },
+    "sword-slash": { "title": "sword slash.wav", "author": "ethanchase7744", "license": "CC0 1.0", "page": "https://freesound.org/people/ethanchase7744/sounds/441666/" },
+    "rocks": { "title": "Rocks.wav", "author": "adamgryu", "license": "CC0 1.0", "page": "https://freesound.org/people/adamgryu/sounds/336023/" },
+    "city-bells": { "title": "City Ambience with distant church bells", "author": "florianreichelt", "license": "CC0 1.0", "page": "https://freesound.org/people/florianreichelt/sounds/451731/" },
+    "fireplace": { "title": "fire-crackling.wav", "author": "jmehlferber", "license": "CC0 1.0", "page": "https://freesound.org/people/jmehlferber/sounds/370938/" },
+    "lute": { "title": "Medieval Lute Chords", "author": "f-r-a-g-i-l-e", "license": "CC0 1.0", "page": "https://freesound.org/people/f-r-a-g-i-l-e/sounds/506266/" },
+    "ready-fire": { "title": "A Small Fire Will Do", "author": "Trex0n", "license": "CC0 1.0", "page": "https://opengameart.org/content/a-small-fire-will-do-calming-loop" },
+    "kenney-rpg": { "title": "Kenney RPG Audio", "author": "Kenney", "license": "CC0 1.0", "page": "https://kenney.nl/assets/rpg-audio" },
+    "wood-metal": { "title": "100 CC0 metal and wood SFX", "author": "rubberduck", "license": "CC0 1.0", "page": "https://opengameart.org/content/100-cc0-metal-and-wood-sfx" },
+    "paper-pack": { "title": "Various Paper Sound Effects", "author": "Luckius", "license": "CC0 1.0", "page": "https://opengameart.org/content/various-paper-sound-effects" },
+    "coin-pack": { "title": "coin sounds", "author": "syncopika", "license": "CC0 1.0", "page": "https://opengameart.org/content/coin-sounds" },
+    "ui-pack": { "title": "UI Sound Effects", "author": "Robin Lamb", "license": "CC0 1.0", "page": "https://opengameart.org/content/ui-sound-effects-button-clicks-user-feedback-notifications" },
+    "war-horns": { "title": "War Horns", "author": "Eldritch Grim", "license": "CC0 1.0", "page": "https://opengameart.org/content/war-horns" },
+    "cathedral": { "title": "Cathedral", "author": "Umplix", "license": "CC0 1.0", "page": "https://opengameart.org/content/cathedral-0" },
+    "dark-shrine": { "title": "Dark Shrine Loop", "author": "qubodup / yd", "license": "CC0 1.0", "page": "https://opengameart.org/content/dark-shrine-loop" },
+    "pencil": { "title": "Pencil Sounds", "author": "AntumDeluge", "license": "CC0 1.0", "page": "https://opengameart.org/content/pencil-sounds" },
+    "harp": { "title": "Style of Harp", "author": "Umplix", "license": "CC0 1.0", "page": "https://opengameart.org/content/style-of-harp" },
+    "project-original": { "title": "《富饶之城》固定种子程序化声音底层", "author": "《富饶之城》项目", "license": "项目原创", "page": null }
+  },
+  "files": [
+    { "cueId": "ui-confirm", "file": "ui-confirm.wav", "selected": "旧通过 B", "sourceIds": ["wood-click"], "sourceFile": "output/audio-review/direct-multi-review-01/current-selection/audio/ui-confirm.wav" },
+    { "cueId": "card-place", "file": "card-place.wav", "selected": "旧通过 B", "sourceIds": ["paper-rustle", "wood-click"], "sourceFile": "output/audio-review/direct-multi-review-01/current-selection/audio/card-place.wav" },
+    { "cueId": "coin-single", "file": "coin-single.wav", "selected": "旧通过 B", "sourceIds": ["coin-single"], "sourceFile": "output/audio-review/direct-multi-review-01/current-selection/audio/coin-single.wav" },
+    { "cueId": "role-call", "file": "role-call.wav", "selected": "旧通过 B", "sourceIds": ["wood-click", "metal-bell"], "sourceFile": "output/audio-review/direct-multi-review-01/current-selection/audio/role-call.wav" },
+    { "cueId": "build-place", "file": "build-place.wav", "selected": "旧通过 B", "sourceIds": ["rocks", "wood-click"], "sourceFile": "output/audio-review/direct-multi-review-01/current-selection/audio/build-place.wav" },
+    { "cueId": "amb-lobby", "file": "amb-lobby.wav", "selected": "旧通过 B", "sourceIds": ["city-bells"], "sourceFile": "output/audio-review/direct-multi-review-01/current-selection/audio/amb-lobby.wav" },
+    { "cueId": "card-draw", "file": "card-draw.wav", "selected": "旧通过 B", "sourceIds": ["paper-rustle"], "sourceFile": "output/audio-review/direct-multi-review-01/current-selection/audio/card-draw.wav" },
+    { "cueId": "coin-multi", "file": "coin-multi.wav", "selected": "旧通过 B", "sourceIds": ["coin-single"], "sourceFile": "output/audio-review/direct-multi-review-01/current-selection/audio/coin-multi.wav" },
+    { "cueId": "crown-tick", "file": "crown-tick.wav", "selected": "旧通过 B", "sourceIds": ["wood-click"], "sourceFile": "output/audio-review/direct-multi-review-01/current-selection/audio/crown-tick.wav" },
+    { "cueId": "crown-land", "file": "crown-land.wav", "selected": "原 A", "sourceIds": ["project-original"], "sourceFile": "output/audio-review/direct-multi-review-01/current-selection/audio/crown-land.wav" },
+    { "cueId": "role-reveal", "file": "role-reveal.wav", "selected": "旧通过 B", "sourceIds": ["paper-rustle"], "sourceFile": "output/audio-review/direct-multi-review-01/current-selection/audio/role-reveal.wav" },
+    { "cueId": "assassin-mark", "file": "assassin-mark.wav", "selected": "旧通过 C", "sourceIds": ["project-original", "sword-slash"], "sourceFile": "output/audio-review/direct-multi-review-01/current-selection/audio/assassin-mark.wav" },
+    { "cueId": "assassin-skip", "file": "assassin-skip.wav", "selected": "旧通过 B", "sourceIds": ["sword-slash"], "sourceFile": "output/audio-review/direct-multi-review-01/current-selection/audio/assassin-skip.wav" },
+    { "cueId": "warlord-destroy", "file": "warlord-destroy.wav", "selected": "旧通过 C", "sourceIds": ["project-original", "rocks"], "sourceFile": "output/audio-review/direct-multi-review-01/current-selection/audio/warlord-destroy.wav" },
+    { "cueId": "result-end", "file": "result-end.wav", "selected": "原 A", "sourceIds": ["project-original"], "sourceFile": "output/audio-review/direct-multi-review-01/current-selection/audio/result-end.wav" },
+    { "cueId": "amb-game", "file": "amb-game.wav", "selected": "旧通过 B", "sourceIds": ["fireplace", "lute"], "sourceFile": "output/audio-review/direct-multi-review-01/current-selection/audio/amb-game.wav" },
+    { "cueId": "amb-ready", "file": "amb-ready.wav", "selected": "直下 B", "sourceIds": ["ready-fire"], "sourceFile": "output/audio-review/direct-multi-review-01/current-selection/audio/amb-ready.wav" },
+    { "cueId": "role-thief", "file": "role-thief.wav", "selected": "C", "sourceIds": ["kenney-rpg", "coin-pack"], "sourceFile": "output/audio-review/role-signature-review-01/audio/thief-c.wav" },
+    { "cueId": "role-magician", "file": "role-magician.wav", "selected": "B", "sourceIds": ["kenney-rpg", "ui-pack"], "sourceFile": "output/audio-review/role-signature-review-01/audio/magician-b.wav" },
+    { "cueId": "role-king", "file": "role-king.wav", "selected": "A", "sourceIds": ["war-horns"], "sourceFile": "output/audio-review/role-signature-review-02/audio/king-a.wav" },
+    { "cueId": "role-bishop", "file": "role-bishop.wav", "selected": "C", "sourceIds": ["cathedral", "dark-shrine", "kenney-rpg"], "sourceFile": "output/audio-review/role-signature-review-03/audio/bishop-c.wav" },
+    { "cueId": "role-merchant", "file": "role-merchant.wav", "selected": "A", "sourceIds": ["kenney-rpg", "wood-metal"], "sourceFile": "output/audio-review/role-signature-review-01/audio/merchant-a.wav" },
+    { "cueId": "role-architect", "file": "role-architect.wav", "selected": "A", "sourceIds": ["paper-pack", "pencil", "wood-metal"], "sourceFile": "output/audio-review/role-signature-review-02/audio/architect-a.wav" },
+    { "cueId": "role-queen", "file": "role-queen.wav", "selected": "B", "sourceIds": ["harp"], "sourceFile": "output/audio-review/role-signature-review-02/audio/queen-b.wav" }
+  ],
+  "silentCues": [
+    { "cueId": "ui-error", "reason": "用户明确要求错误提示静音" },
+    { "cueId": "final-round", "reason": "用户明确要求最终回合提示静音；真正 game_ended 使用 result-end" }
+  ]
+}

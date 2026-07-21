@@ -95,6 +95,22 @@ export type ChatMessage = {
   createdAt: string;
 };
 
+export const reactionTypes = ["nice", "upset", "danger", "close"] as const;
+
+export type ReactionType = (typeof reactionTypes)[number];
+
+export function isReactionType(value: unknown): value is ReactionType {
+  return typeof value === "string" && reactionTypes.includes(value as ReactionType);
+}
+
+export type ReactionEventPayload = {
+  id: string;
+  roomCode: string;
+  playerId: string;
+  reaction: ReactionType;
+  createdAt: string;
+};
+
 export type GamePhase =
   | "LOBBY"
   | "GAME_START"
@@ -332,9 +348,64 @@ export type ResolveGraveyardChoicePayload = {
 export type ScoreResult = {
   playerId: string;
   playerName: string;
+  districtCount: number;
   districtScore: number;
+  colorBonusScore: number;
+  completionBonusScore: number;
+  hasFiveColors: boolean;
   bonusScore: number;
   totalScore: number;
+};
+
+export type ResultTitleType =
+  | "first_city"
+  | "five_color"
+  | "city_master"
+  | "treasury_keeper"
+  | "yellow_theme"
+  | "blue_theme"
+  | "green_theme"
+  | "red_theme"
+  | "purple_theme"
+  | "city_dreamer";
+
+export type ResultHighlightType =
+  | "first_city"
+  | "five_color"
+  | "largest_steal"
+  | "most_builds"
+  | "highest_role_income"
+  | "warlord_destroy"
+  | "district_score";
+
+export type ResultHighlight = {
+  id: string;
+  type: ResultHighlightType;
+  playerId: string;
+  playerName: string;
+  value: number;
+};
+
+export type GameResultSummary = {
+  resultId: string;
+  createdAt: string;
+  results: ScoreResult[];
+  highlights: ResultHighlight[];
+  titles: Record<string, ResultTitleType>;
+  applauseCounts: Record<string, number>;
+};
+
+export type VisibleGameResultSummary = GameResultSummary & {
+  viewerApplaudedTargetIds: string[];
+};
+
+export type ResultApplauseEventPayload = {
+  id: string;
+  roomCode: string;
+  senderPlayerId: string;
+  targetPlayerId: string;
+  totalCount: number;
+  createdAt: string;
 };
 
 export type Player = LobbyPlayer & {
@@ -373,6 +444,8 @@ export type GameRoom = {
   districtDiscardPile: DistrictCard[];
   gameLog: GameLog[];
   scoringResults: ScoreResult[];
+  resultSummary?: GameResultSummary | null;
+  resultApplauseBySender?: Record<string, string[]>;
 };
 
 export type VisiblePlayer = Omit<Player, "hand"> & {
@@ -382,12 +455,19 @@ export type VisiblePlayer = Omit<Player, "hand"> & {
 
 export type VisibleGameState = Omit<
   GameRoom,
-  "players" | "districtDeck" | "districtDiscardPile" | "pendingDrawChoice" | "calledRoleIds"
+  | "players"
+  | "districtDeck"
+  | "districtDiscardPile"
+  | "pendingDrawChoice"
+  | "calledRoleIds"
+  | "resultSummary"
+  | "resultApplauseBySender"
 > & {
   players: VisiblePlayer[];
   pendingDrawChoice: PendingDrawChoice | null;
   districtDeckCount: number;
   districtDiscardPileCount: number;
+  resultSummary: VisibleGameResultSummary | null;
 };
 
 export type ErrorPayload = {
@@ -425,6 +505,8 @@ export type ServerToClientEvents = {
   game_state: (payload: VisibleGameState) => void;
   action_event: (payload: ActionEventPayload) => void;
   chat_message: (payload: ChatMessage) => void;
+  reaction_event: (payload: ReactionEventPayload) => void;
+  result_applause_event: (payload: ResultApplauseEventPayload) => void;
   kicked_from_room: (payload: KickedFromRoomPayload) => void;
   error_message: (payload: ErrorPayload) => void;
 };
@@ -480,6 +562,8 @@ export type ClientToServerEvents = {
     nextBuildOutcome?: "reject" | "timeout";
   }, ack?: GameCommandAck) => void;
   send_chat_message: (payload: { roomCode: string; playerId: string; message: string }) => void;
+  send_reaction: (payload: { roomCode: string; reaction: ReactionType }) => void;
+  send_result_applause: (payload: { roomCode: string; targetPlayerId: string }) => void;
 };
 
 export type InterServerEvents = Record<string, never>;

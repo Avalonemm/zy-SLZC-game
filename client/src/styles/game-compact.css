@@ -146,6 +146,7 @@
 .citadel-game-shell--compact .citadel-opponent-rail[data-opponent-count="5"] > :nth-child(4) { grid-column: 2 / span 2; }
 .citadel-game-shell--compact .citadel-opponent-rail[data-opponent-count="6"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .citadel-game-shell--compact .citadel-opponent-rail[data-opponent-count="7"] { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+.citadel-game-shell--compact .citadel-opponent-rail[data-opponent-count="7"] { column-gap: 10px; }
 .citadel-game-shell--compact .citadel-opponent-rail[data-opponent-count="7"] > * { grid-column: span 2; }
 .citadel-game-shell--compact .citadel-opponent-rail[data-opponent-count="7"] > :nth-child(5) { grid-column: 2 / span 2; }
 
@@ -160,9 +161,9 @@
   .citadel-opponent-seat--right-upper,
   .citadel-opponent-seat--right-lower
 ) {
-  --citadel-opponent-district-width: 32px;
-  --citadel-opponent-district-height: 48px;
-  --citadel-opponent-district-overlap: -24px;
+  --citadel-opponent-district-width: var(--ui-compact-opponent-district-width);
+  --citadel-opponent-district-height: calc(var(--ui-compact-opponent-district-width) * 1.5);
+  --citadel-opponent-district-overlap: calc(8px - var(--ui-compact-opponent-district-width));
   position: relative !important;
   inset: auto !important;
   top: auto !important;
@@ -186,8 +187,8 @@
 }
 
 .citadel-game-shell--compact .citadel-opponent-seat {
-  --citadel-opponent-district-width: 32px !important;
-  --citadel-opponent-district-height: 48px !important;
+  --citadel-opponent-district-width: var(--ui-compact-opponent-district-width);
+  --citadel-opponent-district-height: calc(var(--ui-compact-opponent-district-width) * 1.5);
   --ui-opponent-private-lane: 48%;
   --ui-opponent-city-lane: 52%;
 }
@@ -206,6 +207,7 @@
   .citadel-opponent-seat--right-upper,
   .citadel-opponent-seat--right-lower
 ) {
+  grid-template-columns: minmax(0, 52%) minmax(0, 48%) !important;
   grid-template-areas:
     "profile profile"
     "city private" !important;
@@ -220,58 +222,74 @@
 
 .citadel-game-shell--compact .citadel-opponent-seat > .citadel-player-mini,
 .citadel-game-shell--compact .citadel-opponent-seat.is-dense > .citadel-player-mini {
+  --ui-current-avatar-size: var(--ui-compact-opponent-avatar-size);
+  --ui-current-resource-icon-size: var(--ui-compact-opponent-resource-icon-size);
+  --ui-current-resource-font-size: var(--ui-compact-opponent-resource-font-size);
+  --ui-current-resource-gap: var(--ui-compact-opponent-resource-gap);
   position: relative;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  width: 100% !important;
-  height: 33px !important;
+  grid-template-columns: auto minmax(var(--citadel-player-name-column-min), 1fr) auto;
+  width: min(var(--ui-compact-opponent-player-plate-width), 100%) !important;
+  height: auto;
   min-width: 0;
-  min-height: 30px !important;
-  gap: 4px;
+  min-height: var(--ui-compact-opponent-player-plate-height) !important;
+  gap: 3px;
   border-radius: 7px;
   padding: 2px 5px 2px 2px;
 }
 
+.citadel-game-shell--compact.citadel-game-shell--players-8 .citadel-opponent-seat > .citadel-player-mini {
+  /* Compact eight-player plates preserve the three columns and shrink only names. */
+  --citadel-player-name-column-min: 70px;
+  width: min(calc(var(--ui-compact-opponent-player-plate-width) + 60px), 100%) !important;
+}
+
 .citadel-game-shell--compact .citadel-opponent-seat .citadel-player-mini__avatar,
 .citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-player-mini__avatar {
-  width: 27px;
-  height: 27px;
+  width: var(--ui-compact-opponent-avatar-size);
+  height: var(--ui-compact-opponent-avatar-size);
   font-size: 0.58rem;
 }
 
 .citadel-game-shell--compact .citadel-opponent-seat .citadel-player-mini__copy strong,
 .citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-player-mini__copy strong {
+  --citadel-player-name-min-size: 10px;
   font-size: 0.66rem;
 }
 
+.citadel-game-shell--compact.citadel-game-shell--players-8 .citadel-opponent-seat .citadel-player-mini__copy strong {
+  --citadel-player-name-min-size: 6px;
+}
+
 .citadel-game-shell--compact .citadel-opponent-seat .citadel-player-mini__copy small {
-  display: none;
+  display: flex;
+  font-size: 9px;
 }
 
 .citadel-game-shell--compact .citadel-player-mini__resources {
   display: flex;
-  gap: 3px;
+  gap: var(--ui-current-resource-gap);
 }
 
 .citadel-game-shell--compact .citadel-opponent-seat .citadel-player-mini__stat,
 .citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-player-mini__stat {
   min-width: 0;
-  font-size: 0.58rem;
+  font-size: var(--ui-compact-opponent-resource-font-size);
 }
 
 .citadel-game-shell--compact .citadel-opponent-seat .citadel-player-mini__stat::before {
-  width: 6px;
-  height: 6px;
-  margin-right: 1px;
+  width: var(--ui-compact-opponent-resource-icon-size);
+  height: var(--ui-compact-opponent-resource-icon-size);
+  margin-right: 0;
 }
 
 .citadel-game-shell--compact .citadel-opponent-card-line,
 .citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-opponent-card-line {
   display: grid !important;
-  grid-template-columns: 28px minmax(0, 1fr) !important;
+  grid-template-columns: var(--ui-compact-opponent-role-width) minmax(0, 1fr) !important;
   grid-template-areas: "role hand" !important;
   width: 100% !important;
   min-width: 0 !important;
-  min-height: 48px !important;
+  min-height: calc(var(--ui-compact-opponent-role-width) * 1.5) !important;
   gap: 4px !important;
   overflow: visible;
 }
@@ -280,14 +298,15 @@
   .citadel-opponent-seat--right-upper,
   .citadel-opponent-seat--right-lower
 ) .citadel-opponent-card-line {
-  grid-template-columns: minmax(0, 1fr) 28px !important;
+  grid-template-columns: minmax(0, 1fr) var(--ui-compact-opponent-role-width) !important;
   grid-template-areas: "hand role" !important;
 }
 
 .citadel-game-shell--compact .citadel-opponent-card-line .citadel-role-card--compact,
 .citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-role-card--compact {
-  width: 28px !important;
-  height: 42px !important;
+  width: var(--ui-compact-opponent-role-width) !important;
+  height: auto !important;
+  aspect-ratio: 2 / 3;
   padding: 2px;
 }
 
@@ -306,20 +325,21 @@
 
 .citadel-game-shell--compact .citadel-opponent-card-line .citadel-mini-card-row,
 .citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-mini-card-row {
-  width: calc(23px + var(--opponent-stack-depth) + 8px);
+  width: calc(var(--ui-compact-opponent-hand-width) + var(--ui-compact-opponent-hand-stack-depth) + 8px);
   min-width: 0;
-  min-height: 36px;
+  min-height: calc(var(--ui-compact-opponent-hand-width) * 1.5);
 }
 
 .citadel-game-shell--compact .citadel-opponent-card-line .citadel-mini-card-row--stacked,
 .citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-mini-card-row--stacked {
-  min-width: calc(23px + var(--opponent-stack-depth) + 8px);
+  min-width: calc(var(--ui-compact-opponent-hand-width) + var(--ui-compact-opponent-hand-stack-depth) + 8px);
 }
 
 .citadel-game-shell--compact .citadel-opponent-card-line .citadel-mini-card,
 .citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-mini-card {
-  width: 23px !important;
-  height: 35px !important;
+  width: var(--ui-compact-opponent-hand-width) !important;
+  height: auto !important;
+  aspect-ratio: 2 / 3;
 }
 
 .citadel-game-shell--compact .citadel-mini-card-count {
@@ -332,28 +352,28 @@
 .citadel-game-shell--compact .citadel-mini-city-row,
 .citadel-game-shell--compact .citadel-opponent-seat.is-dense .citadel-mini-city-row {
   min-width: 0;
-  min-height: 48px !important;
+  min-height: var(--citadel-opponent-district-height) !important;
   overflow: visible;
 }
 
 .citadel-game-shell--compact .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(4)) {
-  --citadel-opponent-district-overlap: -14px !important;
+  --citadel-opponent-district-overlap: calc(16px - var(--ui-compact-opponent-district-width));
 }
 
 .citadel-game-shell--compact .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(5)) {
-  --citadel-opponent-district-overlap: -18px !important;
+  --citadel-opponent-district-overlap: calc(12px - var(--ui-compact-opponent-district-width));
 }
 
 .citadel-game-shell--compact .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(6)) {
-  --citadel-opponent-district-overlap: -21px !important;
+  --citadel-opponent-district-overlap: calc(10px - var(--ui-compact-opponent-district-width));
 }
 
 .citadel-game-shell--compact .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(7)) {
-  --citadel-opponent-district-overlap: -23px !important;
+  --citadel-opponent-district-overlap: calc(8px - var(--ui-compact-opponent-district-width));
 }
 
 .citadel-game-shell--compact .citadel-mini-city-row:has(.citadel-mini-city-card:nth-child(8)) {
-  --citadel-opponent-district-overlap: -25px !important;
+  --citadel-opponent-district-overlap: calc(6px - var(--ui-compact-opponent-district-width));
 }
 
 .citadel-game-shell--compact .citadel-mini-city-card__name {
@@ -375,7 +395,7 @@
 }
 
 .citadel-game-shell--compact .citadel-game-center {
-  top: 48%;
+  top: var(--ui-center-top);
   width: min(300px, 44vw);
 }
 
@@ -487,9 +507,20 @@
 
 .citadel-game-shell--compact .citadel-action-layer .citadel-action-dock {
   top: var(--ui-action-top);
-  width: min(620px, calc(100vw - 24px));
+  width: min(var(--ui-action-dock-width), calc(100vw - 24px));
   max-width: calc(100vw - 24px);
   gap: 5px;
+}
+
+.citadel-game-shell--compact .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]) {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: min(360px, calc(100vw - 24px));
+}
+
+.citadel-game-shell--compact .citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"]) .citadel-action-button {
+  width: 100%;
+  min-width: 0;
 }
 
 .citadel-game-shell--compact .citadel-action-guidance {
@@ -512,11 +543,17 @@
   font-size: 0.54rem;
 }
 
+.citadel-game-shell--compact.citadel-game-shell--players-8 {
+  --citadel-compact-self-player-plate-width: calc(var(--ui-compact-self-player-plate-width) + 20px);
+  --citadel-compact-self-identity-width: calc(var(--ui-compact-self-identity-width) + 20px);
+  --citadel-compact-discard-width: 225px;
+}
+
 .citadel-game-shell--compact .citadel-self-area {
   right: 7px;
-  bottom: 4px;
+  bottom: var(--ui-compact-self-bottom);
   left: 7px;
-  grid-template-columns: minmax(0, 205px) minmax(0, 1fr) minmax(0, 205px);
+  grid-template-columns: minmax(0, var(--citadel-compact-self-identity-width, var(--ui-compact-self-identity-width))) minmax(0, 1fr) minmax(0, var(--citadel-compact-discard-width, 205px));
   grid-template-areas: "identity hand discard";
   column-gap: 6px;
   row-gap: 0;
@@ -524,48 +561,66 @@
 }
 
 .citadel-game-shell--compact .citadel-self-identity-cluster {
-  grid-template-columns: 34px minmax(130px, 1fr) 30px;
-  grid-template-rows: 58px auto;
-  column-gap: 5px;
+  grid-template-columns:
+    var(--ui-compact-self-card-width)
+    var(--citadel-compact-self-player-plate-width, var(--ui-compact-self-player-plate-width))
+    var(--ui-compact-self-card-width);
+  grid-template-rows: calc(var(--ui-compact-self-card-width) * 1.5) auto;
+  column-gap: 3px;
   width: 100%;
 }
 
 .citadel-game-shell--compact .citadel-self-profile .citadel-player-mini {
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  --ui-current-avatar-size: var(--ui-compact-self-avatar-size);
+  --ui-current-resource-icon-size: var(--ui-compact-self-resource-icon-size);
+  --ui-current-resource-font-size: var(--ui-compact-self-resource-font-size);
+  --ui-current-resource-gap: var(--ui-compact-self-resource-gap);
+  grid-template-columns: auto minmax(var(--citadel-player-name-column-min), 1fr) auto;
   min-width: 0;
   width: 100% !important;
-  min-height: 36px !important;
-  gap: 4px;
+  min-height: var(--ui-compact-self-player-plate-height) !important;
+  gap: 3px;
   padding: 3px;
 }
 
 .citadel-game-shell--compact .citadel-self-profile .citadel-player-mini__avatar {
-  width: 30px;
-  height: 30px;
+  width: var(--ui-compact-self-avatar-size);
+  height: var(--ui-compact-self-avatar-size);
 }
 
 .citadel-game-shell--compact .citadel-self-profile .citadel-player-mini__copy strong {
+  --citadel-player-name-min-size: 10px;
   font-size: 0.68rem;
 }
 
+.citadel-game-shell--compact.citadel-game-shell--players-8 .citadel-self-profile .citadel-player-mini {
+  --citadel-player-name-column-min: 66px;
+}
+
+.citadel-game-shell--compact.citadel-game-shell--players-8 .citadel-self-profile .citadel-player-mini__copy strong {
+  --citadel-player-name-min-size: 6px;
+}
+
 .citadel-game-shell--compact .citadel-self-profile .citadel-player-mini__copy small {
-  display: none;
+  display: flex;
+  font-size: 9px;
 }
 
 .citadel-game-shell--compact .citadel-self-profile .citadel-player-mini__stat {
   min-width: 0;
-  font-size: 0.58rem;
+  font-size: var(--ui-compact-self-resource-font-size);
 }
 
 .citadel-game-shell--compact .citadel-self-profile .citadel-player-mini__stat::before {
-  width: 6px;
-  height: 6px;
-  margin-right: 1px;
+  width: var(--ui-compact-self-resource-icon-size);
+  height: var(--ui-compact-self-resource-icon-size);
+  margin-right: 0;
 }
 
 .citadel-game-shell--compact .citadel-self-role-card .citadel-role-card {
-  width: 30px;
-  height: 45px;
+  width: var(--ui-compact-self-card-width);
+  height: auto;
+  aspect-ratio: 2 / 3;
   padding: 2px;
 }
 
@@ -575,13 +630,14 @@
 }
 
 .citadel-game-shell--compact .citadel-self-area .citadel-deck-stack {
-  grid-template-rows: 54px auto;
+  grid-template-rows: calc(var(--ui-compact-self-card-width) * 1.5) auto;
   gap: 2px;
 }
 
 .citadel-game-shell--compact .citadel-self-area .citadel-card-back {
-  width: 32px;
-  height: 48px;
+  width: var(--ui-compact-self-card-width);
+  height: auto;
+  aspect-ratio: 2 / 3;
 }
 
 .citadel-game-shell--compact .citadel-self-area .citadel-deck-stack b {
@@ -593,29 +649,33 @@
 }
 
 .citadel-game-shell--compact .citadel-self-hand-column {
-  grid-template-rows: 62px auto;
+  grid-template-rows: calc(var(--ui-compact-self-card-width) * 1.5 + 2px) auto;
 }
 
 .citadel-game-shell--compact .citadel-hand-zone {
   width: 100%;
-  min-height: 62px;
+  max-width: var(--ui-compact-hand-max-width);
+  min-height: calc(var(--ui-compact-self-card-width) * 1.5 + 2px);
   overflow: visible;
   padding: 0 2px;
 }
 
 .citadel-game-shell--compact .citadel-hand-card {
-  width: 40px;
-  height: 60px;
+  width: var(--ui-compact-self-card-width);
+  height: auto;
+  aspect-ratio: 2 / 3;
   padding: 4px;
 }
 
 .citadel-game-shell--compact .citadel-self-hand-column > .citadel-hand-zone .citadel-hand-card + .citadel-hand-card {
-  margin-left: -6px !important;
+  margin-left: var(--ui-compact-hand-overlap) !important;
 }
 
-.citadel-game-shell--compact .citadel-self-hand-column > .citadel-hand-zone:has(.citadel-hand-card:nth-child(9)) .citadel-hand-card + .citadel-hand-card { margin-left: -10px !important; }
-.citadel-game-shell--compact .citadel-self-hand-column > .citadel-hand-zone:has(.citadel-hand-card:nth-child(12)) .citadel-hand-card + .citadel-hand-card { margin-left: -14px !important; }
-.citadel-game-shell--compact .citadel-self-hand-column > .citadel-hand-zone:has(.citadel-hand-card:nth-child(15)) .citadel-hand-card + .citadel-hand-card { margin-left: -22px !important; }
+.citadel-game-shell--compact .citadel-self-hand-column > .citadel-hand-zone:has(.citadel-hand-card:nth-child(9)) .citadel-hand-card + .citadel-hand-card,
+.citadel-game-shell--compact .citadel-self-hand-column > .citadel-hand-zone:has(.citadel-hand-card:nth-child(12)) .citadel-hand-card + .citadel-hand-card,
+.citadel-game-shell--compact .citadel-self-hand-column > .citadel-hand-zone:has(.citadel-hand-card:nth-child(15)) .citadel-hand-card + .citadel-hand-card {
+  margin-left: var(--ui-compact-hand-overlap) !important;
+}
 
 .citadel-game-shell--compact .citadel-hand-card strong {
   font-size: 0.52rem;

@@ -55,6 +55,7 @@ const advancedKeys = (Object.keys(gameUiTuningBounds) as NumericKey[])
 export function GameUiTuningPanel(props: {
   config: GameUiTuningConfig;
   effectiveConfig: GameUiTuningConfig;
+  compactLayout: boolean;
   dirty: boolean;
   hasApplied: boolean;
   safetyMessages: string[];
@@ -62,6 +63,13 @@ export function GameUiTuningPanel(props: {
   onApply: () => void;
   onReset: () => void;
 }) {
+  const compactDisabledReasons: Partial<Record<NumericKey, string>> = props.compactLayout
+    ? {
+        actionDockRight: "紧凑布局使用居中的操作区，此位置项不适用。",
+        actionDockBottom: "紧凑布局由“窄屏操作区高度”控制，此底边距不适用。"
+      }
+    : {};
+
   async function copyConfig() {
     await navigator.clipboard.writeText(JSON.stringify(props.config, null, 2));
   }
@@ -78,13 +86,13 @@ export function GameUiTuningPanel(props: {
       <section className="game-ui-tuning-panel__group">
         <b>快速调整</b>
         <div className="game-ui-tuning-panel__fields">
-          {quickKeys.map((key) => <TuningField key={key} config={props.config} effectiveConfig={props.effectiveConfig} fieldKey={key} onChange={props.onChange} />)}
+          {quickKeys.map((key) => <TuningField key={key} config={props.config} effectiveConfig={props.effectiveConfig} fieldKey={key} disabledReason={compactDisabledReasons[key]} onChange={props.onChange} />)}
         </div>
       </section>
       <details className="game-ui-tuning-panel__group">
         <summary>高级微调</summary>
         <div className="game-ui-tuning-panel__fields">
-          {advancedKeys.map((key) => <TuningField key={key} config={props.config} effectiveConfig={props.effectiveConfig} fieldKey={key} onChange={props.onChange} />)}
+          {advancedKeys.map((key) => <TuningField key={key} config={props.config} effectiveConfig={props.effectiveConfig} fieldKey={key} disabledReason={compactDisabledReasons[key]} onChange={props.onChange} />)}
         </div>
       </details>
       {props.safetyMessages.length > 0 && (
@@ -114,6 +122,7 @@ function TuningField(props: {
   config: GameUiTuningConfig;
   effectiveConfig: GameUiTuningConfig;
   fieldKey: NumericKey;
+  disabledReason?: string;
   onChange: (config: GameUiTuningConfig) => void;
 }) {
   const [min, max, step] = gameUiTuningBounds[props.fieldKey];
@@ -121,13 +130,19 @@ function TuningField(props: {
   const effectiveValue = props.effectiveConfig[props.fieldKey];
   const corrected = Math.abs(requestedValue - effectiveValue) > 0.0001;
   return (
-    <label data-tuning-field={props.fieldKey} data-effective-value={effectiveValue}>
+    <label
+      className={props.disabledReason ? "is-disabled" : undefined}
+      data-tuning-field={props.fieldKey}
+      data-effective-value={effectiveValue}
+      data-tuning-applicable={props.disabledReason ? "false" : "true"}
+    >
       <span>
         {labels[props.fieldKey]}
-        <b>{requestedValue}{corrected ? <em>实际 {effectiveValue}</em> : null}</b>
+        <b>{requestedValue}{corrected ? <em>→ {effectiveValue}</em> : null}</b>
       </span>
       <input
         type="range"
+        disabled={Boolean(props.disabledReason)}
         min={min}
         max={max}
         step={step}
@@ -137,6 +152,7 @@ function TuningField(props: {
           [props.fieldKey]: Number(event.target.value)
         })}
       />
+      {props.disabledReason ? <small className="game-ui-tuning-panel__disabled-reason">{props.disabledReason}</small> : null}
     </label>
   );
 }

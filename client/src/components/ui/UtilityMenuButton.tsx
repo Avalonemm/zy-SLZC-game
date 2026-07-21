@@ -10,12 +10,13 @@ const utilityMenuIconSources: Record<UtilityMenuIcon, string> = {
 };
 
 export function UtilityMenuButton(props: {
+  className?: string;
   icon: UtilityMenuIcon;
   label: string;
   onClick: () => void;
 }) {
   return (
-    <button className="utility-menu-button" type="button" onClick={props.onClick} aria-label={props.label}>
+    <button className={`utility-menu-button ${props.className ?? ""}`.trim()} type="button" onClick={props.onClick} aria-label={props.label}>
       <img className="utility-menu-button__image" src={utilityMenuIconSources[props.icon]} alt="" />
       <span>{props.label}</span>
     </button>

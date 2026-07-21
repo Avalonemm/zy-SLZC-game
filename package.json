@@ -11,8 +11,11 @@
     "typecheck": "npm run typecheck --workspaces",
     "smoke:reconnect": "node scripts/smoke-socket-reconnect.mjs",
     "smoke:local-flow": "node scripts/smoke-local-game-flow.mjs",
+    "smoke:reactions": "node scripts/smoke-game-reactions.mjs",
+    "smoke:result-applause": "node scripts/smoke-result-applause.mjs",
     "smoke:restart": "node scripts/smoke-server-restart-recovery.mjs",
     "verify:art": "node scripts/verify-art-assets.mjs",
+    "verify:audio": "node scripts/verify-audio-integration.mjs",
     "verify:quick": "node scripts/run-regression.mjs",
     "verify:release": "node scripts/run-regression.mjs --release"
   },

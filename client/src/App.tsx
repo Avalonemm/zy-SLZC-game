@@ -1,5 +1,10 @@
 import { ConnectionPage } from "./pages/ConnectionPage";
+import { AudioProvider } from "./audio/AudioProvider";
 
 export function App() {
-  return <ConnectionPage />;
+  return (
+    <AudioProvider>
+      <ConnectionPage />
+    </AudioProvider>
+  );
 }

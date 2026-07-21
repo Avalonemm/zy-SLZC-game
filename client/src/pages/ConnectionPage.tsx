@@ -10,6 +10,8 @@ import type {
   ServerStatusPayload,
   VisibleGameState
 } from "@zy/shared";
+import { AudioSettingsPanel } from "../audio/AudioSettingsPanel";
+import { useGameAudio } from "../audio/useGameAudio";
 import { RulebookHelp } from "../components/help/RulebookHelp";
 import type { InfoModalId } from "../components/ui/infoModalTypes";
 import { FirstTimeGuide, getCurrentGuideStep } from "../components/ui/FirstTimeGuide";
@@ -108,6 +110,8 @@ export function ConnectionPage() {
     runCommand,
     showError: showGameError
   } = useGameCommandFeedback();
+
+  useGameAudio({ actionEvents, gameState, roomState, selfPlayerId: playerId });
 
   useEffect(() => {
     function handleConnect() {
@@ -614,10 +618,14 @@ export function ConnectionPage() {
       )}
 
       {modal && (
-        <InfoModal title={getLobbyInfoModalTitle(modal)} onClose={() => setModal(null)}>
+        <InfoModal
+          className={modal === "settings" ? "fantasy-modal--audio" : undefined}
+          title={getLobbyInfoModalTitle(modal)}
+          onClose={() => setModal(null)}
+        >
           {modal === "settings" && (
             <>
-              <p>这里后续会填充完整玩法规则、职业说明和基础设置。</p>
+              <AudioSettingsPanel />
               {gameState && <GameUiTuningSettingsEntry />}
             </>
           )}

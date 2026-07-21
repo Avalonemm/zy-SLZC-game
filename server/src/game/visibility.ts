@@ -10,6 +10,8 @@ export function visibleStateForPlayer(
     districtDiscardPile: _districtDiscardPile,
     pendingDrawChoice: _pendingDrawChoice,
     calledRoleIds: _calledRoleIds,
+    resultSummary: _resultSummary,
+    resultApplauseBySender: _resultApplauseBySender,
     ...roomWithoutPrivatePiles
   } = gameRoom;
   const canSeeAvailableRoles =
@@ -24,6 +26,12 @@ export function visibleStateForPlayer(
     pendingDrawChoice:
       gameRoom.pendingDrawChoice?.playerId === playerId ? gameRoom.pendingDrawChoice : null,
     discardedRoles: gameRoom.discardedRoles,
+    resultSummary: gameRoom.resultSummary
+      ? {
+          ...gameRoom.resultSummary,
+          viewerApplaudedTargetIds: [...(gameRoom.resultApplauseBySender?.[playerId] ?? [])]
+        }
+      : null,
     players: gameRoom.players.map((player) => {
       const visiblePlayer = {
         ...player,

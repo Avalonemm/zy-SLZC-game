@@ -1,13 +1,17 @@
+import { randomUUID } from "node:crypto";
 import type { Server, Socket } from "socket.io";
 import type {
   ActionEventPayload,
   ClientToServerEvents,
   GameCommandAck,
   InterServerEvents,
+  ReactionEventPayload,
+  ResultApplauseEventPayload,
   RoomState,
   ServerToClientEvents,
   SocketData
 } from "@zy/shared";
+import { isReactionType } from "@zy/shared";
 import { createActionEventsFromLogs, createLatestActionEvent } from "../game/actionEvents";
 import { loadDistrictCards } from "../game/cardData";
 import { createRoomManager } from "../game/roomManager";
@@ -30,6 +34,8 @@ import { BOT_THINK_DELAY_MS } from "../game/gameConfig";
 import { resolveExpiredTurn } from "../game/timers";
 import { createRoomSnapshotStore } from "../game/roomSnapshotStore";
 import { enabledRoleCards } from "../game/rolePool";
+import { scoreGame } from "../game/scoring";
+import { applaudGameResult } from "../game/gameResults";
 
 type GameServer = Server<
   ClientToServerEvents,
@@ -57,6 +63,7 @@ const turnDeadlineTimers = new Map<string, {
   timeout: ReturnType<typeof setTimeout>;
 }>();
 const socketRateWindows = new Map<string, Map<string, number[]>>();
+const reactionRateWindows = new Map<string, number[]>();
 const qaNextBuildOutcomes = new Map<string, "reject" | "timeout">();
 const cleanupTimer = setInterval(() => {
   const removed = roomManager.cleanupInactiveRooms();
@@ -535,14 +542,69 @@ export function registerSocketHandlers(io: GameServer) {
           forceSelfRoleCallReveal?: boolean;
           forceUnansweredRoleCall?: boolean;
           incomeRoleId?: string;
+          finishGame?: boolean;
+          forceSelfActionRoleId?: string;
+          playerFixtures?: Array<{ name: string; connected?: boolean }>;
           scoreScenario?: boolean;
           triggerOpponentBuildIndex?: number;
+          triggerOpponentResourceDelta?: {
+            opponentIndex?: number;
+            gold?: number;
+            hand?: number;
+          };
         };
         const cards = loadDistrictCards();
         const cloneCards = (count: number, prefix: string) => Array.from({ length: count }, (_, index) => ({
           ...cards[index % cards.length],
           id: `qa-${prefix}-${index}-${cards[index % cards.length].id}`
         }));
+        if (qaOptions.playerFixtures) {
+          gameRoom.players.forEach((player, index) => {
+            const fixture = qaOptions.playerFixtures?.[index];
+            if (!fixture) return;
+            player.name = fixture.name;
+            if (fixture.connected !== undefined) player.connected = fixture.connected;
+          });
+        }
+        if (qaOptions.forceSelfActionRoleId) {
+          const self = gameRoom.players.find((player) => player.id === payload.playerId);
+          const existingRolePlayer = gameRoom.players.find(
+            (player) => player.selectedRoleId === qaOptions.forceSelfActionRoleId
+          );
+          if (!self) {
+            reportGameCommandError(socket, ack, "QA action player is unavailable.");
+            return;
+          }
+          const replacedRoleId = self.selectedRoleId;
+          self.selectedRoleId = qaOptions.forceSelfActionRoleId;
+          if (existingRolePlayer && existingRolePlayer.id !== self.id) {
+            existingRolePlayer.selectedRoleId = replacedRoleId;
+          }
+          const now = Date.now();
+          gameRoom.phase = "ROLE_ACTION";
+          gameRoom.currentTurnPlayerId = self.id;
+          gameRoom.roleCallState = null;
+          gameRoom.pendingDrawChoice = null;
+          gameRoom.pendingGraveyardChoice = null;
+          gameRoom.turnState = {
+            playerId: self.id,
+            resourceActionTaken: true,
+            actionStep: "ACTION",
+            buildsUsed: 0,
+            maxBuilds: 1,
+            startedAt: new Date(now).toISOString(),
+            deadlineAt: new Date(now + 60_000).toISOString(),
+            timeoutMs: 60_000,
+            usedDistrictEffectIds: []
+          };
+          gameRoom.turnTimer = {
+            phase: "ROLE_ACTION",
+            playerId: self.id,
+            startedAt: new Date(now).toISOString(),
+            deadlineAt: new Date(now + 60_000).toISOString(),
+            timeoutMs: 60_000
+          };
+        }
         if (payload.ensureSelectedRoleId) {
           const existingRolePlayer = gameRoom.players.find(
             (player) => player.selectedRoleId === payload.ensureSelectedRoleId
@@ -661,7 +723,7 @@ export function registerSocketHandlers(io: GameServer) {
         )) {
           const selfHandCount = Math.max(0, Math.min(40, Math.floor(payload.selfHandCount ?? 4)));
           const opponentHandCount = Math.max(0, Math.min(40, Math.floor(payload.opponentHandCount ?? 4)));
-          const cityCount = Math.max(0, Math.min(8, Math.floor(payload.cityCount ?? 0)));
+          const cityCount = Math.max(0, Math.min(10, Math.floor(payload.cityCount ?? 0)));
           for (const player of gameRoom.players) {
             player.gold = 99;
             player.hand = cloneCards(
@@ -713,6 +775,44 @@ export function registerSocketHandlers(io: GameServer) {
               id: `qa-score-${player.id}-${cardIndex}-${card!.id}`
             }));
           }
+        }
+        if (qaOptions.finishGame) {
+          scoreGame(gameRoom);
+        }
+        if (qaOptions.triggerOpponentResourceDelta) {
+          const opponents = gameRoom.players.filter((player) => player.id !== payload.playerId);
+          const opponentIndex = Math.max(
+            0,
+            Math.min(
+              opponents.length - 1,
+              Math.floor(qaOptions.triggerOpponentResourceDelta.opponentIndex ?? 0)
+            )
+          );
+          const actor = opponents[opponentIndex];
+          if (!actor) {
+            reportGameCommandError(socket, ack, "QA opponent resource player is unavailable.");
+            return;
+          }
+          const goldDelta = Math.max(
+            -20,
+            Math.min(20, Math.floor(qaOptions.triggerOpponentResourceDelta.gold ?? 0))
+          );
+          const requestedHandDelta = Math.max(
+            -20,
+            Math.min(20, Math.floor(qaOptions.triggerOpponentResourceDelta.hand ?? 0))
+          );
+          actor.gold = Math.max(0, actor.gold + goldDelta);
+          if (requestedHandDelta > 0) {
+            actor.hand.push(...cloneCards(
+              requestedHandDelta,
+              `${actor.id}-resource-delta-${Date.now()}`
+            ));
+          } else if (requestedHandDelta < 0) {
+            actor.hand.splice(Math.max(0, actor.hand.length + requestedHandDelta));
+          }
+          broadcastGameState(gameRoom);
+          ack?.({ ok: true });
+          return;
         }
         if (qaOptions.triggerOpponentBuildIndex !== undefined) {
           const opponents = gameRoom.players.filter((player) => player.id !== payload.playerId);
@@ -772,6 +872,80 @@ export function registerSocketHandlers(io: GameServer) {
         ack?.({ ok: true });
       });
     }
+
+    socket.on("send_reaction", (payload) => {
+      if (!payload || typeof payload.roomCode !== "string" || !isReactionType(payload.reaction)) {
+        socket.emit("error_message", { message: "无效的快捷反应。" });
+        return;
+      }
+
+      const socketPlayer = assertSocketPlayer(socket, payload.roomCode);
+      if (!socketPlayer.ok) {
+        socket.emit("error_message", { message: socketPlayer.error });
+        return;
+      }
+
+      if (!roomManager.getGameRoom(payload.roomCode)) {
+        socket.emit("error_message", { message: "快捷反应只能在对局中发送。" });
+        return;
+      }
+
+      if (!allowPlayerReaction(socketPlayer.playerId, 3, 5_000)) {
+        socket.emit("error_message", { message: "反应发送过于频繁，请稍后再试。" });
+        return;
+      }
+
+      const event: ReactionEventPayload = {
+        id: randomUUID(),
+        roomCode: payload.roomCode,
+        playerId: socketPlayer.playerId,
+        reaction: payload.reaction,
+        createdAt: new Date().toISOString()
+      };
+      io.to(payload.roomCode).emit("reaction_event", event);
+    });
+
+    socket.on("send_result_applause", (payload) => {
+      if (
+        !payload ||
+        typeof payload.roomCode !== "string" ||
+        typeof payload.targetPlayerId !== "string" ||
+        !payload.targetPlayerId
+      ) {
+        socket.emit("error_message", { message: "无效的鼓掌请求。" });
+        return;
+      }
+      const socketPlayer = assertSocketPlayer(socket, payload.roomCode);
+      if (!socketPlayer.ok) {
+        socket.emit("error_message", { message: socketPlayer.error });
+        return;
+      }
+      const gameRoom = roomManager.getGameRoom(payload.roomCode);
+      if (!gameRoom) {
+        socket.emit("error_message", { message: "对局不存在。" });
+        return;
+      }
+      const applause = applaudGameResult(
+        gameRoom,
+        socketPlayer.playerId,
+        payload.targetPlayerId
+      );
+      if (!applause.ok) {
+        socket.emit("error_message", { message: applause.error });
+        return;
+      }
+
+      const event: ResultApplauseEventPayload = {
+        id: randomUUID(),
+        roomCode: payload.roomCode,
+        senderPlayerId: socketPlayer.playerId,
+        targetPlayerId: payload.targetPlayerId,
+        totalCount: applause.totalCount,
+        createdAt: new Date().toISOString()
+      };
+      io.to(payload.roomCode).emit("result_applause_event", event);
+      broadcastGameState(gameRoom);
+    });
 
     socket.on("send_chat_message", (payload) => {
       if (!allowSocketAction(socket.id, "chat", 5, 5_000)) {
@@ -1290,6 +1464,28 @@ function allowSocketAction(socketId: string, channel: string, limit: number, win
   recent.push(now);
   channels.set(channel, recent);
   socketRateWindows.set(socketId, channels);
+  return true;
+}
+
+function allowPlayerReaction(playerId: string, limit: number, windowMs: number) {
+  const now = Date.now();
+  const recent = (reactionRateWindows.get(playerId) ?? [])
+    .filter((timestamp) => now - timestamp < windowMs);
+  if (recent.length >= limit) return false;
+  recent.push(now);
+  reactionRateWindows.set(playerId, recent);
+
+  const cleanup = setTimeout(() => {
+    const cutoff = Date.now();
+    const active = (reactionRateWindows.get(playerId) ?? [])
+      .filter((timestamp) => cutoff - timestamp < windowMs);
+    if (active.length > 0) {
+      reactionRateWindows.set(playerId, active);
+    } else {
+      reactionRateWindows.delete(playerId);
+    }
+  }, windowMs + 20);
+  cleanup.unref();
   return true;
 }
 

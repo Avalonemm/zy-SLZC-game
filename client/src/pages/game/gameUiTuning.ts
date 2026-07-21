@@ -200,6 +200,123 @@ export function resolveSafeGameUiTuning(input: GameUiTuningConfigV4, context: Ga
     corrections.push(`${label}：${formatTuningValue(requested[key])} → ${formatTuningValue(next)}（${reason}）`);
   }
 
+  function reservePlayerNameWidth(options: {
+    plateKey: "playerPlateWidth" | "opponentPlayerPlateWidth";
+    avatarKey: "avatarSize" | "opponentAvatarSize";
+    iconKey: "resourceIconSize" | "opponentResourceIconSize";
+    fontKey: "resourceFontSize" | "opponentResourceFontSize";
+    gapKey: "resourceGap" | "opponentResourceGap";
+    labelPrefix: string;
+  }) {
+    const minimumNameWidth = context.playerCount === 8
+      ? options.plateKey === "playerPlateWidth" ? 66 : compact ? 70 : 72
+      : 32;
+    const nameWidthReason = context.playerCount === 8
+      ? "八人局为昵称保留十个汉字的缩放空间"
+      : "为昵称保留至少 32px 识别宽度";
+    const fixedChrome = compact ? 13 : 24;
+    const minimumGap = gameUiTuningBounds[options.gapKey][0];
+    const minimumIcon = gameUiTuningBounds[options.iconKey][0];
+    const minimumFont = gameUiTuningBounds[options.fontKey][0];
+    const minimumAvatar = gameUiTuningBounds[options.avatarKey][0];
+
+    const remainingNameWidth = () => {
+      if (compact) {
+        const selfPlate = options.plateKey === "playerPlateWidth";
+        const compactPlateOffset = context.playerCount === 8 ? (selfPlate ? 20 : 60) : 0;
+        const plateWidth = mapTuningValue(
+          options.plateKey,
+          config[options.plateKey],
+          selfPlate ? 120 : 125,
+          selfPlate ? 140 : 220
+        ) + compactPlateOffset;
+        const avatarSize = mapTuningValue(
+          options.avatarKey,
+          config[options.avatarKey],
+          selfPlate ? 22 : 20,
+          selfPlate ? 32 : 28
+        );
+        const iconSize = mapTuningValue(
+          options.iconKey,
+          config[options.iconKey],
+          4,
+          8
+        );
+        const fontSize = mapTuningValue(
+          options.fontKey,
+          config[options.fontKey],
+          8,
+          10
+        );
+        const gap = mapTuningValue(options.gapKey, config[options.gapKey], 1, 4);
+        const numericWidth = Math.max(8, fontSize * 1.15);
+        const resourceWidth = 3 * (iconSize + numericWidth) + 2 * gap;
+        return plateWidth - avatarSize - resourceWidth - fixedChrome;
+      }
+      const effectivePlateWidth = context.playerCount === 8 && options.plateKey === "opponentPlayerPlateWidth"
+        ? Math.max(config[options.plateKey], 280)
+        : config[options.plateKey];
+      const numericWidth = Math.max(8, config[options.fontKey] * 0.8);
+      const resourceWidth = 3 * (config[options.iconKey] + numericWidth + 4)
+        + 2 * config[options.gapKey];
+      return effectivePlateWidth - config[options.avatarKey] - resourceWidth - fixedChrome;
+    };
+
+    let shortage = minimumNameWidth - remainingNameWidth();
+    if (shortage <= 0) return;
+
+    if (compact) {
+      const gapScale = 3 / (gameUiTuningBounds[options.gapKey][1] - minimumGap);
+      const nextGap = Math.max(minimumGap, config[options.gapKey] - shortage / (2 * gapScale));
+      applySafetyValue(options.gapKey, nextGap, `${options.labelPrefix}资源间距`, nameWidthReason);
+      shortage = minimumNameWidth - remainingNameWidth();
+      if (shortage > 0) {
+        const iconScale = 4 / (gameUiTuningBounds[options.iconKey][1] - minimumIcon);
+        const nextIcon = Math.max(minimumIcon, config[options.iconKey] - shortage / (3 * iconScale));
+        applySafetyValue(options.iconKey, nextIcon, `${options.labelPrefix}资源图标`, nameWidthReason);
+        shortage = minimumNameWidth - remainingNameWidth();
+      }
+      if (shortage > 0) {
+        const fontScale = 2 / (gameUiTuningBounds[options.fontKey][1] - minimumFont);
+        const nextFont = Math.max(minimumFont, config[options.fontKey] - shortage / (3 * 1.15 * fontScale));
+        applySafetyValue(options.fontKey, nextFont, `${options.labelPrefix}资源数字`, nameWidthReason);
+        shortage = minimumNameWidth - remainingNameWidth();
+      }
+      if (shortage > 0) {
+        const compactAvatarRange = options.plateKey === "playerPlateWidth" ? 10 : 8;
+        const avatarScale = compactAvatarRange / (gameUiTuningBounds[options.avatarKey][1] - minimumAvatar);
+        const nextAvatar = Math.max(minimumAvatar, config[options.avatarKey] - shortage / avatarScale);
+        applySafetyValue(options.avatarKey, nextAvatar, `${options.labelPrefix}头像`, nameWidthReason);
+      }
+      return;
+    } else {
+      const nextGap = Math.max(minimumGap, config[options.gapKey] - shortage / 2);
+      applySafetyValue(options.gapKey, nextGap, `${options.labelPrefix}资源间距`, nameWidthReason);
+      shortage = minimumNameWidth - remainingNameWidth();
+
+      if (shortage > 0) {
+        const nextIcon = Math.max(minimumIcon, config[options.iconKey] - shortage / 3);
+        applySafetyValue(options.iconKey, nextIcon, `${options.labelPrefix}资源图标`, nameWidthReason);
+        shortage = minimumNameWidth - remainingNameWidth();
+      }
+
+      if (shortage > 0) {
+        const nextFont = Math.max(minimumFont, config[options.fontKey] - shortage / 2.4);
+        applySafetyValue(options.fontKey, nextFont, `${options.labelPrefix}资源数字`, nameWidthReason);
+        shortage = minimumNameWidth - remainingNameWidth();
+      }
+
+      if (shortage > 0) {
+        applySafetyValue(
+          options.avatarKey,
+          Math.max(minimumAvatar, config[options.avatarKey] - shortage),
+          `${options.labelPrefix}头像`,
+          nameWidthReason
+        );
+      }
+    }
+  }
+
   if (compact) {
     const maximumRoleWidth = context.viewportWidth <= 800 ? 64 : context.playerCount >= 7 ? 70 : 76;
     if (config.activeRoleCardWidth > maximumRoleWidth) {
@@ -309,8 +426,12 @@ export function resolveSafeGameUiTuning(input: GameUiTuningConfigV4, context: Ga
   const viewportPlateLimit = compact ? densityPlateLimit : context.viewportWidth <= 1500 ? 220 : 270;
   const plateLimit = Math.min(densityPlateLimit, viewportPlateLimit);
   if (config.opponentPlayerPlateWidth > plateLimit) {
-    config.opponentPlayerPlateWidth = Math.floor(plateLimit);
-    corrections.push("对手名片已限制在当前人数的座位轨道内。");
+    applySafetyValue(
+      "opponentPlayerPlateWidth",
+      Math.floor(plateLimit),
+      "对手名片宽度",
+      "限制在当前人数的座位轨道内"
+    );
   }
 
   if (context.viewportWidth >= 1200) {
@@ -366,6 +487,23 @@ export function resolveSafeGameUiTuning(input: GameUiTuningConfigV4, context: Ga
     }
 
   }
+
+  reservePlayerNameWidth({
+    plateKey: "playerPlateWidth",
+    avatarKey: "avatarSize",
+    iconKey: "resourceIconSize",
+    fontKey: "resourceFontSize",
+    gapKey: "resourceGap",
+    labelPrefix: "自己的"
+  });
+  reservePlayerNameWidth({
+    plateKey: "opponentPlayerPlateWidth",
+    avatarKey: "opponentAvatarSize",
+    iconKey: "opponentResourceIconSize",
+    fontKey: "opponentResourceFontSize",
+    gapKey: "opponentResourceGap",
+    labelPrefix: "对手"
+  });
 
   if (context.handCount > 1) {
     const preferredStep = Math.max(1, config.selfCardWidth + config.handOverlap);
@@ -465,6 +603,10 @@ function migrateLegacyConfig(
 }
 
 export function gameUiTuningStyle(config: GameUiTuningConfigV4): CSSProperties {
+  const compactSelfCardWidth = mapTuningValue("selfCardWidth", config.selfCardWidth, 30, 40);
+  const compactPlayerPlateWidth = mapTuningValue("playerPlateWidth", config.playerPlateWidth, 120, 140);
+  const compactOpponentPlateWidth = mapTuningValue("opponentPlayerPlateWidth", config.opponentPlayerPlateWidth, 125, 220);
+  const compactHandOverlap = mapTuningValue("handOverlap", config.handOverlap, -30, 0);
   return {
     "--ui-self-card-width": `${config.selfCardWidth}px`,
     "--ui-hand-overlap": `${config.handOverlap}px`,
@@ -507,8 +649,40 @@ export function gameUiTuningStyle(config: GameUiTuningConfigV4): CSSProperties {
     "--ui-center-top": `${config.centerTop}%`,
     "--ui-city-top": `${config.cityTop}%`,
     "--ui-action-top": `${config.actionTop}%`,
-    "--ui-self-bottom": `${config.selfBottom}%`
+    "--ui-self-bottom": `${config.selfBottom}%`,
+    "--ui-compact-self-card-width": `${compactSelfCardWidth}px`,
+    "--ui-compact-hand-overlap": `${compactHandOverlap}px`,
+    "--ui-compact-hand-max-width": `${mapTuningValue("handMaxWidth", config.handMaxWidth, 260, 620)}px`,
+    "--ui-compact-self-player-plate-width": `${compactPlayerPlateWidth}px`,
+    "--ui-compact-self-player-plate-height": `${mapTuningValue("playerPlateHeight", config.playerPlateHeight, 32, 44)}px`,
+    "--ui-compact-self-avatar-size": `${mapTuningValue("avatarSize", config.avatarSize, 22, 32)}px`,
+    "--ui-compact-self-resource-icon-size": `${mapTuningValue("resourceIconSize", config.resourceIconSize, 4, 8)}px`,
+    "--ui-compact-self-resource-font-size": `${mapTuningValue("resourceFontSize", config.resourceFontSize, 8, 10)}px`,
+    "--ui-compact-self-resource-gap": `${mapTuningValue("resourceGap", config.resourceGap, 1, 4)}px`,
+    "--ui-compact-self-identity-width": `${roundCssNumber(compactPlayerPlateWidth + compactSelfCardWidth * 2 + 6)}px`,
+    "--ui-compact-self-bottom": `${mapTuningValue("selfBottom", config.selfBottom, 2, 12)}px`,
+    "--ui-compact-opponent-player-plate-width": `${compactOpponentPlateWidth}px`,
+    "--ui-compact-opponent-player-plate-height": `${mapTuningValue("opponentPlayerPlateHeight", config.opponentPlayerPlateHeight, 30, 40)}px`,
+    "--ui-compact-opponent-avatar-size": `${mapTuningValue("opponentAvatarSize", config.opponentAvatarSize, 20, 28)}px`,
+    "--ui-compact-opponent-resource-icon-size": `${mapTuningValue("opponentResourceIconSize", config.opponentResourceIconSize, 4, 8)}px`,
+    "--ui-compact-opponent-resource-font-size": `${mapTuningValue("opponentResourceFontSize", config.opponentResourceFontSize, 8, 10)}px`,
+    "--ui-compact-opponent-resource-gap": `${mapTuningValue("opponentResourceGap", config.opponentResourceGap, 1, 4)}px`,
+    "--ui-compact-opponent-role-width": `${mapTuningValue("opponentRoleWidth", config.opponentRoleWidth, 22, 34)}px`,
+    "--ui-compact-opponent-hand-width": `${mapTuningValue("opponentHandWidth", config.opponentHandWidth, 18, 30)}px`,
+    "--ui-compact-opponent-hand-stack-depth": `${mapTuningValue("opponentHandStackDepth", config.opponentHandStackDepth, 6, 14)}px`,
+    "--ui-compact-opponent-district-width": `${mapTuningValue("opponentDistrictWidth", config.opponentDistrictWidth, 24, 38)}px`
   } as CSSProperties;
+}
+
+function mapTuningValue(
+  key: NumericTuningKey,
+  value: number,
+  compactMinimum: number,
+  compactMaximum: number
+) {
+  const [minimum, maximum] = gameUiTuningBounds[key];
+  const ratio = maximum === minimum ? 0 : (value - minimum) / (maximum - minimum);
+  return roundCssNumber(compactMinimum + Math.min(1, Math.max(0, ratio)) * (compactMaximum - compactMinimum));
 }
 
 function roundCssNumber(value: number) {

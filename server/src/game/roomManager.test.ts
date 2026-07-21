@@ -1201,7 +1201,7 @@ describe("room manager", () => {
       writeFileSync(snapshotPath, JSON.stringify(legacySnapshot), "utf8");
       process.env.ROOM_SNAPSHOT_PATH = snapshotPath;
       const restored = createRoomSnapshotStore().load();
-      expect(restored?.version).toBe(2);
+      expect(restored?.version).toBe(3);
       expect(restored?.gameRooms[0].calledRoleIds).toEqual(["assassin", "thief", "magician"]);
       expect(restored?.gameRooms[0].roleCallState).toBeNull();
     } finally {

@@ -57,7 +57,9 @@ export function initializeGameRoom(lobbyRoom: RoomState): GameRoom {
         createdAt: new Date().toISOString()
       }
     ],
-    scoringResults: []
+    scoringResults: [],
+    resultSummary: null,
+    resultApplauseBySender: {}
   };
   startCrownRevealTimer(gameRoom, gameRoom.crownPlayerId);
   return gameRoom;

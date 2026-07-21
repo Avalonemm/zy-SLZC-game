@@ -30,15 +30,19 @@ export function GameSkillPresentationLayer(props: {
   const activeEvent = queue[0] ?? null;
 
   useEffect(() => {
-    const incoming = [...props.actionEvents]
+    const unseen = [...props.actionEvents]
       .reverse()
       .filter((event) =>
         event.presentation &&
         !ignoredPresentationKinds.has(event.presentation.kind) &&
         !seenEventIds.current.has(event.id)
       );
+    for (const event of unseen) seenEventIds.current.add(event.id);
+    const incoming = unseen.filter((event) =>
+      isPresentationEventCurrentOrExpected(event, props.gameState) &&
+      !isPlainOpponentResourcePresentation(event.presentation, props.selfPlayerId)
+    );
     if (incoming.length === 0) return;
-    for (const event of incoming) seenEventIds.current.add(event.id);
 
     setQueue((current) => {
       const active = current[0] ?? null;
@@ -48,7 +52,14 @@ export function GameSkillPresentationLayer(props: {
       const ordinary = waiting.filter((event) => !isGuaranteedPresentation(event.presentation?.kind)).slice(-2);
       return active ? [active, ...guaranteed, ...ordinary] : [...guaranteed, ...ordinary];
     });
-  }, [props.actionEvents]);
+  }, [props.actionEvents, props.gameState.phase, props.selfPlayerId]);
+
+  useEffect(() => {
+    if (!isPresentationBoundaryPhase(props.gameState.phase)) return;
+    setQueue((current) => current.filter((event) =>
+      isPresentationEventCurrentOrExpected(event, props.gameState)
+    ));
+  }, [props.gameState.phase]);
 
   useEffect(() => {
     if (!activeEvent) return;
@@ -127,7 +138,11 @@ export function GameSkillPresentationLayer(props: {
     [props.gameState.players, props.selfPlayerId]
   );
 
-  if (!activeEvent?.presentation || !geometry) return null;
+  if (
+    !activeEvent?.presentation ||
+    !isPresentationEventVisibleNow(activeEvent, props.gameState) ||
+    !geometry
+  ) return null;
 
   const presentation = activeEvent.presentation;
   const kind = presentation.kind;
@@ -141,7 +156,15 @@ export function GameSkillPresentationLayer(props: {
   const normalAction = isNormalPresentation(kind);
   const guaranteed = isGuaranteedPresentation(kind);
   const roleClass = presentation.roleId ? `citadel-skill-presentation--role-${presentation.roleId}` : "";
-  const showRoute = !["role_lock", "bishop_guard", "final_round", "game_ended"].includes(kind);
+  const showRoute = props.gameState.phase !== "ROLE_CALL" && ![
+    "role_lock",
+    "bishop_guard",
+    "take_gold",
+    "role_income",
+    "queen_income",
+    "final_round",
+    "game_ended"
+  ].includes(kind);
   const coinCount = presentationCoinCount(presentation);
 
   return (
@@ -351,4 +374,71 @@ function districtColor(color: ActionEventPresentation["districtColor"]) {
 
 function isNormalPresentation(kind: ActionEventPresentation["kind"]) {
   return ["role_lock", "take_gold", "draw_cards", "draw_resolved"].includes(kind);
+}
+
+function isPlainOpponentResourcePresentation(
+  presentation: ActionEventPresentation | undefined,
+  selfPlayerId: string | null
+) {
+  return Boolean(
+    presentation &&
+    presentation.actorPlayerId !== selfPlayerId &&
+    ["take_gold", "draw_cards", "draw_resolved"].includes(presentation.kind)
+  );
+}
+
+function isPresentationBoundaryPhase(phase: VisibleGameState["phase"]) {
+  return phase === "CROWN_REVEAL" || phase === "ROLE_SELECTION" || phase === "ROLE_CALL";
+}
+
+function isPresentationEventCurrentOrExpected(
+  event: ActionEventPayload,
+  gameState: VisibleGameState
+) {
+  if (!isPresentationBoundaryPhase(gameState.phase)) {
+    return true;
+  }
+  if (gameState.phase === "ROLE_CALL") {
+    const roleCallState = gameState.roleCallState;
+    if (!roleCallState) return false;
+    if (event.phase === "ROLE_CALL") {
+      return Boolean(
+        event.presentation?.kind === "assassin_skip" &&
+        event.presentation.targetRoleId === roleCallState.roleId &&
+        (roleCallState.stage === "calling" || roleCallState.stage === "skipped")
+      );
+    }
+    return Boolean(
+      roleCallState.stage === "revealing" &&
+      roleCallState.playerId &&
+      event.phase === "ROLE_ACTION" &&
+      event.presentation?.actorPlayerId === roleCallState.playerId
+    );
+  }
+  return Boolean(
+    event.phase === gameState.phase
+  );
+}
+
+function isPresentationEventVisibleNow(
+  event: ActionEventPayload,
+  gameState: VisibleGameState
+) {
+  if (!isPresentationBoundaryPhase(gameState.phase)) {
+    return true;
+  }
+  if (event.phase !== gameState.phase) {
+    return false;
+  }
+  if (gameState.phase !== "ROLE_CALL") {
+    return true;
+  }
+  const roleCallState = gameState.roleCallState;
+  if (!roleCallState) return false;
+  return Boolean(
+    event.presentation?.kind === "assassin_skip" &&
+    roleCallState.stage === "skipped" &&
+    event.presentation.targetRoleId === roleCallState.roleId &&
+    event.presentation.targetPlayerId === roleCallState.playerId
+  );
 }

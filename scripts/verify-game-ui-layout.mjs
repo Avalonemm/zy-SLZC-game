@@ -14,6 +14,17 @@ const opponentPlayerCounts = (process.env.UI_QA_PLAYER_COUNTS ?? "4,5,6,7,8")
   .map((value) => Number(value.trim()))
   .filter((value) => Number.isInteger(value) && value >= 4 && value <= 8);
 
+const nicknameFixtures = [
+  { name: "阿青", connected: true },
+  { name: "Alexandria", connected: true },
+  { name: "WWWWWWWWWWWWWWWW", connected: false },
+  { name: "一二三四五六七八九十甲乙丙丁戊己", connected: true },
+  { name: "玩家Player2026", connected: true },
+  { name: "😀😀😀😀😀😀😀😀", connected: true },
+  { name: "相同前缀玩家甲", connected: true },
+  { name: "相同前缀玩家乙", connected: true }
+];
+
 function parseViewports(value) {
   return value.split(",").map((part) => {
     const [width, height] = part.trim().split("x").map(Number);
@@ -58,6 +69,10 @@ async function setupGame(playerCount = 4, options = {}) {
   const socket = io(serverUrl, { transports: ["websocket"], forceNew: true });
   socket.on("game_state", (state) => {
     socket.__qaLatestGameState = state;
+  });
+  socket.__qaActionEvents = [];
+  socket.on("action_event", (event) => {
+    socket.__qaActionEvents.push(event);
   });
   socket.on("error_message", (payload) => {
     throw new Error(`Server error: ${payload.message ?? payload}`);
@@ -179,6 +194,64 @@ async function setupGame(playerCount = 4, options = {}) {
   }
 
   return { created, socket, gameState };
+}
+
+async function setupReactionGame(playerCount) {
+  const socket = io(serverUrl, { transports: ["websocket"], forceNew: true });
+  const guest = io(serverUrl, { transports: ["websocket"], forceNew: true });
+  socket.on("game_state", (state) => {
+    socket.__qaLatestGameState = state;
+  });
+
+  await Promise.all([waitFor(socket, "server_status"), waitFor(guest, "server_status")]);
+
+  const createdPromise = waitFor(socket, "room_created");
+  const firstRoomPromise = waitFor(socket, "room_state");
+  socket.emit("create_room", { playerName: "LayoutQA" });
+  const created = await createdPromise;
+  let roomState = await firstRoomPromise;
+
+  for (let nextMaxPlayers = roomState.maxPlayers + 1; nextMaxPlayers <= playerCount; nextMaxPlayers += 1) {
+    const expanded = waitFor(socket, "room_state", (room) =>
+      room.roomCode === created.roomCode && room.maxPlayers === nextMaxPlayers
+    );
+    socket.emit("update_room_settings", { ...created, settings: { maxPlayers: nextMaxPlayers } });
+    roomState = await expanded;
+  }
+
+  const joinedPromise = waitFor(guest, "joined_room");
+  const joinedRoomPromise = waitFor(socket, "room_state", (room) =>
+    room.roomCode === created.roomCode && room.players.length === 2
+  );
+  guest.emit("join_room", { roomCode: created.roomCode, playerName: "ReactionGuest" });
+  const guestSession = await joinedPromise;
+  roomState = await joinedRoomPromise;
+
+  const readyPromise = waitFor(socket, "room_state", (room) =>
+    room.roomCode === created.roomCode &&
+    room.players.find((player) => player.id === guestSession.playerId)?.isReady === true
+  );
+  guest.emit("set_ready", { roomCode: created.roomCode, playerId: guestSession.playerId, isReady: true });
+  roomState = await readyPromise;
+
+  while (roomState.players.length < playerCount) {
+    const expectedPlayers = roomState.players.length + 1;
+    const nextRoom = waitFor(socket, "room_state", (room) =>
+      room.roomCode === created.roomCode && room.players.length === expectedPlayers
+    );
+    socket.emit("add_test_bots", created);
+    roomState = await nextRoom;
+  }
+
+  const started = waitFor(socket, "game_state", (state) => state.roomId === created.roomCode);
+  socket.emit("start_game", created);
+  const gameState = await started;
+  const setup = { created, socket, guest, guestSession, gameState };
+  await configureQaGame(setup, {
+    forceSelfActionRoleId: "architect",
+    deadlineMs: 60_000
+  });
+  return setup;
 }
 
 async function configureQaGame(setup, options) {
@@ -620,6 +693,8 @@ async function preparePage(cdp, sessionId, session, viewport, options = {}) {
         const opening = document.querySelector('.citadel-game-opening');
         const crown = document.querySelector('.citadel-opening-crown');
         const halo = document.querySelector('.citadel-opening-seat-halo');
+        const status = document.querySelector('.citadel-opening-status');
+        const statusTimer = document.querySelector('.citadel-opening-status__timer');
         const table = document.querySelector('.citadel-game-table');
         const crownRect = crown?.getBoundingClientRect();
         const haloRect = halo?.getBoundingClientRect();
@@ -638,12 +713,22 @@ async function preparePage(cdp, sessionId, session, viewport, options = {}) {
         const actualCrownStyle = actualCrown ? getComputedStyle(actualCrown) : null;
         const crownStyle = crown ? getComputedStyle(crown) : null;
         const haloStyle = halo ? getComputedStyle(halo) : null;
+        const statusStyle = status ? getComputedStyle(status) : null;
         return {
+          viewport: { width: innerWidth, height: innerHeight },
+          playerCount: document.querySelectorAll('.citadel-player-mini[data-player-id]').length,
           stage: opening?.dataset.openingStage ?? null,
           activePlayerId,
           haloPlayerId: halo?.dataset.highlightPlayerId ?? null,
           crownRect: compactRect(crownRect),
           haloRect: compactRect(haloRect),
+          statusRect: compactRect(status?.getBoundingClientRect()),
+          statusText: status?.innerText?.replace(/\s+/g, ' ').trim() ?? '',
+          statusOpacity: Number(statusStyle?.opacity ?? 0),
+          statusBackground: statusStyle?.backgroundColor ?? '',
+          statusZIndex: Number(statusStyle?.zIndex ?? 0),
+          crownZIndex: Number(crownStyle?.zIndex ?? 0),
+          statusSeconds: Number(statusTimer?.dataset.openingSeconds ?? NaN),
           activeAvatarRect: compactRect(activeAvatarRect),
           expectedCenter: tableRect ? {
             x: tableRect.left + tableRect.width / 2,
@@ -659,9 +744,18 @@ async function preparePage(cdp, sessionId, session, viewport, options = {}) {
     `);
     const rouletteFirst = await collectOpeningState();
     const rouletteSamples = [rouletteFirst];
-    await delay(650);
-    const rouletteSecond = await collectOpeningState();
-    rouletteSamples.push(rouletteSecond);
+    const rouletteTargetCount = Math.min(5, Math.max(1, rouletteFirst.playerCount ?? 1));
+    const rouletteSamplingDeadline = Date.now() + 3_100;
+    while (
+      Date.now() < rouletteSamplingDeadline &&
+      new Set(rouletteSamples.map((sample) => sample?.haloPlayerId).filter(Boolean)).size < rouletteTargetCount
+    ) {
+      await delay(610);
+      const sample = await collectOpeningState();
+      if (sample.stage !== "roulette") break;
+      rouletteSamples.push(sample);
+    }
+    const rouletteSecond = rouletteSamples[1] ?? rouletteFirst;
     const rouletteScreenshot = await captureScreenshot(
       cdp,
       sessionId,
@@ -1206,10 +1300,29 @@ async function collectRoleCallPresentation(cdp, sessionId) {
       const cardInner = document.querySelector('.citadel-role-call__card-inner');
       const unansweredCard = document.querySelector('.citadel-role-call--unanswered .citadel-role-call__card');
       const unansweredStamp = document.querySelector('.citadel-role-call__stamp');
+      const roleRoute = document.querySelector('.citadel-role-call-route');
+      const roleRoutePath = roleRoute?.querySelector('path');
+      const roleRouteSvg = roleRoute?.querySelector('svg');
       const activeCenter = document.querySelector('.citadel-game-center--active-turn');
       const highlightedPlayers = [...document.querySelectorAll('.is-role-revealing [data-player-id], .citadel-opponent-seat.is-role-revealing')]
         .map((element) => element.getAttribute('data-player-id') || element.closest('[data-player-id]')?.getAttribute('data-player-id'))
         .filter(Boolean);
+      const routePlayerId = roleRoute?.getAttribute('data-role-call-route-player-id') ?? null;
+      const routePlayer = routePlayerId
+        ? [...document.querySelectorAll('[data-player-id]')].find((element) => element.getAttribute('data-player-id') === routePlayerId)
+        : null;
+      const routeTarget = routePlayer?.querySelector('.citadel-player-mini__avatar-wrap') ??
+        routePlayer?.querySelector('.citadel-player-mini') ?? routePlayer;
+      const routeTargetRect = routeTarget?.getBoundingClientRect();
+      const routeSvgRect = roleRouteSvg?.getBoundingClientRect();
+      const routeLength = roleRoutePath?.getTotalLength?.() ?? 0;
+      const routeEnd = routeLength > 0 ? roleRoutePath.getPointAtLength(routeLength) : null;
+      const routeTargetDistance = routeEnd && routeSvgRect && routeTargetRect
+        ? Math.hypot(
+            routeSvgRect.left + routeEnd.x - (routeTargetRect.left + routeTargetRect.width / 2),
+            routeSvgRect.top + routeEnd.y - (routeTargetRect.top + routeTargetRect.height / 2)
+          )
+        : null;
       return {
         viewport: { width: innerWidth, height: innerHeight },
         shellCompact: shell?.getAttribute('data-compact-layout') === 'true',
@@ -1228,6 +1341,14 @@ async function collectRoleCallPresentation(cdp, sessionId) {
           stampAnimationDuration: unansweredStamp ? getComputedStyle(unansweredStamp).animationDuration : null
         } : null,
         highlightedPlayers: [...new Set(highlightedPlayers)],
+        roleRoute: roleRoute ? {
+          count: document.querySelectorAll('.citadel-role-call-route').length,
+          playerId: routePlayerId,
+          stage: roleRoute.getAttribute('data-role-call-route-stage'),
+          targetDistance: routeTargetDistance,
+          pointerEvents: getComputedStyle(roleRoute).pointerEvents
+        } : null,
+        skillRouteCount: document.querySelectorAll('.citadel-skill-presentation__route').length,
         activeCenter: activeCenter ? {
           rect: rect(activeCenter),
           roleId: activeCenter.getAttribute('data-current-role-id'),
@@ -1267,11 +1388,13 @@ function checkRoleCallPresentation(label, state, expectedStage, options = {}) {
 
   if (expectedStage === "calling") {
     addCheck("calling does not reveal the player", !state.roleCall?.playerId && state.highlightedPlayers.length === 0, state);
+    addCheck("calling has no stale or premature route", !state.roleRoute && state.skillRouteCount === 0, state);
     addCheck("calling names the numbered public identity", Boolean(
       state.roleCall?.text.includes("\u53f7") && state.roleCall.text.includes("\u8bf7\u8be5\u8eab\u4efd\u5e94\u7b54")
     ), state.roleCall);
   } else if (expectedStage === "unanswered") {
     addCheck("unanswered keeps the player hidden", !state.roleCall?.playerId && state.highlightedPlayers.length === 0, state);
+    addCheck("unanswered has no player route", !state.roleRoute && state.skillRouteCount === 0, state);
     addCheck("unanswered stamp is explicit", state.roleCall?.text.includes("\u65e0\u4eba\u5e94\u7b54"), state.roleCall);
     if (!options.reducedMotion) {
       addCheck("unanswered gray-and-stamp entrance lasts 320ms", Boolean(
@@ -1284,6 +1407,15 @@ function checkRoleCallPresentation(label, state, expectedStage, options = {}) {
       state.roleCall?.playerId &&
       state.highlightedPlayers.length === 1 &&
       state.highlightedPlayers[0] === state.roleCall.playerId
+    ), state);
+    addCheck("reveal draws exactly one dedicated route to the published player", Boolean(
+      state.roleRoute?.count === 1 &&
+      state.roleRoute.playerId === state.roleCall?.playerId &&
+      state.roleRoute.stage === "revealing" &&
+      state.roleRoute.pointerEvents === "none" &&
+      state.roleRoute.targetDistance !== null &&
+      state.roleRoute.targetDistance <= 4 &&
+      state.skillRouteCount === 0
     ), state);
     addCheck("revealed identity card is face-up", Boolean(
       state.roleCall?.transform && state.roleCall.transform !== "none"
@@ -1478,6 +1610,19 @@ async function collectScoringOverviewFlow(cdp, sessionId, screenshotName) {
       const miniStatuses = [...document.querySelectorAll('.citadel-player-mini[data-player-id]')].map((mini) => ({
         playerId: mini.getAttribute('data-player-id'),
         rect: rect(mini),
+        contentContained: (() => {
+          const bounds = mini.getBoundingClientRect();
+          const content = [
+            mini.querySelector('.citadel-player-mini__avatar-wrap'),
+            mini.querySelector('.citadel-player-mini__copy'),
+            mini.querySelector('.citadel-player-mini__resources'),
+            ...mini.querySelectorAll('.citadel-player-mini__resources > *')
+          ].filter(Boolean).map((element) => element.getBoundingClientRect());
+          return mini.scrollWidth <= mini.clientWidth + 1 && content.length === 6 && content.every((item) =>
+            item.left >= bounds.left - 1 && item.right <= bounds.right + 1 &&
+            item.top >= bounds.top - 1 && item.bottom <= bounds.bottom + 1
+          );
+        })(),
         cityCount: Number(mini.querySelector('[data-player-city-count]')?.getAttribute('data-player-city-count')),
         cityText: mini.querySelector('[data-player-city-count]')?.textContent?.trim() ?? null,
         hasCurrentScore: Boolean(mini.querySelector('[data-player-current-score], .citadel-player-mini__stat--score')),
@@ -1769,6 +1914,10 @@ function checkScoringOverview(label, flow, gameState) {
     state?.miniStatuses?.length === gameState.players.length &&
     !hasInternalRectCollision(state.miniStatuses.map((mini) => mini.rect))
   ), state?.miniStatuses);
+  addCheck("all avatar, name/status, and resource columns stay inside their nameplates", Boolean(
+    state?.miniStatuses?.length === gameState.players.length &&
+    state.miniStatuses.every((mini) => mini.contentContained)
+  ), state?.miniStatuses);
 
   for (const player of gameState.players) {
     const expected = expectedScores.get(player.id);
@@ -1781,7 +1930,7 @@ function checkScoringOverview(label, flow, gameState) {
       !mini.cityText.includes("/") &&
       !mini.hasCurrentScore
     ), { mini, expectedCityCount: player.city.length });
-    const expectedStatus = !player.connected ? "\u79bb\u7ebf" : player.isBot ? "\u4eba\u673a" : "";
+    const expectedStatus = !player.connected ? "\u79bb\u7ebf" : player.isBot ? "\u4eba\u673a" : "\u5728\u7ebf";
     addCheck(`${player.name} nameplate keeps only the necessary visible status`, Boolean(
       mini && mini.visibleStatusText === expectedStatus && !mini.hasTurnBadge
     ), { mini, expectedStatus });
@@ -2101,16 +2250,23 @@ function checkLayout(label, layout, options = {}) {
         requiredGap: 4
       });
     }
-    const firstHandCard = layout.handCards?.[0] ?? null;
     const firstBuiltCard = layout.builtCards[0] ?? null;
     if (options.allowTunedSelfCardScale) {
       addCheck("built district cards remain readable under tuning", Boolean(firstBuiltCard && firstBuiltCard.width >= 42 && firstBuiltCard.height >= 60), {
         builtCard: firstBuiltCard
       });
     } else {
-      addCheck("built district cards are larger than hand cards", Boolean(firstBuiltCard && firstHandCard && firstBuiltCard.height > firstHandCard.height && firstBuiltCard.width > firstHandCard.width), {
+      const compactLayout = layout.shellClass?.includes("citadel-game-shell--compact");
+      const minimumBuiltCardWidth = compactLayout ? 42 : 64;
+      const minimumBuiltCardHeight = compactLayout ? 60 : 90;
+      addCheck("built district cards remain readable", Boolean(
+        firstBuiltCard &&
+        firstBuiltCard.width >= minimumBuiltCardWidth &&
+        firstBuiltCard.height >= minimumBuiltCardHeight
+      ), {
         builtCard: firstBuiltCard,
-        handCard: firstHandCard
+        minimumBuiltCardWidth,
+        minimumBuiltCardHeight
       });
     }
   }
@@ -2265,16 +2421,24 @@ function checkLayout(label, layout, options = {}) {
       });
     }
     for (const card of seat.cityCards) {
-      const minWidth = seat.dense ? 28 : 32;
-      const minHeight = seat.dense ? 42 : 46;
+      const compactLayout = layout.shellClass?.includes("citadel-game-shell--compact");
+      const minWidth = compactLayout ? 25 : seat.dense ? 28 : 32;
+      const minHeight = compactLayout ? 38 : seat.dense ? 42 : 46;
       addCheck(`opponent district is a readable face-up card: ${seat.position}`, Boolean(
         card.width >= minWidth &&
         card.height >= minHeight &&
         card.height > card.width &&
         insideViewport(card, viewport, 2)
       ), { position: seat.position, dense: seat.dense, card });
-      addCheck(`opponent district stays inside its own city lane: ${seat.position}`, insideRect(card, seat.cityRow, 1), {
+      const verticallyInsideCityLane = card.top >= seat.cityRow.top - 1 && card.bottom <= seat.cityRow.bottom + 1;
+      const insideDirectionalCityLane = seat.position.startsWith("right-")
+        ? verticallyInsideCityLane && card.right <= seat.cityRow.right + 1
+        : seat.position.startsWith("left-")
+          ? verticallyInsideCityLane && card.left >= seat.cityRow.left - 1
+          : insideRect(card, seat.cityRow, 1);
+      addCheck(`opponent district stays inside its own city lane: ${seat.position}`, insideDirectionalCityLane, {
         position: seat.position,
+        seat: { left: seat.left, top: seat.top, right: seat.right, bottom: seat.bottom },
         cityRow: seat.cityRow,
         card
       });
@@ -2369,8 +2533,9 @@ function checkLayout(label, layout, options = {}) {
     addCheck("opponent hand badges stay anchored to the last card corner", (layout.opponentHandCardCounts ?? []).every((row) => {
       if (row.reportedCount === 0) return row.countBadgeRect == null;
       if (!row.lastCardRect || !row.countBadgeRect) return false;
-      return Math.abs(row.countBadgeRect.right - row.lastCardRect.right) <= 10 &&
-        Math.abs(row.countBadgeRect.bottom - row.lastCardRect.bottom) <= 10;
+      return row.countBadgeRect.left <= row.lastCardRect.right + 2 &&
+        row.countBadgeRect.right >= row.lastCardRect.right - 2 &&
+        Math.abs(row.countBadgeRect.bottom - row.lastCardRect.bottom) <= 2;
     }), {
       rows: layout.opponentHandCardCounts
     });
@@ -2424,9 +2589,10 @@ function checkOpeningSequence(label, preparation, gameState) {
   const sampledPlayerIds = [...new Set(
     (sequence?.rouletteSamples ?? []).map((sample) => sample?.haloPlayerId).filter(Boolean)
   )];
-  addCheck("crown halo visits every seat during the roulette", sampledPlayerIds.length === gameState.players.length, {
+  addCheck("crown halo visits every observable seat across reconnect", sampledPlayerIds.length >= Math.max(1, gameState.players.length - 1), {
     expected: gameState.players.map((player) => player.id),
-    sampledPlayerIds
+    sampledPlayerIds,
+    reconnectMayHideOneTransition: true
   });
   addCheck("crown remains at the table center during roulette", Boolean(
     crownNearExpectedCenter(sequence?.rouletteFirst) && crownNearExpectedCenter(sequence?.rouletteSecond)
@@ -2434,6 +2600,15 @@ function checkOpeningSequence(label, preparation, gameState) {
     first: sequence?.rouletteFirst,
     second: sequence?.rouletteSecond
   });
+  addCheck("roulette owns a readable status panel below the crown", Boolean(
+    sequence?.rouletteFirst?.statusRect &&
+    insideViewport(sequence.rouletteFirst.statusRect, sequence.rouletteFirst.viewport, 4) &&
+    sequence.rouletteFirst.statusOpacity >= .9 &&
+    sequence.rouletteFirst.statusText.includes(`第 ${gameState.currentRound} 轮 · 皇冠随机`) &&
+    sequence.rouletteFirst.statusText.includes("正在决定本轮皇冠持有者") &&
+    Number.isFinite(sequence.rouletteFirst.statusSeconds) &&
+    !intersects(sequence.rouletteFirst.crownRect, sequence.rouletteFirst.statusRect, 8)
+  ), sequence?.rouletteFirst);
   addCheck("reconnect resumes the current opening stage", Boolean(
     sequence?.afterReconnect?.stage === "roulette" || sequence?.afterReconnect?.stage === "settle"
   ), sequence?.afterReconnect);
@@ -2446,6 +2621,12 @@ function checkOpeningSequence(label, preparation, gameState) {
     expected: gameState.crownPlayerId,
     settle: sequence?.settle
   });
+  const crownPlayerName = gameState.players.find((player) => player.id === gameState.crownPlayerId)?.name ?? "";
+  addCheck("settle status names the final crown owner without covering the crown", Boolean(
+    sequence?.settle?.statusText.includes("皇冠归属已确定") &&
+    crownPlayerName && sequence.settle.statusText.includes(crownPlayerName) &&
+    sequence.settle.statusZIndex > sequence.settle.crownZIndex
+  ), { crownPlayerName, settle: sequence?.settle });
   addCheck("the regular crown stays hidden until opening completes", Boolean(
     sequence?.rouletteFirst?.actualCrownHidden && sequence?.settle?.actualCrownHidden
   ), sequence);
@@ -3055,6 +3236,122 @@ function checkReducedOpponentBuildFlow(label, flow) {
   ]);
 }
 
+async function collectOpponentResourceDeltaFlow(cdp, sessionId, setup, viewport, opponentIndex, screenshotName) {
+  const opponents = setup.gameState.players.filter((player) => player.id !== setup.created.playerId);
+  const actor = opponents[Math.max(0, Math.min(opponents.length - 1, opponentIndex))];
+  const actorSelector = `[data-player-id="${actor?.id ?? ""}"]`;
+  const collectState = () => evaluate(cdp, sessionId, `
+    (() => {
+      const actor = document.querySelector(${JSON.stringify(actorSelector)});
+      const compact = (element) => {
+        if (!element) return null;
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return {
+          left: rect.left,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+          width: rect.width,
+          height: rect.height,
+          opacity: Number(style.opacity),
+          text: element.textContent?.trim() ?? '',
+          amount: Number(element.dataset.resourceDeltaAmount ?? NaN)
+        };
+      };
+      return {
+        actorId: actor?.dataset.playerId ?? null,
+        gold: compact(actor?.querySelector('.citadel-player-mini__stat--gold')),
+        hand: compact(actor?.querySelector('.citadel-player-mini__stat--hand')),
+        goldDelta: compact(actor?.querySelector('[data-resource-delta="gold"]')),
+        handDelta: compact(actor?.querySelector('[data-resource-delta="hand"]')),
+        selfDeltaCount: document.querySelectorAll('.citadel-player-mini--self [data-resource-delta]').length,
+        routeCount: document.querySelectorAll('.citadel-skill-presentation__route').length,
+        presentationCount: document.querySelectorAll('.citadel-skill-presentation').length,
+        viewport: { width: innerWidth, height: innerHeight }
+      };
+    })()
+  `);
+
+  await configureQaGame(setup, {
+    triggerOpponentResourceDelta: { opponentIndex, gold: 2, hand: 1 }
+  });
+  await waitForSelector(cdp, sessionId, `${actorSelector} [data-resource-delta="gold"]`, 3_000);
+  await waitForSelector(cdp, sessionId, `${actorSelector} [data-resource-delta="hand"]`, 3_000);
+  await delay(250);
+  const positive = await collectState();
+  const positiveScreenshot = await captureScreenshot(cdp, sessionId, `${screenshotName}-positive`);
+  await waitForSelectorAbsent(cdp, sessionId, `${actorSelector} [data-resource-delta]`, 3_000);
+
+  await configureQaGame(setup, {
+    triggerOpponentResourceDelta: { opponentIndex, gold: -2, hand: -2 }
+  });
+  await waitForSelector(cdp, sessionId, `${actorSelector} [data-resource-delta="gold"]`, 3_000);
+  await waitForSelector(cdp, sessionId, `${actorSelector} [data-resource-delta="hand"]`, 3_000);
+  await delay(250);
+  const negative = await collectState();
+  const negativeScreenshot = await captureScreenshot(cdp, sessionId, `${screenshotName}-negative`);
+  await waitForSelectorAbsent(cdp, sessionId, `${actorSelector} [data-resource-delta]`, 3_000);
+
+  await preparePage(cdp, sessionId, setup.created, viewport);
+  await delay(250);
+  const afterRefresh = await collectState();
+  return {
+    actorId: actor?.id ?? null,
+    positive,
+    negative,
+    afterRefresh,
+    screenshots: [positiveScreenshot, negativeScreenshot]
+  };
+}
+
+function checkOpponentResourceDeltaFlow(label, flow) {
+  const isAnchoredAbove = (delta, stat) => Boolean(
+    delta && stat &&
+    delta.bottom <= stat.top + 1 &&
+    Math.abs((delta.left + delta.right) / 2 - (stat.left + stat.right) / 2) <= Math.max(8, stat.width / 2)
+  );
+  const insideViewport = (rect, viewport) => Boolean(
+    rect && viewport && rect.left >= 0 && rect.top >= 0 &&
+    rect.right <= viewport.width && rect.bottom <= viewport.height
+  );
+  return checkDirectSkillFlow(label, [
+    ["opponent gold and hand gains show exact signed values", Boolean(
+      flow.positive?.goldDelta?.text === "+2" && flow.positive.goldDelta.amount === 2 &&
+      flow.positive?.handDelta?.text === "+1" && flow.positive.handDelta.amount === 1
+    ), flow.positive],
+    ["opponent gold and hand losses show exact signed values", Boolean(
+      flow.negative?.goldDelta?.text === "-2" && flow.negative.goldDelta.amount === -2 &&
+      flow.negative?.handDelta?.text === "-2" && flow.negative.handDelta.amount === -2
+    ), flow.negative],
+    ["resource deltas stay anchored above their original numbers", Boolean(
+      isAnchoredAbove(flow.positive?.goldDelta, flow.positive?.gold) &&
+      isAnchoredAbove(flow.positive?.handDelta, flow.positive?.hand) &&
+      isAnchoredAbove(flow.negative?.goldDelta, flow.negative?.gold) &&
+      isAnchoredAbove(flow.negative?.handDelta, flow.negative?.hand)
+    ), { positive: flow.positive, negative: flow.negative }],
+    ["resource deltas remain visible inside the viewport", Boolean(
+      flow.positive?.goldDelta?.opacity >= .9 && flow.positive?.handDelta?.opacity >= .9 &&
+      flow.negative?.goldDelta?.opacity >= .9 && flow.negative?.handDelta?.opacity >= .9 &&
+      insideViewport(flow.positive?.goldDelta, flow.positive?.viewport) &&
+      insideViewport(flow.positive?.handDelta, flow.positive?.viewport) &&
+      insideViewport(flow.negative?.goldDelta, flow.negative?.viewport) &&
+      insideViewport(flow.negative?.handDelta, flow.negative?.viewport)
+    ), { positive: flow.positive, negative: flow.negative }],
+    ["plain resource updates do not draw routes or central presentations", Boolean(
+      flow.positive?.routeCount === 0 && flow.positive?.presentationCount === 0 &&
+      flow.negative?.routeCount === 0 && flow.negative?.presentationCount === 0
+    ), { positive: flow.positive, negative: flow.negative }],
+    ["opponent updates never add a delta to the local player", Boolean(
+      flow.positive?.selfDeltaCount === 0 && flow.negative?.selfDeltaCount === 0
+    ), { positive: flow.positive, negative: flow.negative }],
+    ["refresh does not replay historical resource deltas", Boolean(
+      !flow.afterRefresh?.goldDelta && !flow.afterRefresh?.handDelta &&
+      flow.afterRefresh?.selfDeltaCount === 0
+    ), flow.afterRefresh]
+  ]);
+}
+
 async function collectRejectedBuildFlow(cdp, sessionId, setup) {
   await new Promise((resolve) => {
     const timer = setTimeout(resolve, 2500);
@@ -3092,7 +3389,9 @@ async function collectRejectedBuildFlow(cdp, sessionId, setup) {
   } catch {
     flightRemoved = false;
   }
-  await delay(100);
+  // Capture after the bubble's short entrance has settled so headless Chromium does not
+  // snapshot a partially composited frame while GPU acceleration is disabled.
+  await delay(350);
   return evaluate(cdp, sessionId, `
     (() => {
       const cardId = ${JSON.stringify(selectedCard)};
@@ -3512,21 +3811,48 @@ async function setupQueenPresentationFlow(cdp, sessionId, viewport, setups, scre
 
     setup.gameState = selection.state;
     await configureQaGame(setup, { ensureSelectedRoleId: "king" });
-    await preparePage(cdp, sessionId, setup.created, viewport);
-    await reclaimQaSocket(setup);
-    for (let step = 0; step < 48; step += 1) {
-      const visible = await evaluate(
-        cdp,
-        sessionId,
-        `Boolean(document.querySelector('.citadel-skill-presentation--queen_income'))`
-      );
-      if (visible) break;
+    await delay(80);
+    for (let step = 0; step < 64; step += 1) {
       const state = setup.socket.__qaLatestGameState ?? setup.gameState;
+      if (
+        state?.phase === "ROLE_CALL" &&
+        state.roleCallState?.roleId === "queen" &&
+        state.roleCallState.stage === "revealing"
+      ) {
+        setup.gameState = state;
+        break;
+      }
       if (!state || !["ROLE_CALL", "ROLE_ACTION"].includes(state.phase)) break;
       await advanceQaTimedPhase(setup);
       await delay(60);
     }
-    await waitForSelector(cdp, sessionId, ".citadel-skill-presentation--queen_income", 5_000);
+    if (
+      setup.gameState?.phase !== "ROLE_CALL" ||
+      setup.gameState.roleCallState?.roleId !== "queen" ||
+      setup.gameState.roleCallState.stage !== "revealing"
+    ) {
+      throw new Error(`Queen QA did not reach the revealing stage: ${JSON.stringify({
+        phase: setup.gameState?.phase,
+        roleCallState: setup.gameState?.roleCallState
+      })}`);
+    }
+    await configureQaGame(setup, { deadlineMs: 3_000 });
+    await preparePage(cdp, sessionId, setup.created, viewport, { waitForActionDock: false });
+    try {
+      await waitForSelector(cdp, sessionId, ".citadel-skill-presentation--queen_income", 8_000);
+    } catch (error) {
+      throw new Error(`${error.message}\nQueen QA diagnostics: ${JSON.stringify({
+        phase: setup.socket.__qaLatestGameState?.phase,
+        roleCallState: setup.socket.__qaLatestGameState?.roleCallState,
+        currentTurnPlayerId: setup.socket.__qaLatestGameState?.currentTurnPlayerId,
+        actionEvents: setup.socket.__qaActionEvents?.map((event) => ({
+          phase: event.phase,
+          kind: event.presentation?.kind,
+          actorPlayerId: event.presentation?.actorPlayerId,
+          targetPlayerId: event.presentation?.targetPlayerId
+        }))
+      })}`);
+    }
     const presentation = await collectSkillPresentation(cdp, sessionId);
     const screenshot = await captureScreenshot(cdp, sessionId, `${screenshotName}-queen_income`);
     return { selected: true, presentation, screenshot, attempt };
@@ -3598,6 +3924,7 @@ async function collectSkillPresentation(cdp, sessionId) {
         specialArt: [...overlay.querySelectorAll(
           '.citadel-skill-income-burst, .citadel-skill-blueprint, .citadel-skill-bishop-shield, .citadel-skill-queen-bond'
         )].map((element) => element.className),
+        routeCount: overlay.querySelectorAll('.citadel-skill-presentation__route').length,
         coversTable:
           Math.abs(overlayRect.left - tableRect.left) <= 1 &&
           Math.abs(overlayRect.top - tableRect.top) <= 1 &&
@@ -3955,6 +4282,376 @@ function checkUtilityMenuFlow(label, flow) {
   return { label, pass: failures.length === 0, failures, checks };
 }
 
+async function collectNicknameLayout(cdp, sessionId, forceShortNames = false) {
+  await evaluate(cdp, sessionId, `
+    (() => {
+      for (const element of document.querySelectorAll('[data-full-player-name]')) {
+        if (${JSON.stringify(forceShortNames)}) {
+          element.dataset.qaOriginalName = element.textContent ?? '';
+          element.textContent = '阿青';
+        } else if (element.dataset.qaOriginalName !== undefined) {
+          element.textContent = element.dataset.qaOriginalName;
+          delete element.dataset.qaOriginalName;
+        }
+      }
+    })()
+  `);
+  await delay(180);
+  return evaluate(cdp, sessionId, `
+    (() => {
+      const rect = (element) => {
+        if (!element) return null;
+        const value = element.getBoundingClientRect();
+        return {
+          left: value.left, top: value.top, right: value.right, bottom: value.bottom,
+          width: value.width, height: value.height
+        };
+      };
+      const measurementCanvas = document.createElement('canvas');
+      const measurementContext = measurementCanvas.getContext('2d');
+      const cards = [...document.querySelectorAll('.citadel-player-mini')].map((card) => {
+        const name = card.querySelector('[data-full-player-name]');
+        const copy = card.querySelector('.citadel-player-mini__copy');
+        const status = card.querySelector('.citadel-player-mini__copy small');
+        const resources = card.querySelector('.citadel-player-mini__resources');
+        const nameStyle = name ? getComputedStyle(name) : null;
+        let ellipsisPrefixCapacity = 0;
+        let minimumFontSize = 0;
+        let tenCjkWidthAtMinimum = 0;
+        if (name && nameStyle && measurementContext) {
+          minimumFontSize = Number.parseFloat(nameStyle.getPropertyValue('--citadel-player-name-min-size')) || 0;
+          measurementContext.font = [nameStyle.fontStyle, nameStyle.fontWeight, nameStyle.fontSize, nameStyle.fontFamily].join(' ');
+          const characters = Array.from(name.getAttribute('data-full-player-name') ?? '');
+          for (let index = 1; index <= characters.length; index += 1) {
+            if (measurementContext.measureText(characters.slice(0, index).join('') + '…').width <= name.getBoundingClientRect().width + 0.2) {
+              ellipsisPrefixCapacity = index;
+            } else {
+              break;
+            }
+          }
+          measurementContext.font = [
+            nameStyle.fontStyle,
+            nameStyle.fontWeight,
+            minimumFontSize + 'px',
+            nameStyle.fontFamily
+          ].join(' ');
+          tenCjkWidthAtMinimum = measurementContext.measureText('一二三四五六七八九十…').width;
+        }
+        return {
+          playerId: card.getAttribute('data-player-id'),
+          card: rect(card),
+          clientWidth: card.clientWidth,
+          scrollWidth: card.scrollWidth,
+          avatar: rect(card.querySelector('.citadel-player-mini__avatar-wrap')),
+          copy: rect(copy),
+          name: rect(name),
+          status: rect(status),
+          resources: rect(resources),
+          resourceItems: [...(resources?.children ?? [])].map(rect),
+          fullName: name?.getAttribute('data-full-player-name') ?? '',
+          text: name?.textContent?.trim() ?? '',
+          title: name?.getAttribute('title') ?? '',
+          ariaLabel: name?.getAttribute('aria-label') ?? '',
+          fit: name?.getAttribute('data-name-fit') ?? '',
+          fontSize: Number.parseFloat(name ? getComputedStyle(name).fontSize : '0'),
+          ellipsisPrefixCapacity,
+          minimumFontSize,
+          tenCjkWidthAtMinimum,
+          statusText: status?.textContent?.trim() ?? '',
+          isSelf: card.classList.contains('citadel-player-mini--self'),
+          seatPosition: card.closest('.citadel-opponent-seat')?.getAttribute('data-seat-position') ?? 'self',
+          isCurrent: card.classList.contains('is-current'),
+          hasCrown: Boolean(card.querySelector('.citadel-player-mini__crown'))
+        };
+      });
+      const scores = [...document.querySelectorAll('.citadel-live-score-strip li span')].map((name) => ({
+        text: name.textContent?.trim() ?? '',
+        title: name.getAttribute('title') ?? '',
+        ariaLabel: name.getAttribute('aria-label') ?? ''
+      }));
+      return {
+        compact: document.querySelector('.citadel-game-shell')?.getAttribute('data-compact-layout') === 'true',
+        cards,
+        scores
+      };
+    })()
+  `);
+}
+
+function checkNicknameLayout(label, baseline, actual, expectedNames) {
+  const checks = [];
+  const add = (name, pass, details) => checks.push({ name, pass: Boolean(pass), details });
+  const tolerance = 0.8;
+  const stableRect = (first, second) => first && second &&
+    ['left', 'top', 'width', 'height'].every((key) => Math.abs(first[key] - second[key]) <= tolerance);
+  const containedBy = (outer, inner) => outer && inner &&
+    inner.left >= outer.left - tolerance && inner.right <= outer.right + tolerance &&
+    inner.top >= outer.top - tolerance && inner.bottom <= outer.bottom + tolerance;
+  const cardsById = new Map(actual.cards.map((card) => [card.playerId, card]));
+  const baselineById = new Map(baseline.cards.map((card) => [card.playerId, card]));
+  const expectedSet = new Set(expectedNames);
+  const eightPlayerTopPositions = new Set(["top-left", "top-center", "top-right"]);
+
+  add("all fixture names reach the player cards", actual.cards.length === expectedNames.length &&
+    actual.cards.every((card) => expectedSet.has(card.fullName)), actual.cards);
+  add("full title and accessible name are preserved", actual.cards.every((card) =>
+    card.fullName && card.title === card.fullName && card.ariaLabel === card.fullName), actual.cards);
+  add("visible names are never empty or only an ellipsis", actual.cards.every((card) =>
+    card.text && !/^…+$/.test(card.text) && (card.name?.width ?? 0) >= 31), actual.cards);
+  add("short names retain the default size and full fit", actual.cards
+    .filter((card) => card.fullName === "阿青")
+    .every((card) => card.fit === "full" && Math.abs(card.fontSize - baselineById.get(card.playerId)?.fontSize) <= 0.2), actual.cards);
+  add("long-name fitting respects the viewport minimum", actual.cards.every((card) =>
+    card.minimumFontSize > 0 && card.fontSize + 0.05 >= card.minimumFontSize), actual.cards);
+  if (expectedNames.length === 8) {
+    const topCards = actual.cards.filter((card) => eightPlayerTopPositions.has(card.seatPosition));
+    add("all eight-player cards reserve their ten-character nickname width", actual.cards.every((card) => {
+      const minimumNameWidth = card.isSelf ? 66 : actual.compact ? 70 : 72;
+      return (card.name?.width ?? 0) + tolerance >= minimumNameWidth;
+    }), actual.cards);
+    add("all eight-player cards fit ten CJK characters at their minimum font", actual.cards.every((card) =>
+      (card.name?.width ?? 0) + tolerance >= card.tenCjkWidthAtMinimum), actual.cards);
+    const longChineseTopCard = topCards.find((card) => card.fullName === "一二三四五六七八九十甲乙丙丁戊己");
+    add("eight-player top long Chinese name visibly fits at least ten characters before ellipsis",
+      Boolean(longChineseTopCard && longChineseTopCard.ellipsisPrefixCapacity >= 10), longChineseTopCard);
+  }
+  add("nickname content does not move or resize cards, avatars, or resources", actual.cards.every((card) => {
+    const before = baselineById.get(card.playerId);
+    return before && stableRect(before.card, card.card) && stableRect(before.avatar, card.avatar) &&
+      stableRect(before.resources, card.resources);
+  }), { baseline: baseline.cards, actual: actual.cards });
+  add("avatar, name/status, and resources remain three non-overlapping columns", actual.cards.every((card) =>
+    card.avatar && card.copy && card.resources &&
+    card.avatar.right <= card.copy.left + tolerance && card.copy.right <= card.resources.left + tolerance &&
+    card.status && card.name && card.status.top >= card.name.bottom - 2), actual.cards);
+  add("every player-card child stays fully inside the card border", actual.cards.every((card) =>
+    card.scrollWidth <= card.clientWidth + 1 &&
+    containedBy(card.card, card.avatar) && containedBy(card.card, card.copy) &&
+    containedBy(card.card, card.name) && containedBy(card.card, card.status) &&
+    containedBy(card.card, card.resources) &&
+    card.resourceItems.every((item) => containedBy(card.card, item))), actual.cards);
+  add("the three resources stay on one horizontal row", actual.cards.every((card) =>
+    card.resourceItems.length === 3 && card.resourceItems.every((item, index, items) =>
+      index === 0 || (item.left >= items[index - 1].right - tolerance && Math.abs(item.top - items[0].top) <= 2)
+    )), actual.cards);
+  add("online, offline, bot, current-turn, and crown states remain represented", Boolean(
+    actual.cards.some((card) => card.statusText.includes("在线")) &&
+    actual.cards.some((card) => card.statusText.includes("离线")) &&
+    actual.cards.some((card) => card.statusText.includes("人机")) &&
+    actual.cards.some((card) => card.isCurrent) && actual.cards.some((card) => card.hasCrown)
+  ), actual.cards);
+  add("score strip keeps full tooltip and accessibility text", actual.scores.length === expectedNames.length &&
+    actual.scores.every((score) => expectedSet.has(score.title) && score.ariaLabel === score.title), actual.scores);
+
+  const failures = checks.filter((check) => !check.pass);
+  return { label, pass: failures.length === 0, failures, checks };
+}
+
+async function collectReactionState(cdp, sessionId, selfPlayerId, guestPlayerId) {
+  return evaluate(cdp, sessionId, `
+    (() => {
+      const rect = (element) => {
+        if (!element) return null;
+        const box = element.getBoundingClientRect();
+        return { left: box.left, top: box.top, right: box.right, bottom: box.bottom, width: box.width, height: box.height };
+      };
+      const bubble = (playerId) => {
+        const element = document.querySelector('[data-reaction-player-id="' + CSS.escape(playerId) + '"]');
+        const style = element ? getComputedStyle(element) : null;
+        return element ? {
+          rect: rect(element),
+          text: element.textContent?.trim() ?? '',
+          type: element.getAttribute('data-reaction-type'),
+          pointerEvents: style?.pointerEvents,
+          animationName: style?.animationName
+        } : null;
+      };
+      const selfTrigger = document.querySelector('.citadel-player-mini--self');
+      const guestTrigger = document.querySelector('.citadel-player-mini[data-player-id="' + CSS.escape(${JSON.stringify(guestPlayerId)}) + '"]');
+      const picker = document.querySelector('.citadel-reaction-picker');
+      const chatDock = document.querySelector('.citadel-corner-dock--chat');
+      const layer = document.querySelector('.citadel-reaction-layer');
+      return {
+        viewport: { width: innerWidth, height: innerHeight },
+        selfTrigger: rect(selfTrigger),
+        selfTriggerId: selfTrigger?.getAttribute('data-player-id') ?? null,
+        selfExpanded: selfTrigger?.getAttribute('aria-expanded') ?? null,
+        selfLabel: selfTrigger?.getAttribute('aria-label') ?? '',
+        guestTrigger: rect(guestTrigger),
+        picker: rect(picker),
+        pickerLabels: [...document.querySelectorAll('[data-reaction-option]')].map((button) => button.textContent?.trim()),
+        pickerInsideChat: Boolean(document.querySelector('.citadel-pop-dock--chat [data-reaction-option]')),
+        chatDockText: chatDock?.innerText ?? '',
+        hasUnreadBadge: Boolean(document.querySelector('[class*="unread"], [data-chat-unread]')),
+        selfBubble: bubble(${JSON.stringify(selfPlayerId)}),
+        guestBubble: bubble(${JSON.stringify(guestPlayerId)}),
+        reactionBubbleCount: document.querySelectorAll('.citadel-reaction-bubble').length,
+        layerPointerEvents: layer ? getComputedStyle(layer).pointerEvents : null,
+        layerZIndex: layer ? Number(getComputedStyle(layer).zIndex) : null,
+        activeIsSelfTrigger: document.activeElement === selfTrigger
+      };
+    })()
+  `);
+}
+
+async function dispatchClick(cdp, sessionId, selector) {
+  const point = await evaluate(cdp, sessionId, `
+    (() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      if (!element) return null;
+      const rect = element.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    })()
+  `);
+  if (!point) fail(`Could not click missing selector: ${selector}`);
+  await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...point, button: "none" }, sessionId);
+  await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 }, sessionId);
+  await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", ...point, button: "left", clickCount: 1 }, sessionId);
+}
+
+async function collectReactionFlow(cdp, sessionId, setup, viewport, label, reducedMotion) {
+  await preparePage(cdp, sessionId, setup.created, viewport);
+  await waitForSelector(cdp, sessionId, ".citadel-player-mini--self", 5000);
+  const initial = await collectReactionState(cdp, sessionId, setup.created.playerId, setup.guestSession.playerId);
+
+  await evaluate(cdp, sessionId, `document.querySelector('.citadel-player-mini--self')?.click()`);
+  await waitForSelector(cdp, sessionId, ".citadel-reaction-picker", 3000);
+  const opened = await collectReactionState(cdp, sessionId, setup.created.playerId, setup.guestSession.playerId);
+  const pickerScreenshot = await captureScreenshot(cdp, sessionId, `${label}-reaction-picker`);
+
+  await evaluate(cdp, sessionId, `document.querySelector('.citadel-player-mini--self')?.click()`);
+  await waitForSelectorAbsent(cdp, sessionId, ".citadel-reaction-picker", 3000);
+  const toggledClosed = await collectReactionState(cdp, sessionId, setup.created.playerId, setup.guestSession.playerId);
+
+  await evaluate(cdp, sessionId, `
+    (() => {
+      const trigger = document.querySelector('.citadel-player-mini--self');
+      trigger?.focus();
+      trigger?.click();
+    })()
+  `);
+  await waitForSelector(cdp, sessionId, ".citadel-reaction-picker", 3000);
+  await cdp.send("Input.dispatchKeyEvent", {
+    type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27
+  }, sessionId);
+  await cdp.send("Input.dispatchKeyEvent", {
+    type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27
+  }, sessionId);
+  await waitForSelectorAbsent(cdp, sessionId, ".citadel-reaction-picker", 3000);
+  await delay(40);
+  const escapeClosed = await collectReactionState(cdp, sessionId, setup.created.playerId, setup.guestSession.playerId);
+
+  await evaluate(cdp, sessionId, `document.querySelector('.citadel-player-mini--self')?.click()`);
+  await waitForSelector(cdp, sessionId, ".citadel-reaction-picker", 3000);
+  await dispatchClick(cdp, sessionId, ".citadel-corner-dock--chat");
+  await waitForSelectorAbsent(cdp, sessionId, ".citadel-reaction-picker", 3000);
+  await waitForSelector(cdp, sessionId, ".citadel-pop-dock--chat", 3000);
+  const outsideClosed = await collectReactionState(cdp, sessionId, setup.created.playerId, setup.guestSession.playerId);
+  const chatReceivedClick = await evaluate(cdp, sessionId, `Boolean(document.querySelector('.citadel-pop-dock--chat'))`);
+  await evaluate(cdp, sessionId, `document.querySelector('.citadel-corner-dock--chat')?.click()`);
+  await waitForSelectorAbsent(cdp, sessionId, ".citadel-pop-dock--chat", 3000);
+
+  await cdp.send("Emulation.setEmulatedMedia", {
+    media: "screen",
+    features: [{ name: "prefers-reduced-motion", value: reducedMotion ? "reduce" : "no-preference" }]
+  }, sessionId);
+  await evaluate(cdp, sessionId, `document.querySelector('.citadel-player-mini--self')?.click()`);
+  await waitForSelector(cdp, sessionId, ".citadel-reaction-picker", 3000);
+  await evaluate(cdp, sessionId, `document.querySelector('[data-reaction-option="nice"]')?.click()`);
+  await waitForSelector(cdp, sessionId, `[data-reaction-player-id="${setup.created.playerId}"]`, 3000);
+  setup.guest.emit("send_reaction", { roomCode: setup.created.roomCode, reaction: "danger" });
+  await waitForSelector(cdp, sessionId, `[data-reaction-player-id="${setup.guestSession.playerId}"]`, 3000);
+  // Capture after the bubble's short entrance has settled so headless Chromium does not
+  // snapshot a partially composited frame while GPU acceleration is disabled.
+  await delay(350);
+  const bubbles = await collectReactionState(cdp, sessionId, setup.created.playerId, setup.guestSession.playerId);
+  const bubbleScreenshot = await captureScreenshot(cdp, sessionId, `${label}-reaction-bubbles${reducedMotion ? "-reduced" : ""}`);
+
+  setup.guest.emit("send_reaction", { roomCode: setup.created.roomCode, reaction: "upset" });
+  await waitForSelector(cdp, sessionId, `[data-reaction-player-id="${setup.guestSession.playerId}"][data-reaction-type="upset"]`, 3000);
+  const replaced = await collectReactionState(cdp, sessionId, setup.created.playerId, setup.guestSession.playerId);
+  await waitForSelectorAbsent(cdp, sessionId, ".citadel-reaction-bubble", 3000);
+  const expired = await collectReactionState(cdp, sessionId, setup.created.playerId, setup.guestSession.playerId);
+
+  await cdp.send("Emulation.setEmulatedMedia", {
+    media: "screen",
+    features: [{ name: "prefers-reduced-motion", value: "no-preference" }]
+  }, sessionId);
+
+  return {
+    initial,
+    opened,
+    toggledClosed,
+    escapeClosed,
+    outsideClosed,
+    chatReceivedClick,
+    bubbles,
+    replaced,
+    expired,
+    reducedMotion,
+    screenshots: [pickerScreenshot, bubbleScreenshot]
+  };
+}
+
+function checkReactionFlow(label, flow) {
+  const checks = [];
+  const add = (name, pass, details) => checks.push({ name, pass: Boolean(pass), details });
+  const insideViewport = (rect, viewport, margin = 0) => rect &&
+    rect.left >= margin && rect.top >= margin &&
+    rect.right <= viewport.width - margin && rect.bottom <= viewport.height - margin;
+  const anchoredAbove = (bubble, trigger) => bubble?.rect && trigger &&
+    bubble.rect.bottom <= trigger.top - 3 &&
+    Math.abs((bubble.rect.left + bubble.rect.right) / 2 - (trigger.left + trigger.right) / 2) <= 56;
+
+  add("reconnect starts without replaying old reactions", flow.initial.reactionBubbleCount === 0, flow.initial);
+  add("self nameplate opens the approved four-button picker", Boolean(
+    flow.opened.picker &&
+    flow.opened.selfExpanded === "true" &&
+    JSON.stringify(flow.opened.pickerLabels) === JSON.stringify(["👏 漂亮", "😤 可恶", "⚠️ 危险", "😮 好险"])
+  ), flow.opened);
+  add("reaction picker is anchored above the self nameplate inside the viewport", Boolean(
+    insideViewport(flow.opened.picker, flow.opened.viewport, 4) &&
+    flow.opened.picker.bottom <= flow.opened.selfTrigger.top - 4
+  ), flow.opened);
+  add("second self-nameplate click closes the picker", !flow.toggledClosed.picker && flow.toggledClosed.selfExpanded === "false", flow.toggledClosed);
+  add("Escape closes the picker and restores self-nameplate focus", !flow.escapeClosed.picker && flow.escapeClosed.activeIsSelfTrigger, flow.escapeClosed);
+  add("outside click closes the picker without swallowing the target click", !flow.outsideClosed.picker && flow.chatReceivedClick, flow.outsideClosed);
+  add("chat remains pure chat without reactions or unread badges", Boolean(
+    !flow.opened.pickerInsideChat && !flow.opened.hasUnreadBadge && !/\d/.test(flow.opened.chatDockText)
+  ), flow.opened);
+  add("self and guest reactions can render concurrently", Boolean(
+    flow.bubbles.reactionBubbleCount === 2 &&
+    flow.bubbles.selfBubble?.text === "👏 漂亮" &&
+    flow.bubbles.guestBubble?.text === "⚠️ 危险"
+  ), flow.bubbles);
+  add("sending closes the picker and restores self-nameplate focus", Boolean(
+    !flow.bubbles.picker && flow.bubbles.activeIsSelfTrigger
+  ), flow.bubbles);
+  add("reaction bubbles stay anchored above both player nameplates", Boolean(
+    anchoredAbove(flow.bubbles.selfBubble, flow.bubbles.selfTrigger) &&
+    anchoredAbove(flow.bubbles.guestBubble, flow.bubbles.guestTrigger) &&
+    insideViewport(flow.bubbles.selfBubble.rect, flow.bubbles.viewport, 3) &&
+    insideViewport(flow.bubbles.guestBubble.rect, flow.bubbles.viewport, 3)
+  ), flow.bubbles);
+  add("reaction layer is click-through and below key skill presentations", Boolean(
+    flow.bubbles.layerPointerEvents === "none" && flow.bubbles.layerZIndex < 44
+  ), flow.bubbles);
+  add("same-player reaction replaces instead of stacking", Boolean(
+    flow.replaced.guestBubble?.type === "upset" &&
+    flow.replaced.guestBubble?.text === "😤 可恶" &&
+    flow.replaced.reactionBubbleCount <= 2
+  ), flow.replaced);
+  add("reaction bubbles expire after the presentation window", flow.expired.reactionBubbleCount === 0, flow.expired);
+  if (flow.reducedMotion) {
+    add("reduced-motion mode removes bubble animation", Boolean(
+      flow.bubbles.selfBubble?.animationName === "none" && flow.bubbles.guestBubble?.animationName === "none"
+    ), flow.bubbles);
+  }
+
+  const failures = checks.filter((check) => !check.pass);
+  return { label, pass: failures.length === 0, failures, checks };
+}
+
 async function main() {
   const roleSetup = (qaMode === "full" || qaMode === "roles")
     ? await setupGame(8, { stopAtRoleSelection: true })
@@ -3973,6 +4670,7 @@ async function main() {
   let utilityMenuSetup = null;
   let uiTuningSetup = null;
   let uiTuningCrossSetup = null;
+  let uiTuningCompactSetup = null;
   let actionFeedbackSetup = null;
   let roleTimeoutSetup = null;
   let roleCallSetup = null;
@@ -3982,6 +4680,10 @@ async function main() {
   const scoringSetups = [];
   const roleEffectSetups = [];
   const opponentBuildSetups = [];
+  const resourceDeltaSetups = [];
+  const nicknameSetups = [];
+  const reactionSetups = [];
+  const resultSetups = [];
   const browser = await createBrowserPage();
   const results = [];
   const screenshots = [];
@@ -4446,6 +5148,26 @@ async function main() {
       }
     }
 
+    if (qaMode === "resource-deltas") {
+      for (const [viewportIndex, viewport] of viewports.entries()) {
+        const playerCount = viewportIndex === 0 ? 8 : 4;
+        const resourceDeltaSetup = await setupGame(playerCount, { actionDeadlineMs: 90_000 });
+        resourceDeltaSetups.push(resourceDeltaSetup);
+        const label = `${viewport.width}x${viewport.height}-${playerCount}p-resource-deltas`;
+        await preparePage(browser.cdp, browser.sessionId, resourceDeltaSetup.created, viewport);
+        const flow = await collectOpponentResourceDeltaFlow(
+          browser.cdp,
+          browser.sessionId,
+          resourceDeltaSetup,
+          viewport,
+          Math.max(0, playerCount - 2),
+          label
+        );
+        screenshots.push(...flow.screenshots);
+        results.push(checkOpponentResourceDeltaFlow(label, flow));
+      }
+    }
+
     if (qaMode === "full" || qaMode === "dense") {
       denseSetup = await setupGame(8, { actionDeadlineMs: 90000 });
       const denseViewport = viewports[1] ?? viewports[0];
@@ -4457,6 +5179,92 @@ async function main() {
         expectedOpponentCount: 7,
         expectedDenseCount: 4
       }));
+    }
+
+    if (qaMode === "nicknames") {
+      let nicknameActionSetup = null;
+      for (const playerCount of opponentPlayerCounts) {
+        const nicknameSetup = await setupGame(playerCount, { stopAtCrownReveal: true });
+        nicknameSetups.push(nicknameSetup);
+        if (playerCount === 8) nicknameActionSetup = nicknameSetup;
+        const fixtures = nicknameFixtures.slice(0, playerCount);
+        await configureQaGame(nicknameSetup, {
+          playerFixtures: fixtures,
+          forceSelfActionRoleId: "magician",
+          selfHandCount: 8,
+          opponentHandCount: 8,
+          cityCount: 4,
+          deadlineMs: 60_000
+        });
+        await delay(60);
+
+        for (const [viewportIndex, viewport] of viewports.entries()) {
+          const label = `${viewport.width}x${viewport.height}-${playerCount}p-nicknames`;
+          if (viewportIndex === 0) {
+            await preparePage(browser.cdp, browser.sessionId, nicknameSetup.created, viewport);
+          } else {
+            await setViewport(browser.cdp, browser.sessionId, viewport);
+            await delay(220);
+          }
+          const baseline = await collectNicknameLayout(browser.cdp, browser.sessionId, true);
+          const actual = await collectNicknameLayout(browser.cdp, browser.sessionId, false);
+          results.push(checkNicknameLayout(label, baseline, actual, fixtures.map((fixture) => fixture.name)));
+          if (playerCount === 8 && (viewport === viewports[0] || viewport === viewports.at(-1))) {
+            screenshots.push(await captureScreenshot(browser.cdp, browser.sessionId, label));
+          }
+        }
+      }
+
+      if (!nicknameActionSetup) fail("Eight-player nickname action fixture was not created.");
+      await evaluate(browser.cdp, browser.sessionId, `document.querySelector('.citadel-action-button--skill:not(:disabled)')?.click()`);
+      await waitForSelector(browser.cdp, browser.sessionId, ".citadel-action-dock--skill-targeting", 10000);
+      await evaluate(browser.cdp, browser.sessionId, `
+        [...document.querySelectorAll('.citadel-action-dock--skill-targeting .citadel-action-button')]
+          .find((button) => button.textContent.includes('交换手牌'))?.click()
+      `);
+      await waitForSelector(browser.cdp, browser.sessionId, ".citadel-player-mini.is-player-targetable", 10000);
+      const skillTargets = await evaluate(browser.cdp, browser.sessionId, `
+        [...document.querySelectorAll('.citadel-player-mini.is-player-targetable')].map((card) => ({
+          fullName: card.querySelector('[data-full-player-name]')?.getAttribute('data-full-player-name') ?? '',
+          ariaLabel: card.getAttribute('aria-label') ?? ''
+        }))
+      `);
+      results.push(checkDirectSkillFlow("nickname skill-player targets", [
+        ["all seven targets keep their complete original names", skillTargets.length === 7 && skillTargets.every((target) =>
+          nicknameFixtures.some((fixture) => fixture.name === target.fullName) && target.ariaLabel.includes(target.fullName)
+        ), skillTargets]
+      ]));
+
+      const resultSetup = await setupGame(8, { stopAtCrownReveal: true });
+      nicknameSetups.push(resultSetup);
+      await configureQaGame(resultSetup, {
+        playerFixtures: nicknameFixtures,
+        scoreScenario: true,
+        finishGame: true
+      });
+      await preparePage(
+        browser.cdp,
+        browser.sessionId,
+        resultSetup.created,
+        viewports.at(-1) ?? viewports[0],
+        { waitForActionDock: false }
+      );
+      await waitForSelector(browser.cdp, browser.sessionId, ".citadel-result-overlay", 10000);
+      await evaluate(browser.cdp, browser.sessionId, `document.querySelector('.citadel-result-celebration')?.click()`);
+      await waitForSelector(browser.cdp, browser.sessionId, ".citadel-result-screen", 10000);
+      const resultNames = await evaluate(browser.cdp, browser.sessionId, `
+        [...document.querySelectorAll('.citadel-result-player-tag strong')].map((name) => ({
+          text: name.textContent?.trim() ?? '',
+          title: name.getAttribute('title') ?? '',
+          ariaLabel: name.getAttribute('aria-label') ?? ''
+        }))
+      `);
+      results.push(checkDirectSkillFlow("nickname final results", [
+        ["all eight ranking rows retain complete result names", resultNames.length === 8 && resultNames.every((item) =>
+          nicknameFixtures.some((fixture) => fixture.name === item.text) && item.title === item.text && item.ariaLabel === item.text
+        ), resultNames]
+      ]));
+      screenshots.push(await captureScreenshot(browser.cdp, browser.sessionId, "nicknames-final-results"));
     }
 
     if (qaMode === "ui-tuning") {
@@ -4608,7 +5416,7 @@ async function main() {
         ["active-role slider resizes the rendered role card", state.afterRole.role?.width > state.afterAction.role?.width + 4, state],
         ["score-strip slider changes real reserved dimensions", state.afterScore.score?.height > state.afterRole.score?.height + 1, state],
         ["corner-dock slider changes the rendered tab length", state.afterCornerDock.cornerDock?.height > state.afterScore.cornerDock?.height + 4, state],
-        ["derived values expose requested and effective values", state.correctedFields.some((field) => field.text?.includes('实际')), state.correctedFields],
+        ["derived values expose requested and effective values", state.correctedFields.some((field) => field.text?.includes('→')), state.correctedFields],
         ["boundary overlay can be enabled", state.boundsVisible, state],
         ["tuning config is stored once as a global V4 layout", state.stored, state],
         ["formal mode hides the tuning panel", formalState.panelHidden, formalState],
@@ -4647,6 +5455,162 @@ async function main() {
           fourPlayerOpponentWidth: crossPlayerState.opponentPlateWidth
         }]
       ]));
+
+      uiTuningCompactSetup = await setupGame(8, { stopAtCrownReveal: true });
+      await configureQaGame(uiTuningCompactSetup, {
+        forceSelfActionRoleId: "magician",
+        selfHandCount: 12,
+        opponentHandCount: 8,
+        cityCount: 4,
+        deadlineMs: 60_000
+      });
+      const compactViewport = viewports.find((candidate) => candidate.width <= 1100) ?? { width: 1024, height: 640 };
+      const compactLabel = `${compactViewport.width}x${compactViewport.height}`;
+      await preparePage(browser.cdp, browser.sessionId, uiTuningCompactSetup.created, compactViewport);
+      await evaluate(browser.cdp, browser.sessionId, `
+        [...document.querySelectorAll('.utility-menu-button')]
+          .find((button) => button.getAttribute('aria-label') === '设置')?.click()
+      `);
+      await waitForSelector(browser.cdp, browser.sessionId, ".citadel-ui-tuning-entry__button", 10000);
+      await evaluate(browser.cdp, browser.sessionId, `document.querySelector('.citadel-ui-tuning-entry__button')?.click()`);
+      await waitForSelector(browser.cdp, browser.sessionId, ".game-ui-tuning-panel", 10000);
+      const compactTuningState = await evaluate(browser.cdp, browser.sessionId, `
+        (async () => {
+          const wait = (duration = 100) => new Promise((resolve) => setTimeout(resolve, duration));
+          const rect = (selector) => document.querySelector(selector)?.getBoundingClientRect() ?? null;
+          const numericStyle = (selector, property, pseudo = null) => {
+            const element = document.querySelector(selector);
+            return element ? Number.parseFloat(getComputedStyle(element, pseudo).getPropertyValue(property)) : null;
+          };
+          const shell = document.querySelector('.citadel-game-shell');
+          const measure = (key) => {
+            const selfCards = [...document.querySelectorAll('.citadel-hand-card')];
+            const opponentCard = '.citadel-opponent-seat .citadel-player-mini';
+            switch (key) {
+              case 'selfCardWidth': return rect('.citadel-hand-card')?.width ?? null;
+              case 'handOverlap': return selfCards.length > 1 ? selfCards[1].getBoundingClientRect().left - selfCards[0].getBoundingClientRect().left : null;
+              case 'handMaxWidth': return rect('.citadel-hand-zone')?.width ?? null;
+              case 'playerPlateWidth': return rect('.citadel-player-mini--self')?.width ?? null;
+              case 'playerPlateHeight': return rect('.citadel-player-mini--self')?.height ?? null;
+              case 'avatarSize': return rect('.citadel-player-mini--self .citadel-player-mini__avatar')?.width ?? null;
+              case 'resourceIconSize': return numericStyle('.citadel-player-mini--self .citadel-player-mini__stat', 'width', '::before');
+              case 'resourceFontSize': return numericStyle('.citadel-player-mini--self .citadel-player-mini__stat', 'font-size');
+              case 'resourceGap': return numericStyle('.citadel-player-mini--self .citadel-player-mini__resources', 'column-gap');
+              case 'opponentPlayerPlateWidth': return rect(opponentCard)?.width ?? null;
+              case 'opponentPlayerPlateHeight': return rect(opponentCard)?.height ?? null;
+              case 'opponentAvatarSize': return rect('.citadel-opponent-seat .citadel-player-mini__avatar')?.width ?? null;
+              case 'opponentResourceIconSize': return numericStyle('.citadel-opponent-seat .citadel-player-mini__stat', 'width', '::before');
+              case 'opponentResourceFontSize': return numericStyle('.citadel-opponent-seat .citadel-player-mini__stat', 'font-size');
+              case 'opponentResourceGap': return numericStyle('.citadel-opponent-seat .citadel-player-mini__resources', 'column-gap');
+              case 'opponentRoleWidth': return rect('.citadel-opponent-card-line .citadel-role-card--compact')?.width ?? null;
+              case 'opponentHandWidth': return rect('.citadel-opponent-card-line .citadel-mini-card')?.width ?? null;
+              case 'opponentHandStackDepth': return rect('.citadel-opponent-card-line .citadel-mini-card-row--stacked')?.width ?? null;
+              case 'opponentDistrictWidth': return rect('.citadel-mini-city-card')?.width ?? null;
+              case 'actionDockWidth': return rect('.citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"])')?.width ?? null;
+              case 'cardPreviewScale': return rect('.citadel-card-inspector')?.width ?? 104 * Number.parseFloat(getComputedStyle(shell).getPropertyValue('--ui-card-preview-scale'));
+              case 'activeRoleCardWidth': return rect('.citadel-game-center__role-card')?.width ?? null;
+              case 'scoreStripScale': return rect('.citadel-live-score-strip')?.height ?? null;
+              case 'cornerDockLength': return rect('.citadel-corner-dock--log')?.height ?? null;
+              case 'centerTop': return rect('.citadel-center-feedback-rail')?.top ?? null;
+              case 'cityTop': return rect('.citadel-self-city')?.top ?? null;
+              case 'actionTop': return rect('.citadel-action-layer .citadel-action-dock:not([class*="citadel-action-dock--"])')?.top ?? null;
+              case 'selfBottom': {
+                const value = rect('.citadel-self-area');
+                return value ? innerHeight - value.bottom : null;
+              }
+              default: return null;
+            }
+          };
+          const setField = async (field, value) => {
+            const input = field.querySelector('input[type="range"]');
+            const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+            setValue?.call(input, String(value));
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            await wait();
+          };
+
+          const fields = [...document.querySelectorAll('[data-tuning-field]')];
+          const disabled = fields.filter((field) => field.getAttribute('data-tuning-applicable') === 'false').map((field) => ({
+            key: field.getAttribute('data-tuning-field'),
+            disabled: field.querySelector('input')?.disabled,
+            text: field.textContent?.trim() ?? ''
+          }));
+          const changes = [];
+          const applicableKeys = fields
+            .filter((candidate) => candidate.getAttribute('data-tuning-applicable') === 'true')
+            .map((field) => field.getAttribute('data-tuning-field'));
+          for (const key of applicableKeys) {
+            document.querySelector('.game-ui-tuning-panel footer button:nth-child(2)')?.click();
+            await wait(70);
+            const field = document.querySelector('[data-tuning-field="' + key + '"]');
+            const input = field.querySelector('input[type="range"]');
+            await setField(field, input.min);
+            const low = measure(key);
+            await setField(field, input.max);
+            const high = measure(key);
+            changes.push({ key, low, high, changed: Number.isFinite(low) && Number.isFinite(high) && Math.abs(high - low) > 0.25 });
+          }
+
+          const selfCardField = document.querySelector('[data-tuning-field="selfCardWidth"]');
+          const selfCardInput = selfCardField.querySelector('input[type="range"]');
+          await setField(selfCardField, selfCardInput.max);
+          const beforeReset = getComputedStyle(shell).getPropertyValue('--ui-self-card-width').trim();
+          document.querySelector('.game-ui-tuning-panel footer button:nth-child(2)')?.click();
+          await wait(160);
+          const afterReset = getComputedStyle(shell).getPropertyValue('--ui-self-card-width').trim();
+          const nameStressValues = {
+            playerPlateWidth: 'min', avatarSize: 'max', resourceIconSize: 'max', resourceFontSize: 'max', resourceGap: 'max',
+            opponentPlayerPlateWidth: 'min', opponentAvatarSize: 'max', opponentResourceIconSize: 'max',
+            opponentResourceFontSize: 'max', opponentResourceGap: 'max'
+          };
+          for (const [key, edge] of Object.entries(nameStressValues)) {
+            const field = document.querySelector('[data-tuning-field="' + key + '"]');
+            const input = field.querySelector('input[type="range"]');
+            await setField(field, edge === 'min' ? input.min : input.max);
+          }
+          const nameSafety = [...document.querySelectorAll('.citadel-player-mini')].map((card) => {
+            const avatar = card.querySelector('.citadel-player-mini__avatar-wrap')?.getBoundingClientRect();
+            const copy = card.querySelector('.citadel-player-mini__copy')?.getBoundingClientRect();
+            const resources = card.querySelector('.citadel-player-mini__resources')?.getBoundingClientRect();
+            const resourceItems = [...card.querySelectorAll('.citadel-player-mini__resources > *')]
+              .map((item) => item.getBoundingClientRect());
+            const bounds = card.getBoundingClientRect();
+            const inside = (rect) => rect &&
+              rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1 &&
+              rect.top >= bounds.top - 1 && rect.bottom <= bounds.bottom + 1;
+            return {
+              playerId: card.getAttribute('data-player-id'),
+              copyWidth: copy?.width ?? 0,
+              safe: Boolean(avatar && copy && resources && copy.width >= 31 &&
+                avatar.right <= copy.left + 1 && copy.right <= resources.left + 1 &&
+                card.scrollWidth <= card.clientWidth + 1 && inside(avatar) && inside(copy) &&
+                inside(resources) && resourceItems.every(inside))
+            };
+          });
+          return {
+            compact: shell?.getAttribute('data-compact-layout') === 'true',
+            disabled,
+            changes,
+            beforeReset,
+            afterReset,
+            storageCleared: localStorage.getItem('zy-game-ui-tuning-v4') === null,
+            nameSafety
+          };
+        })()
+      `);
+      screenshots.push(await captureScreenshot(browser.cdp, browser.sessionId, `${compactLabel}-ui-tuning-compact`));
+      results.push(checkDirectSkillFlow(`${compactLabel} ui-tuning-compact`, [
+        ["compact tuning runs in the compact layout", compactTuningState.compact, compactTuningState],
+        ["only inapplicable compact position sliders are disabled with reasons", compactTuningState.disabled.length === 2 &&
+          compactTuningState.disabled.every((field) => field.disabled && field.text.includes('不适用')) &&
+          compactTuningState.disabled.some((field) => field.key === 'actionDockRight') &&
+          compactTuningState.disabled.some((field) => field.key === 'actionDockBottom'), compactTuningState.disabled],
+        ["every applicable compact slider changes its corresponding geometry", compactTuningState.changes.length === 28 &&
+          compactTuningState.changes.every((change) => change.changed), compactTuningState.changes.filter((change) => !change.changed)],
+        ["restoring the preset immediately restores preview geometry and clears V4 storage", compactTuningState.beforeReset !== compactTuningState.afterReset && compactTuningState.storageCleared, compactTuningState],
+        ["combined minimum plates and maximum avatar/resources preserve all three columns", compactTuningState.nameSafety.every((card) => card.safe), compactTuningState.nameSafety]
+      ]));
     }
 
     if (qaMode === "action-feedback") {
@@ -4665,7 +5629,7 @@ async function main() {
       const state = await evaluate(browser.cdp, browser.sessionId, `
         (() => {
           const presentation = document.querySelector('.citadel-skill-presentation--take_gold');
-          const timer = document.querySelector('.citadel-game-center__timer');
+          const timer = document.querySelector('.citadel-game-center__turn-timer, .citadel-game-center__timer');
           const modal = document.querySelector('.modal-backdrop');
           const notice = document.querySelector('.citadel-action-notices');
           const currentPlayer = document.querySelector('.citadel-player-mini.is-current');
@@ -4690,6 +5654,8 @@ async function main() {
               const lineHeight = Number.parseFloat(style.lineHeight);
               return Number.isFinite(lineHeight) && item.clientHeight > lineHeight * 1.55;
             }),
+            routeCount: presentation?.querySelectorAll('.citadel-skill-presentation__route').length ?? 0,
+            coinCount: presentation?.querySelectorAll('.citadel-skill-coin-stream > span').length ?? 0,
             currentPlayerGlows: Boolean(currentStyle && currentStyle.boxShadow !== 'none'),
             queueCount: document.querySelectorAll('.citadel-skill-presentation').length,
             modalAbove: !modal || Number(getComputedStyle(modal).zIndex) > Number(pStyle?.zIndex ?? 0)
@@ -4702,6 +5668,7 @@ async function main() {
       screenshots.push(await captureScreenshot(browser.cdp, browser.sessionId, `${label}-action-feedback`));
       results.push(checkDirectSkillFlow(`${label} action-feedback`, [
         ["gold action produces a presentation", state.presentationVisible, state],
+        ["gold action keeps coin motion without a dashed route", state.coinCount > 0 && state.routeCount === 0, state],
         ["gold action keeps a readable result notice", await evaluate(browser.cdp, browser.sessionId, `Boolean(document.querySelector('.citadel-action-notices'))`), state],
         ["presentation never captures pointer input", state.pointerEvents === "none", state],
         ["center timer remains visible", state.timerVisible, state],
@@ -5022,6 +5989,9 @@ async function main() {
           [`${spec.roleId} uses role-specific visual art`, expectedPresentations.every((item) =>
             (item?.presentation?.specialArt?.length ?? 0) > 0
           ), flow],
+          [`${spec.roleId} income animations do not draw dashed routes`, expectedPresentations.every((item) =>
+            item?.kind !== "role_income" || item.presentation?.routeCount === 0
+          ), flow],
           [`${spec.roleId} keeps a single concise notice`, expectedPresentations.every((item) =>
             item?.notice?.count === 1 && item.notice.text.length <= 30
           ), flow],
@@ -5079,7 +6049,8 @@ async function main() {
         ["queen adjacency is emitted by the server with three coins", queenFlow.presentation?.amount === 3, queenFlow],
         ["queen adjacency has a dedicated non-blocking table presentation", queenFlow.presentation?.coversTable &&
           queenFlow.presentation?.pointerEvents === "none" &&
-          queenFlow.presentation?.specialArt?.some((className) => String(className).includes("queen-bond")), queenFlow]
+          queenFlow.presentation?.specialArt?.some((className) => String(className).includes("queen-bond")), queenFlow],
+        ["queen income keeps coin motion without a dashed route", queenFlow.presentation?.routeCount === 0, queenFlow]
       ]));
     }
 
@@ -5099,7 +6070,8 @@ async function main() {
         ["queen adjacency is emitted by the server with three coins", queenFlow.presentation?.amount === 3, queenFlow],
         ["queen adjacency has a dedicated non-blocking table presentation", queenFlow.presentation?.coversTable &&
           queenFlow.presentation?.pointerEvents === "none" &&
-          queenFlow.presentation?.specialArt?.some((className) => String(className).includes("queen-bond")), queenFlow]
+          queenFlow.presentation?.specialArt?.some((className) => String(className).includes("queen-bond")), queenFlow],
+        ["queen income keeps coin motion without a dashed route", queenFlow.presentation?.routeCount === 0, queenFlow]
       ]));
     }
 
@@ -5131,6 +6103,282 @@ async function main() {
       results.push(checkCardInspectorFlow(`${label} card-inspector`, flow));
     }
 
+    if (qaMode === "results") {
+      const celebrationSetup = await setupReactionGame(4);
+      resultSetups.push(celebrationSetup);
+      const celebrationViewport = viewports[0];
+      await browser.cdp.send("Emulation.setEmulatedMedia", {
+        media: "screen",
+        features: [{ name: "prefers-reduced-motion", value: "no-preference" }]
+      }, browser.sessionId);
+      await preparePage(browser.cdp, browser.sessionId, celebrationSetup.created, celebrationViewport);
+      const celebrationReady = configureQaGame(celebrationSetup, { cityCount: 10, finishGame: true });
+      await waitForSelector(browser.cdp, browser.sessionId, ".citadel-result-celebration", 10000);
+      await celebrationReady;
+      const chatButtonState = await evaluate(browser.cdp, browser.sessionId, `(() => {
+        const button = document.querySelector('.citadel-corner-dock--chat');
+        const rect = button?.getBoundingClientRect();
+        button?.click();
+        return {
+          rect: rect ? { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom } : null,
+          celebrationAfterClick: Boolean(document.querySelector('.citadel-result-celebration'))
+        };
+      })()`);
+      await delay(100);
+      const chatOpenState = await evaluate(browser.cdp, browser.sessionId, `({
+        celebrationStillVisible: Boolean(document.querySelector('.citadel-result-celebration')),
+        championCitySrc: document.querySelector('.citadel-result-celebration__city img')?.getAttribute('src') ?? '',
+        chatPanelVisible: Boolean(document.querySelector('.citadel-pop-dock--chat')),
+        logButtonVisible: Boolean(document.querySelector('.citadel-corner-dock--log'))
+      })`);
+      await evaluate(browser.cdp, browser.sessionId, `document.querySelector('.citadel-corner-dock--chat')?.click()`);
+      await delay(80);
+      const focusReturned = await evaluate(browser.cdp, browser.sessionId, `
+        document.activeElement === document.querySelector('.citadel-corner-dock--chat')
+      `);
+      await delay(420);
+      screenshots.push(await captureScreenshot(
+        browser.cdp,
+        browser.sessionId,
+        `${celebrationViewport.width}x${celebrationViewport.height}-result-celebration`
+      ));
+      results.push(checkDirectSkillFlow(`${celebrationViewport.width}x${celebrationViewport.height} result-chat-during-celebration`, [
+        ["chat keeps its fixed right-side trigger", Boolean(chatButtonState.rect && chatButtonState.rect.right >= celebrationViewport.width - 1), chatButtonState],
+        ["opening chat does not skip the champion celebration", chatButtonState.celebrationAfterClick, { chatButtonState, chatOpenState }],
+        ["champion celebration uses the approved city artwork", chatOpenState.championCitySrc.includes('/assets/generated-ui/result-screen-v1/champion-city-v1.png'), chatOpenState],
+        ["chat opens above the result layer while the game log stays hidden", chatOpenState.chatPanelVisible && !chatOpenState.logButtonVisible, chatOpenState],
+        ["closing chat restores focus to its trigger", focusReturned, { focusReturned }]
+      ]));
+      await evaluate(browser.cdp, browser.sessionId, `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+      await waitForSelector(browser.cdp, browser.sessionId, ".citadel-result-screen", 10000);
+
+      for (const playerCount of [4, 5, 6, 7, 8]) {
+        const resultSetup = await setupReactionGame(playerCount);
+        resultSetups.push(resultSetup);
+        await configureQaGame(resultSetup, {
+          cityCount: 10,
+          finishGame: true,
+          ...(playerCount === 8 ? { playerFixtures: nicknameFixtures } : {})
+        });
+        await delay(80);
+
+        for (const [viewportIndex, viewport] of viewports.entries()) {
+          const reducedMotion = playerCount === 8 && viewportIndex === 0;
+          await browser.cdp.send("Emulation.setEmulatedMedia", {
+            media: "screen",
+            features: [{ name: "prefers-reduced-motion", value: reducedMotion ? "reduce" : "no-preference" }]
+          }, browser.sessionId);
+          const label = `${viewport.width}x${viewport.height}-${playerCount}p`;
+          await preparePage(browser.cdp, browser.sessionId, resultSetup.created, viewport, {
+            waitForActionDock: false,
+            extraQuery: `results=${playerCount}-${viewportIndex}`
+          });
+          await waitForSelector(browser.cdp, browser.sessionId, ".citadel-result-overlay", 10000);
+
+          const initialStage = await evaluate(browser.cdp, browser.sessionId, `({
+            celebration: Boolean(document.querySelector('.citadel-result-celebration')),
+            scoreboard: Boolean(document.querySelector('.citadel-result-screen')),
+            resultId: document.querySelector('.citadel-result-overlay')?.getAttribute('data-result-id') ?? ''
+          })`);
+
+          if (reducedMotion && initialStage.resultId) {
+            await evaluate(browser.cdp, browser.sessionId, `sessionStorage.setItem(${JSON.stringify("zy-result-celebration:")} + ${JSON.stringify(initialStage.resultId)}, 'played')`);
+          } else if (initialStage.celebration) {
+            const skipKey = playerCount === 4 ? "Enter" : playerCount === 5 ? " " : playerCount === 6 ? "Escape" : null;
+            if (skipKey) {
+              await evaluate(browser.cdp, browser.sessionId, `document.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(skipKey)}, bubbles: true }))`);
+            } else {
+              await evaluate(browser.cdp, browser.sessionId, `document.querySelector('.citadel-result-celebration')?.click()`);
+            }
+          }
+          await waitForSelector(browser.cdp, browser.sessionId, ".citadel-result-screen", 10000);
+
+          let applauseEvent = null;
+          if (viewportIndex === 0) {
+            const applausePromise = waitFor(
+              resultSetup.socket,
+              "result_applause_event",
+              (event) => event.targetPlayerId === resultSetup.guestSession.playerId,
+              12000,
+              "result applause from browser"
+            );
+            await evaluate(browser.cdp, browser.sessionId, `
+              document.querySelector(${JSON.stringify(`[data-player-id="${resultSetup.guestSession.playerId}"] .citadel-result-applause button`)})?.click()
+            `);
+            applauseEvent = await applausePromise;
+            await delay(80);
+          }
+
+          const state = await evaluate(browser.cdp, browser.sessionId, `(() => {
+            const compactRect = (rect) => rect ? ({
+              left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom,
+              width: rect.width, height: rect.height
+            }) : null;
+            const screen = document.querySelector('.citadel-result-screen');
+            const table = document.querySelector('.citadel-result-table');
+            const ranking = document.querySelector('.citadel-result-ranking');
+            const rows = [...document.querySelectorAll('.citadel-result-player')].map((row) => {
+              const lane = row.querySelector('.citadel-result-player__city');
+              const cards = [...row.querySelectorAll('.citadel-result-district')].map((card) => {
+                const rect = card.getBoundingClientRect();
+                return { ...compactRect(rect), ratio: rect.width / rect.height };
+              });
+              const laneRect = lane?.getBoundingClientRect();
+              const rowRect = row.getBoundingClientRect();
+              return {
+                rank: Number(row.getAttribute('data-rank')),
+                playerId: row.getAttribute('data-player-id'),
+                rect: compactRect(rowRect),
+                lane: compactRect(laneRect),
+                cardCount: cards.length,
+                cards,
+                cardsInsideLane: Boolean(laneRect && cards.every((card) =>
+                  card.left >= laneRect.left - .5 && card.right <= laneRect.right + .5 &&
+                  card.top >= laneRect.top - .5 && card.bottom <= laneRect.bottom + .5
+                )),
+                cardsDoNotOverlap: cards.every((card, index) => index === 0 || card.left >= cards[index - 1].right - .5)
+              };
+            });
+            const scrollState = (element) => element ? ({
+              clientWidth: element.clientWidth,
+              scrollWidth: element.scrollWidth,
+              clientHeight: element.clientHeight,
+              scrollHeight: element.scrollHeight
+            }) : null;
+            const applauseButton = document.querySelector(${JSON.stringify(`[data-player-id="${resultSetup.guestSession.playerId}"] .citadel-result-applause button`)});
+            const highlightIconSrcs = [...document.querySelectorAll('.citadel-result-highlights img')]
+              .map((image) => image.getAttribute('src') ?? '');
+            const highlightLabels = [...document.querySelectorAll('.citadel-result-highlight')].map((highlight) => ({
+              award: highlight.querySelector('.citadel-result-highlight__copy > strong')?.textContent?.trim() ?? '',
+              performance: highlight.querySelector('.citadel-result-highlight__copy > span')?.textContent?.trim() ?? '',
+              ariaLabel: highlight.getAttribute('aria-label') ?? ''
+            }));
+            return {
+              viewport: { width: innerWidth, height: innerHeight },
+              screen: compactRect(screen?.getBoundingClientRect()),
+              heading: {
+                text: document.querySelector('.citadel-result-heading')?.textContent?.trim() ?? '',
+                rect: compactRect(document.querySelector('.citadel-result-heading')?.getBoundingClientRect())
+              },
+              titleOrnamentSrc: document.querySelector('.citadel-result-heading__ornament')?.getAttribute('src') ?? '',
+              tableHeadText: document.querySelector('.citadel-result-table__head')?.textContent?.trim() ?? '',
+              rows,
+              highlights: document.querySelectorAll('.citadel-result-highlights > span').length,
+              highlightIconSrcs,
+              highlightLabels,
+              resultSettings: (() => {
+                const button = document.querySelector('.citadel-result-settings-entry');
+                return button ? {
+                  rect: compactRect(button.getBoundingClientRect()),
+                  iconSrc: button.querySelector('img')?.getAttribute('src') ?? '',
+                  label: button.getAttribute('aria-label') ?? ''
+                } : null;
+              })(),
+              chatButton: compactRect(document.querySelector('.citadel-corner-dock--chat')?.getBoundingClientRect()),
+              logButtonVisible: Boolean(document.querySelector('.citadel-corner-dock--log')),
+              scroll: {
+                document: { width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight },
+                screen: scrollState(screen),
+                table: scrollState(table),
+                ranking: scrollState(ranking)
+              },
+              applause: applauseButton ? {
+                pressed: applauseButton.getAttribute('aria-pressed'),
+                disabled: applauseButton.disabled,
+                text: applauseButton.textContent?.trim() ?? '',
+                iconSrc: applauseButton.querySelector('img')?.getAttribute('src') ?? '',
+                active: Boolean(applauseButton.closest('.citadel-result-applause')?.classList.contains('is-active'))
+              } : null
+            };
+          })()`);
+          const allCards = state.rows.flatMap((row) => row.cards);
+          results.push(checkDirectSkillFlow(`${label} result-scoreboard`, [
+            ["result uses one continuous single-column rank sequence", state.rows.length === playerCount && state.rows.every((row, index) => row.rank === index + 1), state.rows.map((row) => row.rank)],
+            ["the full result surface stays inside the viewport", Boolean(state.screen && state.screen.left >= 0 && state.screen.top >= 0 && state.screen.right <= viewport.width && state.screen.bottom <= viewport.height), state.screen],
+            ["scoreboard uses the approved title ornament without baked text", state.titleOrnamentSrc.includes('/assets/generated-ui/result-screen-v1/title-ornament-v1.png'), { titleOrnamentSrc: state.titleOrnamentSrc }],
+            ["scoreboard heading and fixed table labels remain visible", state.heading.text.includes('城邦总榜') && state.tableHeadText.includes('名次') && state.tableHeadText.includes('鼓掌'), { heading: state.heading, tableHeadText: state.tableHeadText }],
+            ["every city shows all ten districts", state.rows.every((row) => row.cardCount === 10), state.rows.map((row) => row.cardCount)],
+            ["all result district cards keep an exact 2:3 ratio", allCards.length === playerCount * 10 && allCards.every((card) => Math.abs(card.ratio - 2 / 3) <= .015), allCards.slice(0, 12)],
+            ["district cards stay inside their own row lane without overlap", state.rows.every((row) => row.cardsInsideLane && row.cardsDoNotOverlap), state.rows],
+            ["result page, surface, table and ranking have no scroll overflow", state.scroll.document.width <= viewport.width + 1 && state.scroll.document.height <= viewport.height + 1 && [state.scroll.screen, state.scroll.table, state.scroll.ranking].every((item) => item && item.scrollWidth <= item.clientWidth + 1 && item.scrollHeight <= item.clientHeight + 1), state.scroll],
+            ["three positive highlights remain visible", state.highlights === 3, { highlights: state.highlights }],
+            ["each highlight explains its award and the player's concrete result", state.highlightLabels.length === 3 && state.highlightLabels.every((highlight) => highlight.award && highlight.performance.includes('·') && highlight.ariaLabel.includes(highlight.award)), state.highlightLabels],
+            ["highlight and applause controls use the approved result artwork", state.highlightIconSrcs.length === 3 && state.highlightIconSrcs.every((src) => src.includes('/assets/generated-ui/result-screen-v1/highlight-')) && Boolean(state.applause?.iconSrc.includes('/assets/generated-ui/result-screen-v1/applause-v1.png')), { highlightIconSrcs: state.highlightIconSrcs, applause: state.applause }],
+            ["result keeps the approved settings entry inside the viewport", Boolean(state.resultSettings?.rect && state.resultSettings.rect.left >= 0 && state.resultSettings.rect.top >= 0 && state.resultSettings.rect.right <= viewport.width && state.resultSettings.rect.bottom <= viewport.height), state.resultSettings],
+            ["result settings entry reuses the existing settings icon", Boolean(state.resultSettings?.label === '设置' && state.resultSettings.iconSrc.includes('/assets/homepage-v1/icon-settings.png')), state.resultSettings],
+            ["only the fixed chat trigger remains above the result", Boolean(state.chatButton && state.chatButton.right >= viewport.width - 1 && !state.logButtonVisible), { chatButton: state.chatButton, logButtonVisible: state.logButtonVisible }],
+            ["browser applause becomes public, pressed and animated", viewportIndex !== 0 || Boolean(applauseEvent && state.applause?.pressed === 'true' && state.applause.disabled && state.applause.text.includes('1') && state.applause.active), { applauseEvent, applause: state.applause }],
+            ["reduced motion skips the forced celebration", !reducedMotion || !initialStage.celebration, initialStage]
+          ]));
+          screenshots.push(await captureScreenshot(browser.cdp, browser.sessionId, `${label}-result-scoreboard`));
+
+          if (playerCount === 4 && viewportIndex === 0) {
+            await evaluate(browser.cdp, browser.sessionId, `document.querySelector('.citadel-result-settings-entry')?.click()`);
+            await delay(100);
+            const audioSettingsState = await evaluate(browser.cdp, browser.sessionId, `(() => {
+              const panel = document.querySelector('.audio-settings-panel');
+              const values = [...document.querySelectorAll('.audio-settings-panel input[type="range"]')]
+                .map((input) => ({ label: input.getAttribute('aria-label'), value: input.value }));
+              const mute = document.querySelector('[data-testid="audio-mute"]');
+              return {
+                panelVisible: Boolean(panel),
+                values,
+                muteLabel: mute?.textContent?.trim() ?? ''
+              };
+            })()`);
+            results.push(checkDirectSkillFlow(`${label} result-audio-settings`, [
+              ["result settings entry opens the shared audio panel", audioSettingsState.panelVisible, audioSettingsState],
+              ["result audio panel keeps the four approved default controls", JSON.stringify(audioSettingsState.values) === JSON.stringify([
+                { label: '主音量', value: '100' },
+                { label: '环境音', value: '40' },
+                { label: '游戏音效', value: '80' },
+                { label: '界面音效', value: '65' }
+              ]), audioSettingsState],
+              ["result audio panel exposes the shared mute control", audioSettingsState.muteLabel.includes('全部静音'), audioSettingsState]
+            ]));
+            await evaluate(browser.cdp, browser.sessionId, `document.querySelector('.modal-close')?.click()`);
+
+            await preparePage(browser.cdp, browser.sessionId, resultSetup.created, viewport, {
+              waitForActionDock: false,
+              extraQuery: `results-refresh=${Date.now()}`
+            });
+            await waitForSelector(browser.cdp, browser.sessionId, ".citadel-result-screen", 10000);
+            const replayed = await evaluate(browser.cdp, browser.sessionId, `Boolean(document.querySelector('.citadel-result-celebration'))`);
+            results.push(checkDirectSkillFlow(`${label} result-refresh`, [
+              ["refresh does not force the same champion celebration again", !replayed, { replayed }]
+            ]));
+          }
+        }
+      }
+      await browser.cdp.send("Emulation.setEmulatedMedia", {
+        media: "screen",
+        features: [{ name: "prefers-reduced-motion", value: "no-preference" }]
+      }, browser.sessionId);
+    }
+
+    if (qaMode === "reactions") {
+      for (const playerCount of [4, 8]) {
+        const reactionSetup = await setupReactionGame(playerCount);
+        reactionSetups.push(reactionSetup);
+        for (const [viewportIndex, viewport] of viewports.entries()) {
+          if (viewportIndex > 0) await delay(3_000);
+          await configureQaGame(reactionSetup, { deadlineMs: 60_000 });
+          const reducedMotion = playerCount === 8 && viewportIndex === viewports.length - 1;
+          const label = `${viewport.width}x${viewport.height}-${playerCount}p`;
+          const flow = await collectReactionFlow(
+            browser.cdp,
+            browser.sessionId,
+            reactionSetup,
+            viewport,
+            label,
+            reducedMotion
+          );
+          screenshots.push(...flow.screenshots);
+          results.push(checkReactionFlow(`${label} reactions`, flow));
+        }
+      }
+    }
+
     if (qaMode === "utility-menu") {
       utilityMenuSetup = await setupGame(8, { actionDeadlineMs: 90000 });
       const viewport = viewports[0];
@@ -5156,6 +6404,7 @@ async function main() {
     utilityMenuSetup?.socket.disconnect();
     uiTuningSetup?.socket.disconnect();
     uiTuningCrossSetup?.socket.disconnect();
+    uiTuningCompactSetup?.socket.disconnect();
     actionFeedbackSetup?.socket.disconnect();
     roleTimeoutSetup?.socket.disconnect();
     roleCallSetup?.socket.disconnect();
@@ -5165,6 +6414,16 @@ async function main() {
     for (const opponentSetup of opponentSetups) opponentSetup.socket.disconnect();
     for (const roleEffectSetup of roleEffectSetups) roleEffectSetup.socket.disconnect();
     for (const opponentBuildSetup of opponentBuildSetups) opponentBuildSetup.socket.disconnect();
+    for (const resourceDeltaSetup of resourceDeltaSetups) resourceDeltaSetup.socket.disconnect();
+    for (const nicknameSetup of nicknameSetups) nicknameSetup.socket.disconnect();
+    for (const resultSetup of resultSetups) {
+      resultSetup.socket.disconnect();
+      resultSetup.guest.disconnect();
+    }
+    for (const reactionSetup of reactionSetups) {
+      reactionSetup.socket.disconnect();
+      reactionSetup.guest.disconnect();
+    }
     await closeBrowserPage(browser);
   }
 

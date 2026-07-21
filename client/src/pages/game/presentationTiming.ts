@@ -5,6 +5,8 @@ export type PresentationTiming = {
   noticeMs: number;
 };
 
+export const PLAYER_RESOURCE_DELTA_MS = 1_300;
+
 const resourceKinds = new Set<ActionEventPresentation["kind"]>([
   "take_gold",
   "draw_cards",

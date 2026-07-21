@@ -12,10 +12,11 @@ import { GameCornerDocks } from "./GameCornerDocks";
 import { GameOpponentSeat } from "./GameOpponentSeat";
 import { GameOpeningSequence } from "./GameOpeningSequence";
 import { GameRoleCallSequence } from "./GameRoleCallSequence";
+import { GameRoleCallTargetRoute } from "./GameRoleCallTargetRoute";
 import { GameSelfArea } from "./GameSelfArea";
 import { GameSelfCity } from "./GameSelfCity";
 import { GameScoringOverview } from "./GameScoringOverview";
-import { GameResultOverlay } from "../result/GameResultOverlay";
+import { ResultScoreboardOverlay } from "../result/ResultScoreboardOverlay";
 import { GameTopBar } from "./GameTopBar";
 import {
   getDistrictTargetStatus,
@@ -32,6 +33,8 @@ import { GameActionNoticeLayer } from "./GameActionNoticeLayer";
 import { GameUiTuningPanel } from "./GameUiTuningPanel";
 import { GameCommandFeedbackToast } from "./GameCommandFeedbackToast";
 import type { GameCommandFeedback } from "./useGameCommandFeedback";
+import { GameReactionLayer } from "./GameReactionLayer";
+import { useGameReactions } from "./useGameReactions";
 import {
   canShowUiTuningPanel,
   clampGameUiTuning,
@@ -89,7 +92,6 @@ export function GameTableView(props: GameTableViewProps) {
   const [districtEffectDiscardCardId, setDistrictEffectDiscardCardId] = useState<string | null>(null);
   const [roleSkillTargeting, setRoleSkillTargeting] = useState<RoleSkillTargeting | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [tuningSafetyMessages, setTuningSafetyMessages] = useState<string[]>([]);
   const [viewport, setViewport] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
   const [scoringOverviewOpen, setScoringOverviewOpen] = useState(false);
   const density = densityForPlayerCount(props.gameState.players.length);
@@ -115,6 +117,7 @@ export function GameTableView(props: GameTableViewProps) {
     selfPlayerId: props.playerId,
     tableRef: gameTableRef
   });
+  const { activeReactions, sendReaction } = useGameReactions(props.gameState.roomId);
   const buildArrivalHighlightIds = useMemo(
     () => new Set(buildAnimations.arrivalHighlights),
     [buildAnimations.arrivalHighlights]
@@ -137,14 +140,6 @@ export function GameTableView(props: GameTableViewProps) {
     return () => window.removeEventListener("resize", updateViewport);
   }, []);
 
-  useEffect(() => {
-    const stored = readStoredGameUiTuning(tuningDefaults, density);
-    setUiTuning(stored.config);
-    setAppliedUiTuning(stored.config);
-    setHasAppliedUiTuning(stored.hasApplied);
-    setUiTuningDirty(false);
-    setTuningSafetyMessages([]);
-  }, [density, tuningDefaults]);
   const tableSeats = useMemo(
     () => arrangeGameTableSeats(props.gameState.players, props.playerId),
     [props.gameState.players, props.playerId]
@@ -459,7 +454,6 @@ export function GameTableView(props: GameTableViewProps) {
     const rawConfig = clampGameUiTuning(nextConfig);
     setUiTuning(rawConfig);
     setUiTuningDirty(true);
-    setTuningSafetyMessages(resolveSafeGameUiTuning(rawConfig, layoutContext).corrections);
   }
 
   function applyUiTuning() {
@@ -469,7 +463,6 @@ export function GameTableView(props: GameTableViewProps) {
     setAppliedUiTuning(rawConfig);
     setHasAppliedUiTuning(true);
     setUiTuningDirty(false);
-    setTuningSafetyMessages(resolveSafeGameUiTuning(rawConfig, layoutContext).corrections);
   }
 
   function closeScoringOverview() {
@@ -491,9 +484,10 @@ export function GameTableView(props: GameTableViewProps) {
         <GameUiTuningPanel
           config={uiTuning}
           effectiveConfig={resolvedDraftTuning.config}
+          compactLayout={compactViewport}
           dirty={uiTuningDirty}
           hasApplied={hasAppliedUiTuning}
-          safetyMessages={tuningSafetyMessages}
+          safetyMessages={resolvedDraftTuning.corrections}
           onChange={updateUiTuning}
           onApply={applyUiTuning}
           onReset={() => {
@@ -502,7 +496,6 @@ export function GameTableView(props: GameTableViewProps) {
             setAppliedUiTuning(tuningDefaults);
             setHasAppliedUiTuning(false);
             setUiTuningDirty(false);
-            setTuningSafetyMessages([]);
           }}
         />
       )}
@@ -541,6 +534,7 @@ export function GameTableView(props: GameTableViewProps) {
               }
               hasCrown={seat.player.id === props.gameState.crownPlayerId}
               roleCallHighlighted={seat.player.id === roleCallHighlightedPlayerId}
+              resourceDeltaEpoch={props.gameState.currentRound}
               currentTurnPlayerId={props.gameState.currentTurnPlayerId}
               hiddenDistrictCardIds={buildAnimations.hiddenDistrictCardIds}
               districtTargeting={Boolean(tableTargeting.source)}
@@ -568,6 +562,7 @@ export function GameTableView(props: GameTableViewProps) {
           ))}
         </div>
         <GameRoleCallSequence gameState={props.gameState} />
+        <GameRoleCallTargetRoute gameState={props.gameState} tableRef={gameTableRef} />
         <div className="citadel-center-feedback-rail">
           <GameCenterStatus
             currentTurnName={viewModel.currentTurnName}
@@ -610,6 +605,7 @@ export function GameTableView(props: GameTableViewProps) {
             onSelectDistrictDiscardCard={(cardId) => {
               setDistrictEffectDiscardCardId((current) => current === cardId ? null : cardId);
             }}
+            onSendReaction={sendReaction}
             onToggleMagicianDiscardCard={viewModel.toggleDiscardCard}
           />
         )}
@@ -669,7 +665,13 @@ export function GameTableView(props: GameTableViewProps) {
           chatMessages={props.chatMessages}
           gameState={props.gameState}
           compact={compactViewport}
+          resultMode={props.gameState.phase === "ENDED"}
           onSendChatMessage={props.onSendChatMessage}
+        />
+        <GameReactionLayer
+          gameState={props.gameState}
+          reactions={activeReactions}
+          tableRef={gameTableRef}
         />
         <GameSkillPresentationLayer
           actionEvents={props.actionEvents}
@@ -682,14 +684,19 @@ export function GameTableView(props: GameTableViewProps) {
           transactions={buildAnimations.transactions}
           onFinish={buildAnimations.finishTransaction}
         />
-        {props.gameState.phase === "ENDED" && viewModel.scoringResults.length > 0 && (
-          <GameResultOverlay
+        {props.gameState.phase === "ENDED" &&
+          viewModel.scoringResults.length > 0 &&
+          props.gameState.resultSummary && (
+          <ResultScoreboardOverlay
             avatarImage={props.selfAvatarImage}
             avatarLabel={props.selfAvatarLabel}
             players={props.gameState.players}
             results={viewModel.scoringResults}
+            resultSummary={props.gameState.resultSummary}
+            roomCode={props.gameState.roomId}
             selfPlayerId={props.playerId}
             canRematch={viewModel.self?.isHost ?? false}
+            onOpenSettings={() => props.onOpenInfoModal("settings")}
             onRematch={props.onRematch}
             onReturnLobby={props.onLeaveRoom}
           />

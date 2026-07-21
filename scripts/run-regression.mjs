@@ -10,9 +10,11 @@ const uiModeArgument = process.argv.find((argument) => argument.startsWith("--ui
 const timestamp = new Date().toISOString().replaceAll(":", "-").replaceAll(".", "-");
 const outputDir = join(root, "output", "regression", timestamp);
 const screenshotDir = join(outputDir, "screenshots");
-const serverUrl = "http://127.0.0.1:3100";
-const appUrl = "http://127.0.0.1:5174";
-const chromePort = 9341;
+const serverPort = Number(process.env.ZY_REGRESSION_SERVER_PORT ?? 3100);
+const appPort = Number(process.env.ZY_REGRESSION_APP_PORT ?? 5174);
+const serverUrl = `http://127.0.0.1:${serverPort}`;
+const appUrl = `http://127.0.0.1:${appPort}`;
+const chromePort = Number(process.env.ZY_REGRESSION_CHROME_PORT ?? 9341);
 const commandResults = [];
 const gitCommit = spawnSync("git", ["rev-parse", "--short", "HEAD"], { cwd: root, encoding: "utf8" }).stdout?.trim() || "unknown";
 const childProcesses = [];
@@ -38,12 +40,20 @@ try {
       timeoutMs: 90_000,
       env: { SERVER_URL: serverUrl }
     });
+    run("game reactions socket", "node", ["scripts/smoke-game-reactions.mjs"], {
+      timeoutMs: 60_000,
+      env: { SERVER_URL: serverUrl }
+    });
+    run("result applause socket", "node", ["scripts/smoke-result-applause.mjs"], {
+      timeoutMs: 60_000,
+      env: { SERVER_URL: serverUrl }
+    });
   }
   await ensureHeadlessChrome();
 
   const defaultUiModes = mode === "release"
-    ? ["full", "opening", "role-call", "scoring", "build-animation", "roles", "opponents", "targeting", "skills", "skill-thief", "role-effects", "card-inspector", "utility-menu", "ui-tuning", "ui-tuning-stress", "action-feedback", "extreme-layout"]
-    : ["dense", "action-feedback", "extreme-layout"];
+    ? ["full", "opening", "role-call", "scoring", "results", "build-animation", "roles", "opponents", "targeting", "skills", "skill-thief", "role-effects", "card-inspector", "utility-menu", "reactions", "nicknames", "ui-tuning", "ui-tuning-stress", "action-feedback", "resource-deltas", "extreme-layout"]
+    : ["dense", "results", "reactions", "nicknames", "action-feedback", "resource-deltas", "extreme-layout"];
   const uiModes = uiModeArgument || process.env.ZY_REGRESSION_UI_MODES
     ? (uiModeArgument ?? process.env.ZY_REGRESSION_UI_MODES).split(",").map((value) => value.trim()).filter(Boolean)
     : defaultUiModes;
@@ -51,22 +61,24 @@ try {
   for (const uiMode of uiModes) {
     const viewports = uiMode === "utility-menu"
       ? "1296x776,1893x881"
+      : uiMode === "reactions"
+        ? "768x600,1024x640,1893x881"
       : uiMode === "extreme-layout"
         ? "768x600,778x638,1024x640,1262x827,1365x668,1893x881"
-      : ["role-call", "scoring", "ui-tuning-stress"].includes(uiMode)
+      : ["role-call", "scoring", "results", "nicknames", "ui-tuning-stress"].includes(uiMode)
         ? "768x600,778x638,1024x640,1262x827,1365x668,1893x881"
       : uiMode === "ui-tuning"
-        ? "1262x827,1365x668"
+        ? "1262x827,1024x640"
       : ["roles", "opponents", "skills", "skill-thief", "role-effects"].includes(uiMode)
         ? "768x600,778x638,1024x640,1262x827,1365x668,1893x881"
       : ["opening", "build-animation"].includes(uiMode)
-        ? "1893x881,1365x668,1262x827"
+        ? "768x600,1262x827,1893x881"
       : mode === "release" && ["roles", "targeting", "skills", "skill-thief", "role-effects"].includes(uiMode)
         ? "1262x827"
         : "1893x881,1365x668";
     run(`browser ${uiMode}`, "node", ["scripts/verify-game-ui-layout.mjs"], {
       allowFailure: true,
-      timeoutMs: mode === "release" || ["opening", "opponents", "extreme-layout", "role-effects", "role-call", "scoring", "ui-tuning-stress"].includes(uiMode)
+      timeoutMs: mode === "release" || ["opening", "opponents", "results", "nicknames", "extreme-layout", "role-effects", "role-call", "scoring", "ui-tuning-stress"].includes(uiMode)
         ? 300_000
         : 180_000,
       env: {
@@ -142,7 +154,7 @@ async function startQaServices() {
   const serviceOutput = [];
   const commonEnv = {
     ...process.env,
-    PORT: "3100",
+    PORT: String(serverPort),
     CLIENT_ORIGIN: appUrl,
     ZY_ENABLE_SMALL_TEST_ROOMS: "1",
     ZY_ENABLE_UI_QA: "1",
@@ -155,7 +167,7 @@ async function startQaServices() {
     shell: process.platform === "win32",
     stdio: ["ignore", "pipe", "pipe"]
   });
-  const client = spawn("npm.cmd", ["run", "dev", "--workspace", "client", "--", "--port", "5174", "--strictPort", "--force"], {
+  const client = spawn("npm.cmd", ["run", "dev", "--workspace", "client", "--", "--port", String(appPort), "--strictPort", "--force"], {
     cwd: root,
     env: { ...commonEnv, VITE_SERVER_URL: serverUrl },
     windowsHide: true,
@@ -192,9 +204,27 @@ async function ensureHeadlessChrome() {
     "--disable-gpu",
     "--no-first-run",
     "--no-default-browser-check",
-    "about:blank"
+    "data:text/html,<title>ZY%20QA%20Host</title>"
   ], { windowsHide: true, stdio: "ignore" });
   await waitForUrl(`http://127.0.0.1:${chromePort}/json/version`, 10_000);
+  await waitForChromeHostPage(10_000);
+}
+
+async function waitForChromeHostPage(timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const targets = await fetch(`http://127.0.0.1:${chromePort}/json/list`).then((response) => response.json());
+      if (targets.some((target) =>
+        target.type === "page" &&
+        (target.url.startsWith("data:text/html") || target.title === "ZY QA Host")
+      )) return;
+    } catch {
+      // The dedicated browser is still loading its persistent host page.
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
+  }
+  throw new Error("Timed out waiting for the dedicated QA browser host page.");
 }
 
 function findChrome() {
